@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-10`
-> Summary: 补充本机定时任务的精确执行目标、持久化接受、陈旧命令拒绝与恢复边界。
+> Updated: `2026-10-11`
+> Summary: 工作区候选合同投影复用同轮实例分组，避免 Windows 历史目录重复扫描。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -680,6 +680,7 @@ review mode 第一版当前不是新的 route state，而是挂在 surface 上�
 1. target picker 的 workspace 候选按入口分成 attach / list / worktree-base 三种模式。
    1. 在线实例先按可见 thread 的稳定 `WorkspaceKey` 归并 workspace；`thread.CWD` 只保留为最近活跃子目录。只有当某个 instance 当前完全没有可见 thread，或 thread 侧缺失稳定 root 时，才回退到该 instance 的 `WorkspaceKey/WorkspaceRoot`。
    2. merged thread views / persisted recent threads 仍会把 recoverable-only workspace 补进候选。
+      workspace 合同投影复用本次构建已按在线状态和 backend 过滤的实例分组，不对每个历史工作区重新扫描全部实例；每轮仍读取最新 workspace owner，确认切换继续执行完整合同解析。
       候选构建只在一次调用内按原始 `(WorkspaceKey, CWD)` 对去重，再进行真实路径解析；相同 WorkspaceKey、不同 CWD 不会合并。已有 CWD 的归属判断不计算未使用的 fallback；headless 标签复用本轮已解析 target 的状态，后续确认仍重新解析并执行原有 claim、scope 和 freshness 校验。
       claim 查询内部复用入口已解析的 canonical key；owner/surface 子查询不重复做路径解析，也不引入跨回调缓存。
       批量 merged thread views 只在本次只读投影中复用路径身份；下一次动作重建 views，重新解析符号链接。

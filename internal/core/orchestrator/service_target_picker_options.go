@@ -90,12 +90,16 @@ func (s *Service) targetPickerWorkspaceEntriesForMode(surface *state.SurfaceCons
 		hasVSCodeActivity := s.workspaceHasVSCodeActivity(instances)
 		attachable := false
 		recoverableOnly := len(instances) == 0 && recoverableWorkspaceSeen[workspaceKey]
-		if filterByBackend {
-			switch s.resolveWorkspaceContract(surface, workspaceKey, targetBackend).Mode {
+		busy := s.workspaceBusyOwnerForSurface(surface, workspaceKey) != nil
+		if filterByBackend && !busy {
+			// grouped already contains exactly the online instances for this
+			// workspace/backend. Reuse it instead of rescanning every instance
+			// and resolving its thread paths for each historical workspace.
+			switch s.resolveWorkspaceContractForInstances(surface, workspaceKey, targetBackend, instances).Mode {
 			case contractResolutionAttachVisible, contractResolutionReuseManaged, contractResolutionRestartManaged:
 				attachable = true
 			}
-		} else {
+		} else if !filterByBackend {
 			attachable = s.resolveWorkspaceAttachInstanceFromCandidates(surface, workspaceKey, instances) != nil
 		}
 		gitInfo := gitmeta.WorkspaceInfo{}
@@ -103,7 +107,6 @@ func (s *Service) targetPickerWorkspaceEntriesForMode(surface *state.SurfaceCons
 			gitInfo = inspectWorkspaceDisplayInfo(workspaceKey)
 		}
 		worktreeBase := s.config.GitAvailable && gitInfo.InRepo()
-		busy := s.workspaceBusyOwnerForSurface(surface, workspaceKey) != nil
 		switch mode {
 		case targetPickerWorkspaceEntryModeWorktreeBase:
 			if !worktreeBase {

@@ -1,8 +1,8 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-10-10`
-> Summary: 补充 `/schedule` 管理入口，以及目标选择器同步回调的路径解析性能约束。
+> Updated: `2026-10-11`
+> Summary: 工作区候选合同投影复用同轮实例分组，避免 Windows 历史目录重复扫描。
 
 ## 1. 文档定位
 
@@ -319,6 +319,7 @@
   - 当前路径选择器卡片已不再额外渲染 `path_picker_up` 按钮；目录下拉里的 `..` 是默认“返回上一级”入口，因此卡面统一保持“目录浏览走目录下拉、文件选择走文件下拉（若有）、确认/取消走底部按钮”的结构
 - `target_picker_select_workspace` / `target_picker_select_session`
   - 同步构建候选时，同一实例内按原始 `(WorkspaceKey, CWD)` 对去重后再解析路径；去重只在本次调用内有效，后续调用仍重新解析符号链接，避免把旧工作区归属永久缓存。已有 CWD 不计算未使用的 fallback；相同原始路径无需重复做归属探测。
+  - workspace 合同投影复用本次构建的在线、backend 过滤分组，避免历史工作区数量放大实例路径解析次数；每次回调仍检查最新占用，confirm 继续完整重验。
   - headless 会话标签复用本轮已解析的 target 状态，不为每个标签重新查询完整会话目录；工作区占用、兼容性、旧卡校验和同步替换合同保持不变，vscode 标签仍使用当前实例的 scope 校验。
   - claim 查询在入口解析一次工作区 key，内部 owner/surface 查询复用该 canonical key，不在每层重复探测文件系统；不增加跨回调缓存。
   - 批量 merged thread 投影按原始路径对解析工作区身份，供同一批只读候选复用；下一次 callback 或 confirm 构建新的 views，重新读取 alias 目标。
