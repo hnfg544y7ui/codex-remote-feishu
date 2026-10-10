@@ -184,6 +184,9 @@ func (s *Service) BindPendingRemoteCommand(surfaceID, commandID string) {
 	if commandID == "" {
 		return
 	}
+	if strings.HasPrefix(commandID, "relay-rename-") {
+		return
+	}
 	surface := s.root.Surfaces[surfaceID]
 	if surface == nil {
 		return
@@ -218,6 +221,9 @@ func (s *Service) BindPendingReviewStartCommand(surfaceID, commandID string) {
 }
 
 func (s *Service) HandleCommandDispatchFailure(surfaceID, commandID string, err error) []eventcontract.Event {
+	if strings.HasPrefix(commandID, "relay-rename-") {
+		return s.handleRenameCommandDispatchFailure(surfaceID, commandID, err)
+	}
 	if events := s.failGoalUserCommand(surfaceID, commandID, err); len(events) != 0 {
 		return events
 	}
@@ -264,6 +270,10 @@ func (s *Service) HandleCommandDispatchFailure(surfaceID, commandID string, err 
 
 func (s *Service) HandleCommandAccepted(instanceID string, ack agentproto.CommandAck) []eventcontract.Event {
 	if ack.CommandID == "" {
+		return nil
+	}
+	if strings.HasPrefix(ack.CommandID, "relay-rename-") {
+		// Transport acceptance is not confirmation that the name was saved.
 		return nil
 	}
 	if s.acknowledgePendingReviewStart(ack.CommandID) {
@@ -334,6 +344,9 @@ func (s *Service) HandleCommandAccepted(instanceID string, ack agentproto.Comman
 func (s *Service) HandleCommandRejected(instanceID string, ack agentproto.CommandAck) []eventcontract.Event {
 	if ack.CommandID == "" {
 		return nil
+	}
+	if strings.HasPrefix(ack.CommandID, "relay-rename-") {
+		return s.handleRenameCommandRejected(instanceID, ack)
 	}
 	if surface := s.pendingReviewStartSurface(ack.CommandID); surface != nil {
 		notice := NoticeForProblem(commandAckProblem(surface.SurfaceSessionID, ack))
@@ -786,6 +799,7 @@ func (s *Service) ApplyInstanceDisconnected(instanceID string) []eventcontract.E
 	inst.ActiveTurnID = ""
 	inst.ModelCatalog = nil
 	events := s.failCompactTurn(instanceID, "当前实例已离线，上下文压缩已中断。", nil, false)
+	events = append(events, s.failRenameCommandsForInstance(instanceID)...)
 
 	for _, surface := range s.root.Surfaces {
 		pending := s.consumeSurfacePendingHeadlessLaunch(surface, instanceID)
@@ -866,6 +880,7 @@ func (s *Service) ApplyInstanceTransportDegraded(instanceID string, emitNotice b
 
 	surfaces := s.findAttachedSurfaces(instanceID)
 	events := s.failCompactTurn(instanceID, "当前实例连接已中断，上下文压缩已中断。", nil, false)
+	events = append(events, s.failRenameCommandsForInstance(instanceID)...)
 	events = append(events, s.restorePendingSteersForInstance(instanceID)...)
 	if len(surfaces) == 0 {
 		s.clearInstanceRemoteTurnOwnership(instanceID)

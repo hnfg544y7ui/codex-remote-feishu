@@ -707,7 +707,7 @@ func TestCommandCatalogFromViewCurrentWorkHonorsStageVisibility(t *testing.T) {
 		t.Fatalf("expected normal current_work menu to project")
 	}
 	gotNormal := firstCommandTexts(normalCatalog.Sections[0].Entries)
-	wantNormal := []string{"/stop", "/compact", "/steerall", "/new", "/status"}
+	wantNormal := []string{"/stop", "/compact", "/rename", "/steerall", "/new", "/status"}
 	if fmt.Sprint(gotNormal) != fmt.Sprint(wantNormal) {
 		t.Fatalf("normal current_work commands = %#v, want %#v", gotNormal, wantNormal)
 	}

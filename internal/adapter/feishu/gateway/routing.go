@@ -388,7 +388,7 @@ func ParseCardActionTriggerEvent(env RoutingEnv, event *larkcallback.CardActionT
 			catalogVariantID = ""
 			catalogBackend = ""
 		}
-		return control.Action{
+		action := control.Action{
 			Kind:             actionKind,
 			GatewayID:        gatewayID,
 			SurfaceSessionID: surfaceSessionID,
@@ -401,7 +401,13 @@ func ParseCardActionTriggerEvent(env RoutingEnv, event *larkcallback.CardActionT
 			CatalogBackend:   catalogBackend,
 			LocalPageAction:  kind == cardActionKindPageLocalSubmit,
 			Inbound:          meta,
-		}, true
+		}
+		if actionKind == control.ActionRenameCommand {
+			action.FieldName = fieldName
+			action.InstanceID = strings.TrimSpace(stringMapValue(value, frontstagecontract.CardActionPayloadKeyInstanceID))
+			action.ThreadID = strings.TrimSpace(stringMapValue(value, frontstagecontract.CardActionPayloadKeyThreadID))
+		}
+		return action, true
 	case cardActionKindSubmitRequestForm:
 		requestID := strings.TrimSpace(stringMapValue(value, frontstagecontract.CardActionPayloadKeyRequestID))
 		if requestID == "" {

@@ -1,8 +1,8 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-08-29`
-> Summary: 补充路径选择器 stale 初始路径会回退到最近存在父目录，不再中断 `/workspace new` 子步骤。
+> Updated: `2026-10-10`
+> Summary: 补充路径选择器 stale 初始路径会回退到最近存在父目录，不再中断 `/workspace new` 子步骤。 补充 Codex headless 会话重命名命令及精确目标关联。
 
 ## 1. 文档定位
 
@@ -522,7 +522,7 @@ MCP request 卡片当前新增的可视语义：
   - `/new` 仅在 headless working（当前 stage token 仍为 `normal_working`）可见
   - `/history` 当前不额外分阶段，headless / `vscode` 里都默认可见；真正能否拿到历史由当前 route 是否能解析出 thread 决定
   - 其余命令默认可见
-  - `codex` 的 `current_work` 分组当前可见 `/stop`、`/compact`、`/steerall`、`/status`，以及仅 headless working（当前 stage token 仍为 `normal_working`）可见的 `/new`
+  - `codex` 的 `current_work` 分组当前可见 `/stop`、`/compact`、`/steerall`、`/status`，并在 Codex headless 中显示 `/rename`，以及仅 headless working（当前 stage token 仍为 `normal_working`）可见的 `/new`
   - `claude` 的 `current_work` 分组当前只保留 `/stop`、`/new`、`/status`
   - `codex` 的 `send_settings` 分组当前可见 `/mode`、`/reasoning`、`/model`、`/access`、`/plan`、`/verbose`、`/autocontinue`、`/codexprofile`
   - `claude` 的 `send_settings` 分组当前保留 `/mode`、`/reasoning`、`/access`、`/plan`、`/verbose`、`/claudeprofile`
@@ -727,6 +727,16 @@ MCP request 卡片当前新增的可视语义：
   - 对没有用户可展示文本或图片结果的 `dynamic_tool_call`，当前实现保持静默，不再额外发“空结果”notice
   - 可见性当前分两层：`file_change` / `mcp_tool_call` / `context_compaction` 在 normal / verbose / chatty 可见，quiet 静默；`exec_command` / `web_search` / `dynamic_tool_call` 与 exploration 在 verbose / chatty 可见；reasoning 按上述四档独立投影。normal 继续保留 plan、final reply，以及会影响当前状态的共享过程项
   - 一旦首个非空 assistant 正文 delta 到达，orchestrator 就终结旧进度卡生命周期；文本即使尚未 flush 成可见块，后续工具也不会再 patch 文本之前的旧卡
+
+### 5.3.1 `/rename` 命令入口
+
+Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/compact` 后提供“重命名会话”。点击菜单的 `page_local_action` 裸 `/rename` 会更新原卡为名称输入表单，不发 native 请求。表单复用 `FeishuCommandArgumentText` 与统一 `OwnerEntry` binding；本地菜单导航不携带 catalog provenance，表单构建时按已验证的当前 surface context 解析并写入完整 provenance，提交仍走严格校验。submit 使用现有 `page_submit`，携带原 `instance_id/thread_id`，gateway 仅对 rename 将其与 `field_name` 复制到 Action。VS Code、Claude、OpenCode hidden + reject。
+
+直接输入 `/rename 新名称` 与菜单提交走同一 action。直接 slash 空名称显示用法；表单空白提交保留输入框并提示错误，均不改原名。表单打开后若当前 instance/thread 已切换，提交拒绝并引导重新打开，不静默改新选中的会话；请求发出后捕获目标仍不会随之后的选择变化。打开菜单表单和空白提交提示由同步 callback 的 `ReplaceCurrentCard` 替换原卡，表单 view 不设置 MessageID，避免在同步 callback 返回前另发 REST patch 与回调更新竞争。等待卡与终态继续通过 gateway 更新原 MessageID，callback 不追加第二张卡；直接 slash 使用 TrackingKey 回写新 owner 卡的 MessageID。等待、成功、native 错误、超时与断链结果由同一命令 owner card 收口，动态名称与错误保留为结构化文本字段。菜单来源仍要求当前 daemon lifecycle，过期表单不能绕过 freshness gate。
+
+表单卡有名称输入框和提交按钮，等待与终态仅有目标/名称/结果文本，无 table；展示将 thread ID、名称、错误分别限制在 100/300/2000 个字符，完整新名称仍发送给 Codex。原名称不超过 300 字符时完整预填，超过时留空，不能将截断值作为默认可提交名称。等待与终态各一次更新，异步 native 回应不占用飞书三秒 callback 等待窗口。
+
+回归覆盖命令前缀边界、中文/内部空格、菜单参数 round trip、支持矩阵、精确目标/ownership/visibility、错误和迟到结果，以及从真实菜单 payload 打开表单的同步回调替换（无 REST patch）、空白提示与后续原卡更新和终态。
 
 ### 5.4 当前保留的独立例外
 
