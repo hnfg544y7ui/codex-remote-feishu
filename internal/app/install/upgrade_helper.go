@@ -22,7 +22,6 @@ const (
 	upgradeHelperStopGrace      = 15 * time.Second
 	upgradeHelperStartupTimeout = 45 * time.Second
 	upgradeHelperPollInterval   = 500 * time.Millisecond
-	upgradeGatewayGraceWindow   = 10 * time.Second
 )
 
 var (
@@ -121,18 +120,13 @@ func observeUpgrade(ctx context.Context, cfg config.LoadedAppConfig) error {
 	statusURL := strings.TrimRight(adminURL, "/") + "/v1/status"
 
 	deadline := time.Now().Add(upgradeHelperStartupTimeout)
-	var coreHealthyAt time.Time
+	var coreHealthyAtDeadline bool
 	for time.Now().Before(deadline) {
 		coreHealthy, gatewayReady, err := probeUpgradeHealth(ctx, healthURL, bootstrapURL, runtimeStatusURL, statusURL)
+		coreHealthyAtDeadline = err == nil && coreHealthy
 		if err == nil && coreHealthy {
-			if coreHealthyAt.IsZero() {
-				coreHealthyAt = time.Now()
-			}
 			if gatewayReady {
 				return nil
-			}
-			if time.Since(coreHealthyAt) >= upgradeGatewayGraceWindow {
-				return errors.New("feishu gateway did not recover within 10s after core health was restored")
 			}
 		}
 		select {
@@ -140,6 +134,9 @@ func observeUpgrade(ctx context.Context, cfg config.LoadedAppConfig) error {
 			return ctx.Err()
 		case <-time.After(upgradeHelperPollInterval):
 		}
+	}
+	if coreHealthyAtDeadline {
+		return errors.New("feishu gateway did not recover within the upgrade startup timeout")
 	}
 	return errors.New("timed out waiting for upgraded service to become healthy")
 }
