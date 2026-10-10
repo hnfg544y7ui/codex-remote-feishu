@@ -96,7 +96,7 @@ func classifyRemoteTurnTerminalCause(outcome *remoteTurnOutcome) terminalCause {
 }
 
 func (s *Service) deriveRemoteTurnOutcome(instanceID string, event agentproto.Event, finalText string, summary *control.FileChangeSummary) *remoteTurnOutcome {
-	binding := s.lookupRemoteTurn(instanceID, event.ThreadID, event.TurnID)
+	binding := s.lookupRemoteTurnForEvent(instanceID, event)
 	if binding == nil {
 		return nil
 	}

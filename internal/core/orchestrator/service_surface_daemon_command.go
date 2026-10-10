@@ -16,6 +16,7 @@ func (s *Service) boundDaemonCommandEvents(surface *state.SurfaceConsoleRecord, 
 		GatewayID:        surface.GatewayID,
 		SurfaceSessionID: surface.SurfaceSessionID,
 		SourceMessageID:  action.MessageID,
+		ActorUserID:      action.ActorUserID,
 		Text:             action.Text,
 	}
 	if binding.PropagateCardActionToDaemon || action.LocalPageAction {

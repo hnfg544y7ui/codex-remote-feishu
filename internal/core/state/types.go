@@ -786,21 +786,25 @@ type RequestCaptureRecord struct {
 }
 
 type QueueItemRecord struct {
-	ID                    string
-	SurfaceSessionID      string
-	ActorUserID           string
-	SourceKind            QueueItemSourceKind
-	AutoContinueEpisodeID string
-	SourceMessageID       string
-	SourceMessagePreview  string
-	SourceMessageIDs      []string
-	ReplyToMessageID      string
-	ReplyToMessagePreview string
-	Inputs                []agentproto.Input
-	SteerInputs           []agentproto.Input
-	RestoreAsStagedImage  bool
-	ShellCommandThreadID  string
-	ShellCommandTurnID    string
+	ScheduledRunID, ScheduledInstanceID    string
+	ScheduledWorkspace                     string
+	TerminalCause, ResultText, ResultError string
+	ResultThreadID, ResultTurnID           string
+	ID                                     string
+	SurfaceSessionID                       string
+	ActorUserID                            string
+	SourceKind                             QueueItemSourceKind
+	AutoContinueEpisodeID                  string
+	SourceMessageID                        string
+	SourceMessagePreview                   string
+	SourceMessageIDs                       []string
+	ReplyToMessageID                       string
+	ReplyToMessagePreview                  string
+	Inputs                                 []agentproto.Input
+	SteerInputs                            []agentproto.Input
+	RestoreAsStagedImage                   bool
+	ShellCommandThreadID                   string
+	ShellCommandTurnID                     string
 	// #429 execution carrier; runtime/product follow-ups are in #430/#428.
 	FrozenDispatchPlan      agentproto.PromptDispatchPlan
 	FrozenOverride          ModelConfigRecord

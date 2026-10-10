@@ -151,6 +151,7 @@ type App struct {
 	feishuRuntime                 feishuRuntimeState
 	daemonAsyncRuntime            daemonAsyncRuntimeState
 	cronRuntime                   cronRuntimeState
+	scheduledTasks                scheduledTaskRuntime
 	botCapabilitySettingsState    botCapabilitySettingsRuntimeState
 	feishuBotIdentityState        feishuBotIdentityRuntimeState
 	feishuFactsState              feishuFactsRuntimeState
