@@ -326,6 +326,12 @@ func (s *Service) workspaceClaimOwnerForSurface(surface *state.SurfaceConsoleRec
 
 func (s *Service) workspaceClaimSurface(workspaceKey string) *state.SurfaceConsoleRecord {
 	workspaceKey = normalizeWorkspaceClaimKey(workspaceKey)
+	return s.workspaceClaimSurfaceForKey(workspaceKey)
+}
+
+// The caller has already resolved the key for this operation. Keep alias
+// resolution at the public boundary instead of repeating disk IO at each hop.
+func (s *Service) workspaceClaimSurfaceForKey(workspaceKey string) *state.SurfaceConsoleRecord {
 	if workspaceKey == "" {
 		return nil
 	}
@@ -478,18 +484,29 @@ func (s *Service) workspaceBusyOwnerForSurface(surface *state.SurfaceConsoleReco
 		return nil
 	}
 	workspaceKey = normalizeWorkspaceClaimKey(workspaceKey)
+	return s.workspaceBusyOwnerForKey(surface, workspaceKey)
+}
+
+func (s *Service) workspaceBusyOwnerForKey(surface *state.SurfaceConsoleRecord, workspaceKey string) *state.SurfaceConsoleRecord {
+	if surface == nil || !s.surfaceUsesWorkspaceClaims(surface) {
+		return nil
+	}
 	if workspaceKey == "" {
 		return nil
 	}
-	claimOwner := s.workspaceClaimOwner(workspaceKey)
+	claimOwner := s.workspaceClaimOwnerForKey(workspaceKey)
 	if !claimOwner.valid() || claimOwner.same(s.workspaceClaimOwnerForSurface(surface)) {
 		return nil
 	}
-	return s.workspaceClaimSurface(workspaceKey)
+	return s.workspaceClaimSurfaceForKey(workspaceKey)
 }
 
 func (s *Service) workspaceClaimOwner(workspaceKey string) workspaceClaimOwner {
 	workspaceKey = normalizeWorkspaceClaimKey(workspaceKey)
+	return s.workspaceClaimOwnerForKey(workspaceKey)
+}
+
+func (s *Service) workspaceClaimOwnerForKey(workspaceKey string) workspaceClaimOwner {
 	if workspaceKey == "" {
 		return workspaceClaimOwner{}
 	}
@@ -498,7 +515,7 @@ func (s *Service) workspaceClaimOwner(workspaceKey string) workspaceClaimOwner {
 			return s.workspaceClaimOwnerFromRecord(claim)
 		}
 	}
-	if surface := s.workspaceClaimSurface(workspaceKey); surface != nil {
+	if surface := s.workspaceClaimSurfaceForKey(workspaceKey); surface != nil {
 		return s.workspaceClaimOwnerForSurface(surface)
 	}
 	return workspaceClaimOwner{}
@@ -526,7 +543,7 @@ func (s *Service) findExplicitWorkspaceClaimSurface(workspaceKey string, owner w
 }
 
 func (s *Service) workspaceBusyOwnerForView(surface *state.SurfaceConsoleRecord, view *mergedThreadView) *state.SurfaceConsoleRecord {
-	return s.workspaceBusyOwnerForSurface(surface, mergedThreadWorkspaceClaimKey(view))
+	return s.workspaceBusyOwnerForKey(surface, mergedThreadWorkspaceClaimKey(view))
 }
 
 func (s *Service) instanceClaimSurface(instanceID string) *state.SurfaceConsoleRecord {

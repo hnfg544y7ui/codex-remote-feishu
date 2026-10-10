@@ -34,6 +34,10 @@ type mergedThreadView struct {
 	CompatibleFreeVisibleInst *state.InstanceRecord
 	CompatibleAnyVisibleInst  *state.InstanceRecord
 	BusyOwner                 *state.SurfaceConsoleRecord
+
+	// Only populated by a fresh bulk catalog projection. It is discarded with
+	// the views after this operation; the next callback resolves paths again.
+	workspaceKeyForProjection string
 }
 
 type resolvedThreadTarget struct {
@@ -104,12 +108,24 @@ func (s *Service) mergedThreadViews(surface *state.SurfaceConsoleRecord) []*merg
 	s.mergePersistedRecentThreadsForBackend(viewsByID, targetBackend, filterByBackend)
 
 	views := make([]*mergedThreadView, 0, len(viewsByID))
+	workspaceKeys := map[[2]string]string{}
 	for _, view := range viewsByID {
 		if view == nil {
 			continue
 		}
 		if owner := s.threadClaimSurface(view.ThreadID); owner != nil && (surface == nil || owner.SurfaceSessionID != surface.SurfaceSessionID) {
 			view.BusyOwner = owner
+		}
+		if view.Thread != nil {
+			input := [2]string{strings.TrimSpace(view.Thread.WorkspaceKey), strings.TrimSpace(view.Thread.CWD)}
+			if input != [2]string{} {
+				key, exists := workspaceKeys[input]
+				if !exists {
+					key = threadWorkspaceKeyFromRecord(view.Thread)
+					workspaceKeys[input] = key
+				}
+				view.workspaceKeyForProjection = key
+			}
 		}
 		views = append(views, view)
 	}
@@ -794,6 +810,9 @@ func threadWorkspaceKeyFromRecord(thread *state.ThreadRecord) string {
 	if thread == nil {
 		return ""
 	}
+	if strings.TrimSpace(thread.CWD) == strings.TrimSpace(thread.WorkspaceKey) {
+		return normalizeWorkspaceClaimKey(thread.CWD)
+	}
 	cwd := normalizeWorkspaceClaimKey(thread.CWD)
 	wk := normalizeWorkspaceClaimKey(thread.WorkspaceKey)
 	if wk != "" && cwd != "" {
@@ -809,6 +828,9 @@ func threadWorkspaceKey(view *mergedThreadView) string {
 	if view == nil {
 		return ""
 	}
+	if view.workspaceKeyForProjection != "" {
+		return view.workspaceKeyForProjection
+	}
 	if key := threadWorkspaceKeyFromRecord(view.Thread); key != "" {
 		return key
 	}
@@ -819,7 +841,10 @@ func threadCWD(view *mergedThreadView) string {
 	if view == nil || view.Thread == nil {
 		return ""
 	}
-	return strings.TrimSpace(xutil.FirstNonEmpty(view.Thread.CWD, threadWorkspaceKey(view)))
+	if cwd := strings.TrimSpace(view.Thread.CWD); cwd != "" {
+		return cwd
+	}
+	return threadWorkspaceKey(view)
 }
 
 func (s *Service) currentVisibleThreadEligible(surface *state.SurfaceConsoleRecord, threadID string) bool {

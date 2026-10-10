@@ -173,12 +173,15 @@ func (s *Service) targetPickerSessionOptions(surface *state.SurfaceConsoleRecord
 				}
 				continue
 			}
-			entry := s.threadSelectionViewEntry(surface, view, true)
-			meta := targetPickerSessionMetaText(source, s.threadSelectionMetaText(surface, view, entry.Status))
+			status, _ := s.threadSelectionStatusFromTarget(surface, view, target)
+			if s.surfaceIsVSCode(surface) {
+				status, _ = s.threadSelectionStatus(surface, view, true)
+			}
+			meta := targetPickerSessionMetaText(source, s.threadSelectionMetaText(surface, view, status))
 			options = append(options, control.FeishuTargetPickerSessionOption{
 				Value:    targetPickerThreadValue(view.ThreadID),
 				Kind:     control.FeishuTargetPickerSessionThread,
-				Label:    entry.Summary,
+				Label:    s.threadSelectionSummary(surface, view),
 				MetaText: meta,
 			})
 		}

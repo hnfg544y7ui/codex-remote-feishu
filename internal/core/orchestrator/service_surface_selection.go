@@ -339,11 +339,20 @@ func instanceWorkspaceSelectionKeys(inst *state.InstanceRecord) []string {
 		return nil
 	}
 	seen := map[string]struct{}{}
+	seenInputs := map[[2]string]struct{}{}
 	keys := []string{}
-	for _, thread := range ordinaryVisibleThreads(inst) {
-		if thread == nil {
+	for _, thread := range inst.Threads {
+		if !ordinaryThreadVisible(thread) {
 			continue
 		}
+		// Membership and workspace identity depend on both fields. Resolve each
+		// distinct input pair once per call, retaining fresh symlink resolution
+		// on later calls and CWD precedence over stale WorkspaceKey metadata.
+		input := [2]string{strings.TrimSpace(thread.WorkspaceKey), strings.TrimSpace(thread.CWD)}
+		if _, exists := seenInputs[input]; exists {
+			continue
+		}
+		seenInputs[input] = struct{}{}
 		if !threadBelongsToInstanceWorkspace(inst, thread) {
 			continue
 		}
@@ -404,7 +413,11 @@ func threadBelongsToInstanceWorkspace(inst *state.InstanceRecord, thread *state.
 	if inst == nil || thread == nil {
 		return false
 	}
-	return cwdBelongsToInstanceWorkspace(inst, xutil.FirstNonEmpty(thread.CWD, threadWorkspaceKeyFromRecord(thread)))
+	cwd := strings.TrimSpace(thread.CWD)
+	if cwd == "" {
+		cwd = threadWorkspaceKeyFromRecord(thread)
+	}
+	return cwdBelongsToInstanceWorkspace(inst, cwd)
 }
 
 // threadBelongsToInstanceWorkspaceForTarget judges instance ownership from the
@@ -416,7 +429,7 @@ func threadBelongsToInstanceWorkspaceForTarget(inst *state.InstanceRecord, threa
 	if inst == nil || thread == nil {
 		return false
 	}
-	return cwdBelongsToInstanceWorkspace(inst, xutil.FirstNonEmpty(thread.CWD, threadWorkspaceKeyFromRecord(thread)))
+	return threadBelongsToInstanceWorkspace(inst, thread)
 }
 
 func cwdBelongsToInstanceWorkspace(inst *state.InstanceRecord, cwd string) bool {
@@ -424,6 +437,11 @@ func cwdBelongsToInstanceWorkspace(inst *state.InstanceRecord, cwd string) bool 
 		return false
 	}
 	if isVSCodeInstance(inst) {
+		return true
+	}
+	// Equal raw paths necessarily resolve to the same claim. Avoid disk
+	// probes for the common case of many sessions in their instance root.
+	if strings.TrimSpace(inst.WorkspaceRoot) == strings.TrimSpace(cwd) {
 		return true
 	}
 	root := normalizeWorkspaceClaimKey(inst.WorkspaceRoot)

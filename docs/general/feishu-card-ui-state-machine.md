@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-10`
-> Summary: 补充 `/schedule` 管理入口、原始用户权限与 append-only 结果语义。
+> Summary: 补充 `/schedule` 管理入口，以及目标选择器同步回调的路径解析性能约束。
 
 ## 1. 文档定位
 
@@ -318,6 +318,10 @@
   - 目录下拉当前会在 `CanGoUp=true` 时额外插入一个值为 `..` 的首项；这条值仍然走 `path_picker_enter`，最终由 orchestrator 复用现有 root-boundary 校验解析到父目录
   - 当前路径选择器卡片已不再额外渲染 `path_picker_up` 按钮；目录下拉里的 `..` 是默认“返回上一级”入口，因此卡面统一保持“目录浏览走目录下拉、文件选择走文件下拉（若有）、确认/取消走底部按钮”的结构
 - `target_picker_select_workspace` / `target_picker_select_session`
+  - 同步构建候选时，同一实例内按原始 `(WorkspaceKey, CWD)` 对去重后再解析路径；去重只在本次调用内有效，后续调用仍重新解析符号链接，避免把旧工作区归属永久缓存。已有 CWD 不计算未使用的 fallback；相同原始路径无需重复做归属探测。
+  - headless 会话标签复用本轮已解析的 target 状态，不为每个标签重新查询完整会话目录；工作区占用、兼容性、旧卡校验和同步替换合同保持不变，vscode 标签仍使用当前实例的 scope 校验。
+  - claim 查询在入口解析一次工作区 key，内部 owner/surface 查询复用该 canonical key，不在每层重复探测文件系统；不增加跨回调缓存。
+  - 批量 merged thread 投影按原始路径对解析工作区身份，供同一批只读候选复用；下一次 callback 或 confirm 构建新的 views，重新读取 alias 目标。
   - 这两条 workspace/session lane 当前也复用 `internal/adapter/feishu/selectflow`，并与 path / thread / history 一起统一到 immediate callback recover contract
   - gateway 当前按 `payload value -> form_value[field_name] -> action.option -> action.options[0]` 的顺序提取选中的 workspace / session
   - 这样 `select_static` 在群聊里即使带回旧 option，也会以前端最新 `form_value` 为准，原卡才能稳定推进到下一步，而不会停在 silent no-op

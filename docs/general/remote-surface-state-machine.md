@@ -680,6 +680,9 @@ review mode 第一版当前不是新的 route state，而是挂在 surface 上�
 1. target picker 的 workspace 候选按入口分成 attach / list / worktree-base 三种模式。
    1. 在线实例先按可见 thread 的稳定 `WorkspaceKey` 归并 workspace；`thread.CWD` 只保留为最近活跃子目录。只有当某个 instance 当前完全没有可见 thread，或 thread 侧缺失稳定 root 时，才回退到该 instance 的 `WorkspaceKey/WorkspaceRoot`。
    2. merged thread views / persisted recent threads 仍会把 recoverable-only workspace 补进候选。
+      候选构建只在一次调用内按原始 `(WorkspaceKey, CWD)` 对去重，再进行真实路径解析；相同 WorkspaceKey、不同 CWD 不会合并。已有 CWD 的归属判断不计算未使用的 fallback；headless 标签复用本轮已解析 target 的状态，后续确认仍重新解析并执行原有 claim、scope 和 freshness 校验。
+      claim 查询内部复用入口已解析的 canonical key；owner/surface 子查询不重复做路径解析，也不引入跨回调缓存。
+      批量 merged thread views 只在本次只读投影中复用路径身份；下一次动作重建 views，重新解析符号链接。
    3. attach 模式仍会过滤 busy workspace，以及既不能 attach 也没有 recoverable thread 支撑的 workspace。
    4. `/workspace list` / `/list` 的 list 模式会把 busy Git workspace 保留为 Worktree base；它不会暴露旧会话或新建会话，只暴露 `worktree_create` 操作。busy 非 Git workspace 仍过滤。
    5. `/workspace new worktree` 与 list 内部 Worktree 子页使用 worktree-base 模式，只保留可识别的 Git workspace；busy Git workspace 可以作为基准工作区。
