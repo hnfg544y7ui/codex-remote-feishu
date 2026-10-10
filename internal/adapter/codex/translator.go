@@ -71,8 +71,9 @@ type pendingReviewThread struct {
 }
 
 type pendingThreadNameSet struct {
-	ThreadID string
-	Name     string
+	CommandID string
+	ThreadID  string
+	Name      string
 }
 
 type pendingChildRestartRestore struct {

@@ -49,7 +49,7 @@ func TestResolveFeishuCommandDisplayGroupSupportsMenuStageProjection(t *testing.
 		ProductMode: "normal",
 		MenuStage:   string(FeishuCommandMenuStageNormalWorking),
 	})
-	if got, want := resolvedDisplayCommands(normalWorking), []string{"/stop", "/compact", "/steerall", "/new", "/status"}; !reflect.DeepEqual(got, want) {
+	if got, want := resolvedDisplayCommands(normalWorking), []string{"/stop", "/compact", "/rename", "/steerall", "/new", "/status"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("normal working menu commands = %#v, want %#v", got, want)
 	}
 

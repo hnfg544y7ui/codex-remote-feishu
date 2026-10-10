@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-01`
-> Summary: 补充 Feishu 群聊纯 @ 主机器人快捷切换，以及 `/workspace new` 路径子步骤对已删除当前目录的回退规则。
+> Updated: `2026-10-10`
+> Summary: 补充 Feishu 群聊纯 @ 主机器人快捷切换，以及 `/workspace new` 路径子步骤对已删除当前目录的回退规则。 补充 Codex headless 会话重命名命令及精确目标关联。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -1785,6 +1785,16 @@ transport degraded retained attachment
    4. `gateway_apply_failed` 当前会先排入 daemon 的 pending runtime notice 队列，待下一次正常 gateway apply 成功前置冲刷；同 surface 同 family 的重复错误会按 dedupe key 收敛
 12. 因此，后续若新增真正属于 runtime 层的提示，默认应进入这条独立车道，而不是继续直接手写普通 `UIEventNotice`。
 
+### 5.7 `/rename` 是精确目标的元数据请求
+
+`/rename 新名称` 仅支持 `codex headless`。它要求在线 attached instance、显式选中的可见普通 thread，以及当前 surface 持有该 thread claim；不从 active thread、prepared thread 或最近会话推断目标。VS Code、Claude、OpenCode 隐藏并拒绝，用户可先 `/mode codex`，再 `/list` 选择会话。
+
+- R0/R1/R5 或缺少 ownership/visibility 时拒绝并引导重新选择；直接 slash 空名称展示用法，菜单裸入口则显示原卡名称表单，均不发 native 请求。表单绑定打开时的 instance/thread；提交时当前选择已变化则拒绝，不静默重定向。空白提交保留表单并提示错误。去除名称首尾空白，保留中文和内部空格。
+- 从命令发出时捕获 instance/thread/surface/command ID 和名称。即使等待卡投递期间切换 attached instance，daemon 仍只向捕获的原实例派发；已结束的请求不会回退到新实例。改名不切换 route、增删 claim、重建 thread、开新 turn或改变队列；正常执行中的 thread 也可改名。
+- 只有匹配的 `thread.name.command.result` 成功才更新原目标的 `ThreadRecord.Name`；发送 ack 不代表成功。用户随后切换会话，结果仍属于原目标，不覆盖新选中的会话。
+- 同一 instance/thread 同时最多一个改名请求；等待超过 30 秒、dispatch rejection、断链/degraded 时清理 pending 并显示失败；实例移除在下次 Tick 收口。未知、重复和错配结果不会制造 thread 或成功提示；超时后可 `/list` 刷新确认是否已保存，再重试。
+- 名称由 Codex native 持久化，daemon 重启后通过 thread/list/read 或名称通知恢复。picker/history/status 的现有正式名称优先规则保持不变，工作区标签不受影响。
+
 ## 6. 命令矩阵
 
 ### 6.1 基础路由态
@@ -1797,6 +1807,7 @@ transport degraded retained attachment
 | `/workspace` `/workspace new` | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless |
 | `/workspace list` `/workspace new dir` `/workspace new git` `/workspace new worktree` | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless |
 | `/new` | 拒绝 | `headless`: 允许；`vscode`: 拒绝 | `headless`: 允许；若存在 compact/steer/queued/dispatching/running 或运行中的 review turn 则拒绝；空闲 review session 会被清掉；`vscode`: 拒绝 | 拒绝 | 拒绝 | 允许；若首条消息已 dispatching/running 则拒绝；空闲 review session 会被清掉 |
+| `/rename 新名称` | 拒绝并引导选择会话 | 拒绝并引导选择会话 | 仅 Codex headless 可改名；不改变路由、turn 或队列 | VS Code 拒绝 | VS Code 拒绝 | 拒绝并引导选择已有会话 |
 | `/compact` | 提示先 `/list` / `/use` 接管并绑定会话 | 提示先 `/use`，或直接发文本开启新会话 | 允许；仅对当前已绑定 thread 生效，若已有 compact/steer/queued/dispatching/running 则拒绝 | 提示先在 VS Code 里进入会话，或手动 `/use` | 允许；仅对当前跟随到的 thread 生效，若已有 compact/steer/queued/dispatching/running 则拒绝 | 提示先发送首条文本真正创建会话 |
 | `/history` | 提示先 `/list` 接管在线实例 | 提示先 `/use`，或直接发文本开启新会话 | 允许；读取当前选中 thread 的历史 | 提示先在 VS Code 里进入会话，或手动 `/use` | 允许；读取当前跟随 thread 的历史 | 提示先发送首条文本真正创建会话 |
 | `/mcpoauth <server>` | 拒绝并提示先 `/list` / `/use` 接管实例 | 允许；省略 `threadId` 发起 app-scoped OAuth login | 允许；传当前 selected thread 作为 `threadId` | 允许；没有 selected thread 时省略 `threadId` | 允许；传当前跟随 thread 作为 `threadId` | 允许；省略 `threadId` 发起 app-scoped OAuth login |

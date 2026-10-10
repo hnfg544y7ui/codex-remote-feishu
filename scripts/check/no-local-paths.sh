@@ -47,17 +47,34 @@ fi
 
 allowlisted_demo_pattern='/(home|Users)/(demo|example|sample|test)(/|$)'
 
-raw_matches=""
+search_args=()
 if command -v rg >/dev/null 2>&1; then
-  args=()
   for pattern in "${patterns[@]}"; do
-    args+=(-e "${pattern}")
+    search_args+=(-e "${pattern}")
   done
-  raw_matches="$(rg -n "${args[@]}" -- "${files[@]}" || true)"
+  search_command=(env MSYS2_ARG_CONV_EXCL='*' rg -n --path-separator / "${search_args[@]}" --)
 else
   combined_pattern="$(IFS='|'; printf '%s' "${patterns[*]}")"
-  raw_matches="$(grep -nE "${combined_pattern}" "${files[@]}" || true)"
+  search_command=(grep -nE "${combined_pattern}" --)
 fi
+
+# Keep native Windows command lines bounded while checking every tracked file.
+# A search error must fail the guard rather than being treated as no matches.
+search_tracked_files() {
+  local offset status
+  for ((offset = 0; offset < ${#files[@]}; offset += 64)); do
+    if "${search_command[@]}" "${files[@]:offset:64}"; then
+      continue
+    else
+      status=$?
+      if [[ "${status}" -ne 1 ]]; then
+        return "${status}"
+      fi
+    fi
+  done
+  return 0
+}
+raw_matches="$(search_tracked_files)"
 
 filtered_matches="$(printf '%s\n' "${raw_matches}" | grep -vE "${allowlisted_demo_pattern}" || true)"
 filtered_matches="$(printf '%s\n' "${filtered_matches}" | sed '/^$/d')"

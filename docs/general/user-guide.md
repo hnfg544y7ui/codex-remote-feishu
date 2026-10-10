@@ -1,8 +1,8 @@
 # 使用说明书
 
 > Type: `general`
-> Updated: `2026-08-05`
-> Summary: 更新安装方式与首次配置流程，并补充模型后端说明：默认使用机器现有 Codex / Claude Code 配置，可通过独立 Profile 并行使用多套模型参数。
+> Updated: `2026-10-10`
+> Summary: 更新安装方式与首次配置流程，并补充模型后端说明：默认使用机器现有 Codex / Claude Code 配置，可通过独立 Profile 并行使用多套模型参数。 补充 Codex headless `/rename` 的持久化名称、精确目标关联与失败恢复语义。
 
 ## 1. 这是什么
 
@@ -638,6 +638,8 @@ bare 命令会返回可切换的 Profile 卡片；也可以直接带名字切换
   - 中断当前 turn，并清掉尚未发出的飞书队列
 - `/compact`
   - 对当前已绑定 thread 主动发起一次手动上下文整理
+- `/rename 新名称`
+  - 仅 Codex headless：修改当前已选择会话的正式名称，支持中文并保留内部空格。例如 `/rename NanoPi 录制检查`；留空不修改。先 `/list` 选择会话，也可发送 `/menu`，从“基本命令 → 重命名会话”打开输入框。打开表单后若切换了会话，需要重新打开，避免改错目标。名称由 Codex 保存，重启后仍可读回；工作区标签保持原样。
 - `/steerall`
   - 把当前队列里可并入本轮执行的输入一次性并入当前 running turn
 - `/detach`

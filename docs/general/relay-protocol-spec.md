@@ -1,8 +1,8 @@
 # Relay Protocol Spec
 
 > Type: `general`
-> Updated: `2026-08-16`
-> Summary: 在既有 canonical 协议基础上补充 `thread.shell_command`、Codex capability 声明、payload-file UserShell 注入和 queued `APPLAUSE` ack/恢复边界（#901）。
+> Updated: `2026-10-10`
+> Summary: 在既有 canonical 协议基础上补充 `thread.shell_command`、Codex capability 声明、payload-file UserShell 注入和 queued `APPLAUSE` ack/恢复边界（#901）。 补充 Codex headless 会话重命名命令及精确目标关联。
 
 ## 1. 文档定位
 
@@ -226,10 +226,11 @@ wrapper 收到 `command` 后总是回传 accept/reject：
 
 ## 4. Canonical Command
 
-当前只实现九个公共 command：
+公共 command 包括：
 
 - `prompt.send`
 - `thread.compact.start`
+- `thread.name.set`
 - `turn.steer`
 - `thread.shell_command`
 - `turn.interrupt`
@@ -239,6 +240,15 @@ wrapper 收到 `command` 后总是回传 accept/reject：
 - `process.exit`
 
 这些 command 的真实定义在 [types.go](../../internal/core/agentproto/types.go)。
+
+### 4.0 `thread.name.set`
+
+Codex headless 的主动改名命令对应 native `thread/name/set`，参数为精确的 `target.threadId` 与非空 `name`；wrapper 不 resume thread，也不创建 turn。`commandId` 关联 native request/response。
+
+- 成功返回 `thread.name.command.result`，含相同 `commandId`、`threadId` 与已接受的 `name`。daemon 仅在 instance/thread/command 都匹配待处理请求时更新正式名称并报告成功。
+- native error 返回同一 result event 的 `errorMessage`；仅发送/写入成功的 `command_ack` 不是改名成功。
+- 主动请求响应由 wrapper suppress，不透传给本地 UI；被动观察本地 UI 的 `thread/name/set` 仍返回 `thread.discovered`，保留原有元数据同步。
+- 超时、断链、transport degraded、移除实例或 dispatch rejection 会结束待处理请求；迟到/重复/错配 result 不会再次确认或写入其他 thread。超时不能证明 native 未执行，可用 `/list` 刷新核对正式名称。
 
 ### 4.1 `prompt.send`
 

@@ -75,6 +75,7 @@ type Service struct {
 	goalPauseNoticeAt         map[string]time.Time
 	goalUserCommands          map[string]goalUserCommand
 	pendingGoalFingerprints   map[string]pendingGoalFingerprint
+	renameCommands            map[string]renameCommandBinding
 }
 
 type itemBuffer struct {
@@ -399,6 +400,8 @@ func (s *Service) ApplySurfaceAction(action control.Action) []eventcontract.Even
 		events = s.prepareNewThread(surface)
 	case control.ActionCompact:
 		events = s.handleCompactCommand(surface, action)
+	case control.ActionRenameCommand:
+		events = s.handleRenameCommand(surface, action)
 	case control.ActionSendFile:
 		events = s.openSendFilePicker(surface)
 	case control.ActionSteerAll:
@@ -642,6 +645,8 @@ func (s *Service) ApplyAgentEvent(instanceID string, event agentproto.Event) []e
 		return s.filterEventsForSurfaceVisibility(append(preface, s.applyThreadGoalUpdate(instanceID, event)...))
 	case agentproto.EventThreadGoalCommandResult:
 		return s.filterEventsForSurfaceVisibility(append(preface, s.applyGoalCommandResult(instanceID, event)...))
+	case agentproto.EventThreadNameCommandResult:
+		return s.filterEventsForSurfaceVisibility(append(preface, s.applyRenameCommandResult(instanceID, event)...))
 	case agentproto.EventThreadSettingsUpdated:
 		return s.filterEventsForSurfaceVisibility(append(preface, s.applyThreadSettingsUpdate(instanceID, event)...))
 	case agentproto.EventCapabilityStateUpdated:

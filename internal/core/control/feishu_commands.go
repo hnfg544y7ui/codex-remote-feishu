@@ -24,6 +24,7 @@ const (
 	FeishuCommandDetach               = "detach"
 	FeishuCommandStop                 = "stop"
 	FeishuCommandCompact              = "compact"
+	FeishuCommandRename               = "rename"
 	FeishuCommandSteerAll             = "steerall"
 	FeishuCommandMode                 = "mode"
 	FeishuCommandAutoWhip             = "autowhip"
@@ -222,6 +223,7 @@ var feishuCommandSpecs = []feishuCommandSpec{
 			{alias: "history", action: Action{Kind: ActionShowHistory, Text: "/history"}},
 		},
 	},
+	feishuRenameCommandSpec,
 	feishuPrimaryCommandSpec,
 	feishuCoworkersCommandSpec,
 	reviewCommandSpec(),

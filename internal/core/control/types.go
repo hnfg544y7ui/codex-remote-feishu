@@ -14,6 +14,7 @@ const (
 	ActionStatus                      ActionKind = "surface.menu.status"
 	ActionStop                        ActionKind = "surface.menu.stop"
 	ActionCompact                     ActionKind = "surface.menu.compact"
+	ActionRenameCommand               ActionKind = "surface.command.rename"
 	ActionSteerAll                    ActionKind = "surface.menu.steer_all"
 	ActionNewThread                   ActionKind = "surface.menu.new_thread"
 	ActionAdminRoot                   ActionKind = "surface.command.admin"

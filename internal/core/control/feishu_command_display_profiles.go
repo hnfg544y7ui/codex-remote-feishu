@@ -45,6 +45,7 @@ var feishuCommandDisplayProfiles = map[string]FeishuCommandDisplayProfile{
 	"codex": newFeishuCommandDisplayProfile("codex", true,
 		commandSupportVisible(FeishuCommandStop),
 		commandSupportVisible(FeishuCommandCompact),
+		commandSupportVisible(FeishuCommandRename),
 		commandSupportVisible(FeishuCommandSteerAll),
 		commandSupportVisibleWithStages(FeishuCommandNew, FeishuCommandMenuStageNormalWorking),
 		commandSupportVisible(FeishuCommandStatus),
@@ -83,6 +84,7 @@ var feishuCommandDisplayProfiles = map[string]FeishuCommandDisplayProfile{
 	),
 	"claude": newFeishuCommandDisplayProfile("claude", false,
 		commandSupportVisible(FeishuCommandStop),
+		commandSupportHiddenReject(FeishuCommandRename, FeishuCommandSupportReject, renameHeadlessOnlyNote),
 		commandSupportVisibleAs(FeishuCommandNew, FeishuCommandSupportApproximation, "Claude 会话切换沿用现有产品壳，但底层走 backend-aware session catalog 与 route contract。"),
 		commandSupportVisible(FeishuCommandStatus),
 		commandSupportVisible(FeishuCommandReasoning),
@@ -128,6 +130,7 @@ var feishuCommandDisplayProfiles = map[string]FeishuCommandDisplayProfile{
 	"opencode": newOpenCodeFeishuCommandDisplayProfile(),
 	"vscode": newFeishuCommandDisplayProfile("vscode", true,
 		commandSupportVisible(FeishuCommandStop),
+		commandSupportHiddenReject(FeishuCommandRename, FeishuCommandSupportReject, renameHeadlessOnlyNote),
 		commandSupportVisible(FeishuCommandCompact),
 		commandSupportVisible(FeishuCommandSteerAll),
 		commandSupportVisible(FeishuCommandStatus),
@@ -162,6 +165,7 @@ var feishuCommandDisplayProfiles = map[string]FeishuCommandDisplayProfile{
 }
 
 const (
+	renameHeadlessOnlyNote    = "重命名会话仅支持 Codex headless 模式。请先 `/mode codex` 并选择一个会话，再使用 `/rename 新名称`。"
 	claudeDefaultRejectNote   = "当前 Claude 模式暂不支持这个命令。"
 	opencodeApproxNote        = "OpenCode 当前按现有会话控制近似处理。"
 	opencodeDefaultRejectNote = "当前 OpenCode 模式暂不支持这个命令。"
@@ -171,6 +175,7 @@ const (
 func newOpenCodeFeishuCommandDisplayProfile() FeishuCommandDisplayProfile {
 	profile := newFeishuCommandDisplayProfile("opencode", false,
 		commandSupportVisible(FeishuCommandStop),
+		commandSupportHiddenReject(FeishuCommandRename, FeishuCommandSupportReject, renameHeadlessOnlyNote),
 		commandSupportHiddenReject(FeishuCommandCompact, FeishuCommandSupportReject, opencodeDefaultRejectNote),
 		commandSupportHiddenReject(FeishuCommandSteerAll, FeishuCommandSupportReject, opencodeSteerRejectNote),
 		commandSupportVisibleAs(FeishuCommandNew, FeishuCommandSupportApproximation, opencodeApproxNote),

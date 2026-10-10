@@ -39,7 +39,7 @@ if [[ -n "${followup_heuristic_matches}" ]]; then
   failed=1
 fi
 
-resolver_matches="$(rg -n 'resolveGatewayTarget\(' internal/adapter/feishu --glob '!**/*_test.go' || true)"
+resolver_matches="$(MSYS2_ARG_CONV_EXCL='*' rg -n --path-separator / 'resolveGatewayTarget\(' internal/adapter/feishu --glob '!**/*_test.go' || true)"
 resolver_disallowed="$(printf '%s\n' "${resolver_matches}" | \
   grep -vE '^internal/adapter/feishu/(controller_gateway|controller_preview|controller_target_resolver)\.go:' || true)"
 if [[ -n "${resolver_disallowed}" ]]; then
