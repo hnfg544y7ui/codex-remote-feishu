@@ -334,6 +334,15 @@ func (s *Service) pendingRemoteBindingForEvent(instanceID string, event agentpro
 		return binding
 	}
 	initiator := normalizeUnspecifiedInitiator(event.Initiator)
+	if binding, _, item := s.pendingRemoteBindingRecord(instanceID); binding != nil && item.ScheduledRunID != "" {
+		// A reused thread can still emit delayed events from its previous turn.
+		// Only our command or an explicitly attributed new turn accepts this run.
+		executionThreadID := queuedItemExecutionThreadID(item)
+		if strings.TrimSpace(event.CommandID) == "" && event.Kind == agentproto.EventTurnStarted && strings.TrimSpace(event.TurnID) != "" && initiator.Kind == agentproto.InitiatorRemoteSurface && strings.TrimSpace(initiator.SurfaceSessionID) == strings.TrimSpace(binding.SurfaceSessionID) && (executionThreadID == "" || executionThreadID == strings.TrimSpace(event.ThreadID)) {
+			return binding
+		}
+		return nil
+	}
 	if initiator.Kind == agentproto.InitiatorRemoteSurface && strings.TrimSpace(initiator.SurfaceSessionID) != "" {
 		if binding := s.pendingRemoteBindingBySurface(instanceID, initiator.SurfaceSessionID); binding != nil {
 			return binding
@@ -345,7 +354,11 @@ func (s *Service) pendingRemoteBindingForEvent(instanceID string, event agentpro
 func (s *Service) promotePendingRemote(instanceID string, event agentproto.Event) *remoteTurnBinding {
 	binding := s.pendingRemoteBindingForEvent(instanceID, event)
 	if binding == nil {
-		return s.activeRemoteBinding(instanceID, event.TurnID)
+		binding = s.activeRemoteBinding(instanceID, event.TurnID)
+		if s.scheduledActiveBindingMatchesTurn(binding, event.TurnID) && matchesRemoteBindingThread(binding, event.ThreadID) {
+			return binding
+		}
+		return nil
 	}
 	s.clearPendingRemoteTurn(instanceID)
 	threadID := strings.TrimSpace(event.ThreadID)
@@ -374,7 +387,7 @@ func (s *Service) activeRemoteBinding(instanceID, turnID string) *remoteTurnBind
 
 func (s *Service) lookupRemoteTurnForEvent(instanceID string, event agentproto.Event) *remoteTurnBinding {
 	if binding := s.activeRemoteBinding(instanceID, event.TurnID); binding != nil {
-		if matchesRemoteBindingThread(binding, event.ThreadID) {
+		if s.scheduledActiveBindingMatchesTurn(binding, event.TurnID) && matchesRemoteBindingThread(binding, event.ThreadID) {
 			return binding
 		}
 	}
@@ -383,11 +396,29 @@ func (s *Service) lookupRemoteTurnForEvent(instanceID string, event agentproto.E
 
 func (s *Service) lookupRemoteTurn(instanceID, threadID, turnID string) *remoteTurnBinding {
 	if binding := s.activeRemoteBinding(instanceID, turnID); binding != nil {
-		if matchesRemoteBindingThread(binding, threadID) {
+		if s.scheduledActiveBindingMatchesTurn(binding, turnID) && matchesRemoteBindingThread(binding, threadID) {
 			return binding
 		}
 	}
-	return s.pendingRemoteBinding(instanceID, threadID)
+	binding, _, item := s.pendingRemoteBindingRecord(instanceID)
+	// Callers lacking the command and initiator cannot identify a scheduled run
+	// before its turn starts. Ordinary interactive routing keeps its fallback.
+	if binding == nil || item.ScheduledRunID != "" || !queuedItemMatchesTurn(item, threadID) {
+		return nil
+	}
+	return binding
+}
+
+func (s *Service) scheduledActiveBindingMatchesTurn(binding *remoteTurnBinding, turnID string) bool {
+	if binding == nil {
+		return false
+	}
+	surface := s.root.Surfaces[binding.SurfaceSessionID]
+	if surface == nil {
+		return true
+	}
+	item := surface.QueueItems[binding.QueueItemID]
+	return item == nil || item.ScheduledRunID == "" || (strings.TrimSpace(turnID) != "" && strings.TrimSpace(turnID) == strings.TrimSpace(binding.TurnID))
 }
 
 func (s *Service) shouldTrackInstanceActiveTurn(instanceID string, event agentproto.Event) bool {

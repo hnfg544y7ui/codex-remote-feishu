@@ -109,6 +109,8 @@ func (a *App) handleMCPToolCall(ctx context.Context, toolName string, req *mcp.C
 		result, apiErr = a.sendIMVideoTool(ctx, arguments)
 	case feishuReadDriveFileCommentsToolName:
 		result, apiErr = a.readDriveFileCommentsTool(ctx, arguments)
+	case scheduleCreateToolName, scheduleUpdateToolName, scheduleListToolName, schedulePauseToolName, scheduleDeleteToolName:
+		result, apiErr = a.handleScheduledTaskTool(ctx, toolName, arguments)
 	default:
 		return nil, &jsonrpc.Error{
 			Code:    jsonrpc.CodeMethodNotFound,

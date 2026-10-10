@@ -1,8 +1,8 @@
 # Documentation Index
 
 > Type: `general`
-> Updated: `2026-08-11`
-> Summary: 收紧 docs lifecycle 规则：排除 `docs/superpowers/**`，强制 obsoleted `Superseded By`，并同步 unified binary 文档归档。
+> Updated: `2026-10-10`
+> Summary: 增加飞书聊天本机定时任务实现文档。
 
 ## 1. 适用范围
 
@@ -160,6 +160,7 @@
 ### 6.2 `implemented`
 
 - [cron-bitable-scheduler-design.md](./implemented/cron-bitable-scheduler-design.md)
+- [local-scheduled-tasks.md](./implemented/local-scheduled-tasks.md)
 - [feishu-md-preview-design.md](./implemented/feishu-md-preview-design.md)
 - [feishu-request-approval-design.md](./implemented/feishu-request-approval-design.md)
 - [headless-pool-workspace-thread-selection-fix.md](./implemented/headless-pool-workspace-thread-selection-fix.md)

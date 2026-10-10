@@ -162,6 +162,7 @@ func TestResolveFeishuCommandDisplayProfileTracksModeSpecificFamilies(t *testing
 		FeishuCommandPrimary,
 		FeishuCommandCoworkers,
 		FeishuCommandHistory,
+		FeishuCommandSchedule,
 		FeishuCommandCron,
 		FeishuCommandSendFile,
 	}; !reflect.DeepEqual(got, want) {

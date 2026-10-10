@@ -148,6 +148,17 @@ func (s *Service) failSurfaceActiveQueueItem(surface *state.SurfaceConsoleRecord
 		return nil
 	}
 	item.Status = state.QueueItemFailed
+	if item.ScheduledRunID != "" {
+		item.TerminalCause, item.ResultError = "dispatch_failed", "定时任务派发失败。"
+		item.ResultThreadID = queuedItemExecutionThreadID(item)
+		if notice != nil {
+			item.ResultError = xutil.FirstNonEmpty(notice.Text, notice.Code, item.ResultError)
+		}
+		if binding := s.remoteBindingForSurface(surface); binding != nil {
+			item.ResultThreadID = xutil.FirstNonEmpty(binding.ThreadID, item.ResultThreadID)
+			item.ResultTurnID = binding.TurnID
+		}
+	}
 	if queuedItemPromptDispatchPlan(item).Purpose == agentproto.PromptPurposeReview && surface.ReviewSession != nil && surface.ReviewSession.Phase == state.ReviewSessionPhasePending {
 		s.clearPendingReviewStart(surface)
 		s.releaseFeishuRoomReviewReservations(surface)

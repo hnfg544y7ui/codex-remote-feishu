@@ -194,7 +194,7 @@ func TestToolMCPListAndCallTools(t *testing.T) {
 	listPayload := decodeToolMCPResponse(t, rec)
 	result, _ := listPayload["result"].(map[string]any)
 	tools, _ := result["tools"].([]any)
-	if len(tools) != 4 {
+	if len(tools) != 9 {
 		t.Fatalf("unexpected tools/list payload: %#v", listPayload)
 	}
 	seen := map[string]map[string]any{}

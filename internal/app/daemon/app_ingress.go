@@ -920,6 +920,7 @@ func (a *App) onTick(ctx context.Context, now time.Time) {
 	})
 	a.maybeStartFeishuFactsRefreshLocked(now)
 	a.maybeScheduleCronJobsLocked(now)
+	a.maybeScheduleTasksLocked(ctx, now)
 	a.reapCronExitTargetsLocked(now)
 	a.maybeShutdownExternalAccessIdleLocked(now)
 	a.persistGoalInterlockStateLocked(now)

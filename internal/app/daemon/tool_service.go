@@ -57,7 +57,7 @@ type resolvedToolSurfaceContext struct {
 }
 
 func toolDefinitions() []toolDefinition {
-	return []toolDefinition{
+	definitions := []toolDefinition{
 		{
 			Name:        feishuSendIMFileToolName,
 			Description: feishuSendIMFileDescription,
@@ -109,6 +109,7 @@ func toolDefinitions() []toolDefinition {
 			InputSchema: driveFileCommentsToolInputSchema(),
 		},
 	}
+	return append(definitions, scheduledTaskToolDefinitions()...)
 }
 
 func (a *App) requireToolAuth(next http.Handler) http.Handler {

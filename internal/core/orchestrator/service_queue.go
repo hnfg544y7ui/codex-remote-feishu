@@ -340,13 +340,27 @@ func (s *Service) dispatchNextWithOptions(surface *state.SurfaceConsoleRecord, o
 		return autoContinue
 	}
 	inst := s.root.Instances[surface.AttachedInstanceID]
-	if inst == nil || !inst.Online {
-		return nil
-	}
 	queueID := surface.QueuedQueueItemIDs[0]
 	item := surface.QueueItems[queueID]
+	if (inst == nil || !inst.Online) && (item == nil || item.ScheduledRunID == "") {
+		return nil
+	}
 	if item == nil || item.Status != state.QueueItemQueued {
 		surface.QueuedQueueItemIDs = surface.QueuedQueueItemIDs[1:]
+		return nil
+	}
+	if reason := s.scheduledQueueDispatchWaitReason(surface, inst, item); reason != "" {
+		if reason == "scheduled_instance_changed" || reason == "scheduled_workspace_changed" {
+			// This item was never dispatched. Fail only this frozen destination;
+			// clearing remote ownership here could interrupt an unrelated turn.
+			surface.QueuedQueueItemIDs = surface.QueuedQueueItemIDs[1:]
+			item.Status, item.TerminalCause = state.QueueItemFailed, "dispatch_failed"
+			item.ResultError = reason
+			item.ResultThreadID = queuedItemExecutionThreadID(item)
+		}
+		return nil
+	}
+	if inst == nil || !inst.Online {
 		return nil
 	}
 	if blocked, goalEvents := s.maybeBeginGoalInterlockForQueueItem(surface, inst, item); blocked || len(goalEvents) != 0 {
@@ -430,6 +444,12 @@ func (s *Service) promptSendCommandAndGuardEventsFromQueueItem(surface *state.Su
 			PlanMode:        planModeOverride,
 		},
 		CodexResume: CodexResumePolicyForThread(item.CodexConnectionContract, item.CodexThreadPolicy, codexResumeTargetThread(inst, dispatchPlan)),
+	}
+	if item.ScheduledRunID != "" {
+		// Preserve this run's identity across an event batch that can release the
+		// app lock before its command is sent. Cancellation must invalidate the
+		// buffered command instead of falling back to a later surface attachment.
+		command.CommandID = "relay-schedule-" + item.ScheduledRunID
 	}
 	guardEvents := []eventcontract.Event{}
 	if guard.DroppedModel {
@@ -528,6 +548,14 @@ func (s *Service) completeRemoteTurn(outcome *remoteTurnOutcome) []eventcontract
 		return nil
 	}
 	item := outcome.Item
+	if item.ScheduledRunID != "" {
+		item.TerminalCause, item.ResultText = string(outcome.Cause), outcome.FinalText
+		item.ResultError = outcome.ErrorMessage
+		if outcome.Problem != nil {
+			item.ResultError = xutil.FirstNonEmpty(outcome.Problem.Message, item.ResultError, outcome.Problem.Error())
+		}
+		item.ResultThreadID, item.ResultTurnID = outcome.ThreadID, outcome.TurnID
+	}
 	surface := outcome.Surface
 	binding := outcome.Binding
 	inst := s.root.Instances[outcome.InstanceID]
@@ -546,6 +574,9 @@ func (s *Service) completeRemoteTurn(outcome *remoteTurnOutcome) []eventcontract
 
 	handledByAutoContinueCard := false
 	switch {
+	case item.ScheduledRunID != "":
+		// A scheduler owns retries and one durable run corresponds to one turn.
+		// Surface auto-continue must not extend or replay background tasks.
 	case outcome.Binding.AutoContinueEpisodeID != "" && outcome.Cause == terminalCauseUserInterrupted:
 		events = append(events, s.cancelAutoContinueEpisode(surface)...)
 		handledByAutoContinueCard = true
@@ -580,7 +611,7 @@ func (s *Service) completeRemoteTurn(outcome *remoteTurnOutcome) []eventcontract
 		}
 	}
 
-	if outcome.Cause == terminalCauseCompleted {
+	if outcome.Cause == terminalCauseCompleted && item.ScheduledRunID == "" {
 		s.finishAutoContinueEpisode(outcome)
 	}
 	events = append(events, s.releaseCompletedShellCommandAttachments(surface, outcome.ThreadID, outcome.TurnID)...)

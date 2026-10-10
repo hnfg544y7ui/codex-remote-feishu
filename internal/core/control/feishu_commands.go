@@ -42,6 +42,7 @@ const (
 	FeishuCommandMenu                 = "menu"
 	FeishuCommandDebug                = "debug"
 	FeishuCommandCron                 = "cron"
+	FeishuCommandSchedule             = "schedule"
 	FeishuCommandMCPOAuth             = "mcp_oauth"
 	FeishuCommandUpgrade              = "upgrade"
 	FeishuCommandPatch                = "patch"
@@ -224,6 +225,7 @@ var feishuCommandSpecs = []feishuCommandSpec{
 		},
 	},
 	feishuRenameCommandSpec,
+	feishuScheduleCommandSpec,
 	feishuPrimaryCommandSpec,
 	feishuCoworkersCommandSpec,
 	reviewCommandSpec(),

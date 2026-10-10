@@ -246,6 +246,8 @@ func firstResultCardReplaceableAction(action Action) bool {
 		return true
 	case ActionCronCommand:
 		return !cronCommandRunsImmediately(action.Text)
+	case ActionScheduleCommand:
+		return !scheduleCommandRunsImmediately(action.Text)
 	case ActionAdminCommand:
 		return true
 	case ActionUpgradeCommand:

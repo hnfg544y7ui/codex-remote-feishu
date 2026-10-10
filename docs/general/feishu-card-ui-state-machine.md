@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-10`
-> Summary: 补充路径选择器 stale 初始路径会回退到最近存在父目录，不再中断 `/workspace new` 子步骤。 补充 Codex headless 会话重命名命令及精确目标关联。
+> Summary: 补充 `/schedule` 管理入口、原始用户权限与 append-only 结果语义。
 
 ## 1. 文档定位
 
@@ -1056,6 +1056,13 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
 9. `/history` 的 owner-card runtime 与 history 业务态是否仍保持单一真相源，而不是重新长回两套 owner lifecycle
 10. route / attach 上下文变化后，workspace page / target picker / path picker / history / review picker 这类旧卡是否仍会留下“看似可点、第一次点才报过期”的假活状态
 11. AppID 替换或删除时，旧 gateway generation 的 callback 是否在旧 surface/UI runtime 清理前完成关闭与排空；identity pending transition 是否能挡住清理失败后的旧 AppID unchanged 启动；新 App 不得因复用 GatewayID 而继承旧 card owner 或 turn patch owner runtime
+
+## 本机定时任务入口
+
+- `/schedule` 仅在 Codex headless normal 模式可用，归入 `common_tools`。help/list 输出 append-only 文本，不新增参数卡与导航替换链路。
+- pause/resume/delete 是实际任务状态变化，结果不得替换菜单 launcher 当作导航。任务权限使用原始 `DaemonCommand.ActorUserID`，不读取群内后来变化的 surface actor。
+- 旧卡 freshness 校验沿用统一 command catalog；本功能没有新增 callback 字段或第二套卡片协议。
+- 自然语言调用通过 loopback bearer MCP 绑定实际 turn；任务回报使用持久化原群地址，不引用虚构的消息 ID。
 
 ## 待讨论取舍
 

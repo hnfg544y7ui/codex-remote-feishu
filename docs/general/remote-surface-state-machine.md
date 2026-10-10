@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-10`
-> Summary: 补充 Feishu 群聊纯 @ 主机器人快捷切换，以及 `/workspace new` 路径子步骤对已删除当前目录的回退规则。 补充 Codex headless 会话重命名命令及精确目标关联。
+> Summary: 补充本机定时任务的精确执行目标、持久化接受、陈旧命令拒绝与恢复边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2081,7 +2081,18 @@ retained-offline overlay 额外规则：
 
 2026-08-15 #896 review 修复补充：确认卡/编辑表单打开时在服务端暂存当前 thread 的 Goal fingerprint（createdAt/objective/budget），执行 `clear --confirm` / `new|edit` 前先与最新 thread Goal 比对，漂移则取消操作并出错误卡，避免外部 mutation 窗口内的误清/误改；goal 命令 dispatch 失败会清理 pending `goalUserCommands` 并回错误卡，不再静默丢弃；卡片入口触发的 loading 与结果卡通过 `MessageID + Patchable` 在同一 message 上 patch，不残留无按钮死卡；错误卡复用 config 命令 builder（非 sealed），失败原因不伪装成 no-goal 状态。
 
+## 10.1 本机聊天定时任务
+
+- Codex headless `/schedule` 与 `schedule_*` MCP 工具提供独立本机持久任务，不依赖旧 `/cron` Bitable。创建者冻结自用户 queue actor，不借用群内后来发言者。
+- 每任务唯一 outstanding run；到期预订先保存任务快照，队列接受先保存运行关联，再发送 wire command。`running` 包括已接受但未开始的排队轮次，turn ID 来自实际开始事件。
+- Scheduled queue 保存精确实例、workspace 根、CWD 和 execution thread；发送前重复验证 claim/writer。固定 `relay-schedule-<runID>` 命令只匹配对应 live pending binding，陈旧/取消命令不能落回当前聊天实例。
+- 后台执行不改变 selected thread、不消费 staged inputs、不触发 AutoContinue/AutoWhip。暂停/删除撤销未发送轮次，已发送轮次保留；`/stop` 可中断当前运行。
+- 原 route 离线或工作区不一致时明确 pending/wait；已接受后 destination 漂移明确失败。重启后的运行中记录为 interrupted/unknown，不重放；通知失败只重试持久 outbox。
+- 使用和第一版恢复边界见 [本机定时任务](../implemented/local-scheduled-tasks.md)。
+
 ## 11. 待讨论取舍
+
+- 本机定时任务暂时复用原 surface 在线实例；是否增加独立后台实例恢复，需要统一 headless ownership 生命周期。本版安全默认为等待原 workspace 恢复，允许用户查询、暂停、删除，不抢占其他聊天。
 
 1. 群聊 on-demand 恢复遇到 terminal 失败后，同一恢复目标下的后续普通文本会被静默吞掉（不重复发失败卡），直到恢复目标变化、恢复成功或用户显式重选（`/list`、`/use`、`/new`）。这是为了避免刷屏的有意取舍；风险是用户可能误以为机器人无响应，需要错误卡上的指引文案足够明确。
 2. 群聊/其他 surface 在 bot 级 Profile 切换时若正在执行 turn，切换不会立即生效：surface 标记待收敛，直到下一次交互（实例空闲）才重启实例。这是为避免硬杀进行中任务的有意取舍；若用户希望立即生效，可等待当前任务完成或手动 `/detach` 后重连。
