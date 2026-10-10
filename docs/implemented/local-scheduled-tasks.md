@@ -62,3 +62,5 @@
 Store 测试覆盖权限隔离、事务回滚、单个 outstanding run、重启恢复、每日时区与 DST、暂停和删除。
 Orchestrator 测试覆盖目标冻结、附件隔离、writer 竞争、陈旧命令、真实终态，以及不触发自动续跑。
 Daemon 测试覆盖自然语言工具身份、MCP 注册、管理命令、持久化先于 wire、取消未发送任务、未知运行不重放和通知失败不重复执行。
+
+本测试版部署时同时修复基底的本地升级健康检查：`fallbackAdminURL` 指向 `/admin/` 页面，辅助进程必须先还原 HTTP origin，才能探测根路径 `/healthz` 和 `/api/admin/...`。回归测试覆盖完整四个验收接口；ARM64 辅助 shim 必须随该修复重新生成。

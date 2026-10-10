@@ -113,7 +113,8 @@ type upgradeHelperBootstrapState struct {
 }
 
 func observeUpgrade(ctx context.Context, cfg config.LoadedAppConfig) error {
-	adminURL := fallbackAdminURL(cfg.Config)
+	// fallbackAdminURL names the management page, not the HTTP API origin.
+	adminURL := strings.TrimSuffix(strings.TrimRight(fallbackAdminURL(cfg.Config), "/"), "/admin")
 	healthURL := strings.TrimRight(adminURL, "/") + "/healthz"
 	bootstrapURL := strings.TrimRight(adminURL, "/") + "/api/admin/bootstrap-state"
 	runtimeStatusURL := strings.TrimRight(adminURL, "/") + "/api/admin/runtime-status"
