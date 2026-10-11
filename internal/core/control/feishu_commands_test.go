@@ -63,6 +63,7 @@ func TestParseFeishuTextActionRecognizesUpgradeCommand(t *testing.T) {
 		"/upgrade track beta",
 		"/upgrade latest",
 		"/upgrade codex",
+		"/upgrade codex-source",
 		"/upgrade local",
 	}
 	for _, input := range tests {
@@ -322,6 +323,7 @@ func TestParseFeishuMenuActionBuildsCanonicalTextFromDynamicRoutes(t *testing.T)
 		{eventKey: "access_confirm", wantKind: ActionAccessCommand, wantText: "/access confirm", wantFamily: FeishuCommandAccess},
 		{eventKey: "plan-on", wantKind: ActionPlanCommand, wantText: "/plan on", wantFamily: FeishuCommandPlan},
 		{eventKey: "upgrade_dev", wantKind: ActionUpgradeCommand, wantText: "/upgrade dev", wantFamily: FeishuCommandUpgrade},
+		{eventKey: "upgrade_codex-source", wantKind: ActionUpgradeCommand, wantText: "/upgrade codex-source", wantFamily: FeishuCommandUpgrade},
 		{eventKey: "upgrade_track_beta", wantKind: ActionUpgradeCommand, wantText: "/upgrade track beta", wantFamily: FeishuCommandUpgrade},
 	}
 

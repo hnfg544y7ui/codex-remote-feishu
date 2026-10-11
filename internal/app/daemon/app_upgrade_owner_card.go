@@ -280,6 +280,9 @@ func (a *App) openUpgradeLatestOwnerConfirmLocked(command control.DaemonCommand,
 }
 
 func (a *App) handleUpgradeOwnerFlowCommandLocked(command control.DaemonCommand) []eventcontract.Event {
+	if strings.HasPrefix(command.PickerID, codexSourcePickerPrefix) {
+		return a.handleCodexSourcePickerLocked(command)
+	}
 	if isCodexUpgradeOwnerFlowID(command.PickerID) {
 		return a.handleCodexUpgradeOwnerFlowCommandLocked(command)
 	}

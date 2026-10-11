@@ -37,13 +37,14 @@ type parsedUpgradeCommand struct {
 }
 
 const (
-	upgradeCommandShowStatus = upgradecontract.CommandShowStatus
-	upgradeCommandShowTrack  = upgradecontract.CommandShowTrack
-	upgradeCommandSetTrack   = upgradecontract.CommandSetTrack
-	upgradeCommandLatest     = upgradecontract.CommandLatest
-	upgradeCommandCodex      = upgradecontract.CommandCodex
-	upgradeCommandDev        = upgradecontract.CommandDev
-	upgradeCommandLocal      = upgradecontract.CommandLocal
+	upgradeCommandShowStatus  = upgradecontract.CommandShowStatus
+	upgradeCommandShowTrack   = upgradecontract.CommandShowTrack
+	upgradeCommandSetTrack    = upgradecontract.CommandSetTrack
+	upgradeCommandLatest      = upgradecontract.CommandLatest
+	upgradeCommandCodex       = upgradecontract.CommandCodex
+	upgradeCommandCodexSource = upgradecontract.CommandCodexSource
+	upgradeCommandDev         = upgradecontract.CommandDev
+	upgradeCommandLocal       = upgradecontract.CommandLocal
 )
 
 type upgradeCheckRequest struct {
@@ -98,6 +99,8 @@ func (a *App) handleUpgradeDaemonCommand(command control.DaemonCommand) []eventc
 		return a.handleUpgradeLatestCommand(command, stateValue)
 	case upgradeCommandCodex:
 		return a.openCodexUpgradeOwnerFlowLocked(command)
+	case upgradeCommandCodexSource:
+		return a.openCodexSourcePickerLocked(command, stateValue)
 	case upgradeCommandDev:
 		if !install.CurrentBuildAllowsDevUpgrade() {
 			return []eventcontract.Event{upgradeNoticeEvent(command.SurfaceSessionID, "upgrade_dev_unsupported", "当前构建不支持 `/upgrade dev`。如需 dev 构建升级，请使用 dev flavor 的源码构建。")}

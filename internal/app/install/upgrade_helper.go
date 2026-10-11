@@ -60,40 +60,109 @@ func RunUpgradeHelperWithStatePath(ctx context.Context, statePath string) error 
 	if stateValue.PendingUpgrade.Phase != PendingUpgradePhasePrepared {
 		return fmt.Errorf("pending upgrade phase %q is not prepared", stateValue.PendingUpgrade.Phase)
 	}
+	if stateValue.PendingUpgrade.CodexSourceSwitch != nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 3*time.Minute)
+		defer cancel()
+	}
 	if stateValue.RollbackCandidate == nil || strings.TrimSpace(stateValue.RollbackCandidate.BinaryPath) == "" {
-		return errors.New("rollback candidate is missing")
+		return failCodexSourceHelperBeforeStop(statePath, stateValue, errors.New("rollback candidate is missing"))
 	}
 
 	cfg, err := loadUpgradeHelperConfig(stateValue)
 	if err != nil {
-		return err
+		return failCodexSourceHelperBeforeStop(statePath, stateValue, err)
 	}
 	paths := RuntimePathsForState(stateValue)
+	var sourceUpdateLock *relayruntime.FileLock
+	if stateValue.PendingUpgrade.CodexSourceSwitch != nil {
+		lockCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		sourceUpdateLock, err = acquireCodexSourceRuntimeLock(lockCtx, stateValue, true)
+		cancel()
+		if err != nil {
+			return failCodexSourceHelperBeforeStop(statePath, stateValue, err)
+		}
+		defer func() {
+			if sourceUpdateLock != nil {
+				_ = sourceUpdateLock.Release()
+			}
+		}()
+	}
+	releaseSourceLock := func() error {
+		if sourceUpdateLock == nil {
+			return nil
+		}
+		if err := sourceUpdateLock.Release(); err != nil {
+			return err
+		}
+		sourceUpdateLock = nil
+		return nil
+	}
+	rollback := func(cause error) error {
+		if err := releaseSourceLock(); err != nil {
+			stateValue.PendingUpgrade.Phase = PendingUpgradePhaseFailed
+			_ = WriteState(statePath, stateValue)
+			return fmt.Errorf("release Codex runtime lock before rollback after %v: %w", cause, err)
+		}
+		if stateValue.PendingUpgrade.CodexSourceSwitch != nil {
+			// An exhausted source-switch deadline must not prevent recovery.
+			recoveryCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			return rollbackUpgradeState(recoveryCtx, statePath, stateValue, cfg, paths, cause)
+		}
+		return rollbackUpgradeState(ctx, statePath, stateValue, cfg, paths, cause)
+	}
+	if err := validateCodexSourceSwitchConfig(stateValue); err != nil {
+		return failCodexSourceHelperBeforeStop(statePath, stateValue, err)
+	}
 
 	stateValue.PendingUpgrade.Phase = PendingUpgradePhaseSwitching
 	if err := WriteState(statePath, stateValue); err != nil {
-		return err
+		return failCodexSourceHelperBeforeStop(statePath, stateValue, err)
 	}
 
 	if err := stopCurrentDaemon(ctx, stateValue, paths); err != nil {
-		return rollbackUpgradeState(ctx, statePath, stateValue, cfg, paths, fmt.Errorf("stop current service: %w", err))
+		return rollback(fmt.Errorf("stop current service: %w", err))
 	}
-	if err := switchUpgradeBinary(&stateValue); err != nil {
-		return rollbackUpgradeState(ctx, statePath, stateValue, cfg, paths, fmt.Errorf("switch target binary: %w", err))
+	if stateValue.PendingUpgrade.CodexSourceSwitch != nil {
+		if err := applyCodexSourceSwitchConfig(stateValue); err != nil {
+			// A failed CAS/atomic write must not restore an obsolete config snapshot.
+			candidate := *stateValue.RollbackCandidate
+			candidate.ConfigSnapshots = nil
+			stateValue.RollbackCandidate = &candidate
+			return rollback(err)
+		}
+		updatedCfg, configErr := loadUpgradeHelperConfig(stateValue)
+		if configErr != nil {
+			return rollback(configErr)
+		}
+		cfg = updatedCfg
+	} else if err := switchUpgradeBinary(&stateValue); err != nil {
+		return rollback(fmt.Errorf("switch target binary: %w", err))
 	}
 
 	stateValue.PendingUpgrade.Phase = PendingUpgradePhaseObserving
 	if err := WriteState(statePath, stateValue); err != nil {
+		if stateValue.PendingUpgrade.CodexSourceSwitch != nil {
+			return rollback(err)
+		}
 		return err
 	}
 
+	if err := releaseSourceLock(); err != nil {
+		return rollback(err)
+	}
 	if _, err := startUpgradeDaemon(ctx, cfg, stateValue, paths); err != nil {
-		return rollbackUpgradeState(ctx, statePath, stateValue, cfg, paths, fmt.Errorf("start upgraded service: %w", err))
+		return rollback(fmt.Errorf("start upgraded service: %w", err))
 	}
 	if err := upgradeHelperObserveFunc(ctx, cfg); err != nil {
-		return rollbackUpgradeState(ctx, statePath, stateValue, cfg, paths, err)
+		return rollback(err)
 	}
 
+	if stateValue.PendingUpgrade.CodexSourceSwitch != nil {
+		stateValue.PendingUpgrade.Phase = PendingUpgradePhaseCommitted
+		return WriteState(statePath, stateValue)
+	}
 	stateValue.CurrentVersion = stateValue.PendingUpgrade.TargetVersion
 	stateValue.CurrentSlot = xutil.FirstNonEmpty(strings.TrimSpace(stateValue.PendingUpgrade.TargetSlot), strings.TrimSpace(stateValue.PendingUpgrade.TargetVersion))
 	if stateValue.PendingUpgrade.Source != UpgradeSourceLocal {
@@ -258,14 +327,14 @@ func rollbackUpgradeState(ctx context.Context, statePath string, stateValue Inst
 			return fmt.Errorf("rollback config restore failed after %v: %w", cause, err)
 		}
 	}
-	if stateValue.RollbackCandidate != nil && strings.TrimSpace(stateValue.RollbackCandidate.BinaryPath) != "" {
+	if stateValue.PendingUpgrade.CodexSourceSwitch == nil && stateValue.RollbackCandidate != nil && strings.TrimSpace(stateValue.RollbackCandidate.BinaryPath) != "" {
 		if err := copyFile(stateValue.RollbackCandidate.BinaryPath, stateValue.CurrentBinaryPath); err != nil {
 			stateValue.PendingUpgrade.Phase = PendingUpgradePhaseFailed
 			_ = WriteState(statePath, stateValue)
 			return fmt.Errorf("rollback copy %s -> %s failed after %v: %w", stateValue.RollbackCandidate.BinaryPath, stateValue.CurrentBinaryPath, cause, err)
 		}
 	}
-	if stateValue.RollbackCandidate != nil {
+	if stateValue.PendingUpgrade.CodexSourceSwitch == nil && stateValue.RollbackCandidate != nil {
 		stateValue.CurrentVersion = stateValue.RollbackCandidate.Version
 		stateValue.CurrentSlot = stateValue.RollbackCandidate.Version
 	}

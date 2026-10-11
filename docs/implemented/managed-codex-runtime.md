@@ -1,14 +1,14 @@
 # Remote 托管官方 Codex CLI
 
 > Type: `implemented`
-> Updated: `2026-10-11`
-> Summary: 记录独立 Codex CLI 的配置、候选验证、空闲切换、飞书回退和离线维护边界。
+> Updated: `2026-10-12`
+> Summary: 增加飞书 Codex 来源选择、全服务空闲守卫及配置切换失败恢复边界。
 
 ## 当前事实与规范来源
 
 本功能保持官方 Codex CLI 原样，由 Remote 管理私有安装和版本选择。CLI 程序与账号、会话数据分开管理，不依赖 ChatGPT App 或 VS Code 扩展路径才能启动。
 
-本文描述 `codex/feat-managed-codex-runtime` 分支代码和 NanoPi 部署验证；飞书客户端的实际点击与对话体验仍需单独验收。路由、队列和恢复的 canonical source 是 [远程面状态机](../general/remote-surface-state-machine.md)，卡片和 callback 的 canonical source 是 [飞书 UI 状态机](../general/feishu-card-ui-state-machine.md)。
+本文描述当前托管运行时实现及 NanoPi 的历史部署验证；新增来源选择功能位于 `feat/codex-runtime-source-picker` 分支，部署与真实飞书点击验收需以该轮证据单独确认。路由、队列和恢复的 canonical source 是 [远程面状态机](../general/remote-surface-state-machine.md)，卡片和 callback 的 canonical source 是 [飞书 UI 状态机](../general/feishu-card-ui-state-machine.md)。
 
 ## 配置与兼容边界
 
@@ -87,9 +87,25 @@ daemon 把已经解析的 source/channel/version/autoUpdate 通过环境传给�
 
 升级和回退复用原 owner card：`upgrade_owner_flow` 的业务字段仍为 `picker_id`、`option_id`，Codex option 为 `check`、`confirm`、`rollback`。同一张卡推进 checking、ready、running 和 sealed terminal。过期 flow、旧 daemon 生命周期、他人卡片、并发事务及不允许的 stage 均拒绝；终态不残留可执行按钮。
 
+## 飞书选择 Codex 来源
+
+发送 `/upgrade`，点击始终可见的“Codex 来源”；也可直接发送 `/upgrade codex-source`。该入口独立于“Codex 升级”的可见性，因此使用 App/PATH/VS Code CLI 时也能进入。卡片显示当前生效来源，并提供“Remote 托管”和“既有 Codex”选项：前者对应 `managed`，后者对应 `external`，验证并使用既有 `codexRealBinary` 设置（显式路径或 PATH 命令），不运行 legacy 私有更新器，也不另写程序路径。当前 `legacy` 单独显示为“兼容模式”；选择“既有 Codex”会明确退出兼容模式。选择器不新增路径编辑功能。
+
+首次从兼容模式迁移必须分两步：先选择“既有 Codex（配置路径/PATH）”切到 external，等服务恢复后重开卡片，再选择“Remote 托管 Codex”。当前为 legacy 或 source 缺省时，托管按钮禁用，callback 也拒绝直接 legacy → managed，不进行目标准备。这样先绕过 legacy 私有更新器，再准备共享目录中的托管候选；第一步失败会恢复兼容配置，不留下可被 legacy 最高版本扫描消费的新候选。已在 managed/external 的用户可直接双向切换。
+
+选择来源后，准备与能力探测异步执行，飞书回调不等待下载或网络探测。目标 CLI 验证成功且整台 daemon 空闲后，复用原生升级 helper 对同一 Remote 程序执行配置事务：先保存配置快照，再写入来源并重启服务，使 daemon、wrapper 与升级策略同时采用新的启动快照。helper 重启失败会恢复原配置与程序；未通过准备或空闲检查时保持当前来源。此操作作用于本机 Remote 管理的全部工作进程，不能只以发起会话为空闲作为授权。后台及启动期间的 CLI warm/update 另有 in-flight 守卫，正在准备的更新会阻止来源切换；切换准备期间冻结派发、pool 启动及定时任务入口，避免 legacy 更新、目标探测和新 worker 启动互相竞争。
+
+当前存在活动/排队任务、待处理请求、派发或升级事务时拒绝切换；确认执行前再次检查。服务环境设置了 `CODEX_REMOTE_CODEX_RUNTIME_SOURCE` 时拒绝由卡片修改来源，提示先处理环境覆盖，避免 JSON 已修改而实际来源不变。选择当前来源不重复重启。账号、订阅凭据、机器人配置、`CODEX_HOME` 和历史会话保留。
+
+来源卡沿用 `upgrade_owner_flow` 的 `picker_id`、`option_id`；flow 前缀为 `codex-source-owner-`，动作是 `managed`、`external`、`cancel`。动作须通过当前 daemon lifecycle、active flow、15 分钟 TTL、surface 和 owner 校验。当前卡从选项态推进到准备、重启或 sealed 失败/取消终态，失败提示重新打开 `/upgrade codex-source`；旧卡、其他人和重复点击不能发起另一切换。服务重启后的卡片属于旧生命周期，需重开入口。
+
+来源准备上限为 3 分钟，helper 启动上限 25 秒，helper 主事务上限 3 分钟；主事务失败后的配置/服务恢复使用独立 1 分钟 deadline，不能复用已耗尽的主事务 deadline。旧 daemon 若仍存活，每秒观察与当前请求匹配的事务记录：只有 failed/rolled_back 且实时 JSON source 仍与旧启动快照相同，才释放输入 gate；committed 不能授权旧 daemon 按新配置继续运行。helper 启动后 4 分 30 秒仍未恢复，会明确提示在主机终端执行 `codex-remote service restart`，保持暂停直到重启，避免并发操纵服务。
+
+重启前原 owner 卡封为“正在重启”；服务恢复后的成功/失败结果沿用原生升级结果投递，另发 notice，不试图以新 daemon 生命周期继续激活旧卡。恢复提示和旧卡拒绝并不允许改变账号或历史记录。
+
 ## 命令行维护
 
-首次从 legacy 迁移时，先停止旧 daemon，再设置 managed 配置、准备和离线激活，最后启动 daemon。旧 legacy updater 仍会扫描同一个私有目录，不能在它运行时把新候选写入该目录后期待它遵守新 active 选择规则。
+手工首次从 legacy 迁移时，先停止旧 daemon，再设置 managed 配置、准备和离线激活，最后启动 daemon。旧 legacy updater 仍会扫描同一个私有目录，不能在它运行时把新候选写入该目录后期待它遵守新 active 选择规则。飞书来源选择走上节的全局 gate 与更新 in-flight 守卫；切换为既有 CLI 时使用 external，不能把手工在线改 JSON 当作等价操作。
 
 只读 status 可在线查询；已有 managed 模式下的 prepare 可在 daemon 运行时执行。请使用 daemon 所属用户及相同 XDG 路径：
 
@@ -128,6 +144,13 @@ activate 只允许切到已准备 candidate，并持有 daemon lock 直到隔离
 - 临时 `CODEX_HOME` 内 app-server 初始化成功，`command/exec` 在只读沙箱返回退出码 0 和预定标记；随后使用原订阅凭据执行 ephemeral 模型测试，正常回复预定标记，网络配置未改。
 - 第一次创建 managed active，没有 previous，因此暂不显示可回退按钮。以后成功切换到另一版才有上一版；候选失败及工作进程恢复失败的回退路径已经定向测试。
 - 自动更新保持关闭。本次没有验证飞书客户端里实际点击 owner 卡，也没有把二进制回退测试等同于真实账号数据降级兼容验证。
+
+## 来源选择部署验证（2026-10-12）
+
+- NanoPi ARM64 测试版已部署；通过原生配置事务验证 managed → external → managed。每轮核对服务 PID 变化、实际 CLI 程序路径和飞书网关重连：外部 CLI 为 `0.159.2`，托管 CLI 为 `0.162.1`，最终恢复 managed。
+- 配置只改变来源；机器人及代理配置、Remote 版本/slot/track、服务启用和 linger 保留。验证前保存配置、凭据和 SQLite 快照；能力探测使用临时 `CODEX_HOME`，不发送真实模型 turn。这不能证明旧 CLI 与新版历史数据格式兼容。
+- 选择器、owner/stale callback、忙碌 gate、失败恢复和升级助手字段传递的定向测试通过。Linux 工作进程与调度回归通过；跨编译的源码路径 guard 单独排除，未声明全量套件通过。飞书真人点击仍属于客户端验收边界。
+- 实机发现旧嵌入助手缓存遗漏 install 的传递依赖，导致来源字段被忽略；构建脚本已改为校验 shim 的仓库依赖图，并重新生成各平台助手。`bash scripts/check/shim-embed-cache.sh` 使用临时模块验证首次构建、缓存命中、只修改传递依赖后的重建及再次命中，解压执行核对旧/新内容；需要 Go 和标准 zstd CLI。
 
 ## 待讨论取舍
 

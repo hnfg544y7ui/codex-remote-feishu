@@ -258,6 +258,11 @@ func (a *App) handleActionLocked(ctx context.Context, action control.Action, opt
 	if a.maybeHandleStandaloneCodexUpgradeActionLocked(ctx, action) {
 		return nil
 	}
+	if a.codexSourceSwitch != nil && !codexSourceSwitchAllowsAction(action) {
+		a.ensureSurfaceRouteForNotice(action)
+		a.handleUIEventsLocked(ctx, codexSourceSwitchBlockedEvents(action.SurfaceSessionID))
+		return nil
+	}
 	if a.upgradeOwnerFlowBlocksInputLocked() && !upgradeOwnerFlowAllowsAction(action) {
 		a.ensureSurfaceRouteForNotice(action)
 		a.handleUIEventsLocked(ctx, upgradeOwnerFlowBlockedEvents(action.SurfaceSessionID))
@@ -901,6 +906,12 @@ func (a *App) onTick(ctx context.Context, now time.Time) {
 	defer a.mu.Unlock()
 	if a.shuttingDown {
 		return
+	}
+	if a.codexSourceSwitch != nil {
+		a.observeCodexSourceSwitchLocked(ctx, now)
+		if a.codexSourceSwitch != nil {
+			return // Freeze dispatch, recovery, pool launches and both schedulers.
+		}
 	}
 	a.drainDaemonAsyncResultsLocked(ctx)
 	uiEvents := a.gateUngatedManagedHeadlessResumeOutcomeEventsLocked(a.service.Tick(now), now)

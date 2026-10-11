@@ -16,6 +16,7 @@ func TestParseCommandTextRecognizesCanonicalSubcommands(t *testing.T) {
 		{text: "/upgrade track beta", wantMode: CommandSetTrack, wantTrack: ReleaseTrackBeta},
 		{text: "/upgrade latest", wantMode: CommandLatest},
 		{text: "/upgrade codex", wantMode: CommandCodex},
+		{text: "/upgrade codex-source", wantMode: CommandCodexSource},
 		{text: "/upgrade dev", wantMode: CommandDev},
 		{text: "/upgrade local", wantMode: CommandLocal},
 	}
@@ -45,6 +46,7 @@ func TestParseCommandTextReportsInvalidTrackSeparately(t *testing.T) {
 func TestNormalizeMenuArgumentRecognizesDevAndTrackVariants(t *testing.T) {
 	tests := map[string]string{
 		"dev":              "dev",
+		"codex-source":     "codex-source",
 		"track_beta":       "track beta",
 		"track-production": "track production",
 	}
@@ -94,14 +96,41 @@ func TestUsageHelpersRespectCapabilityPolicy(t *testing.T) {
 	if strings.Contains(summary, "`dev`") || strings.Contains(summary, "`local`") {
 		t.Fatalf("summary should hide dev/local: %q", summary)
 	}
+	if !strings.Contains(summary, "`codex-source`") {
+		t.Fatalf("summary should include Codex source: %q", summary)
+	}
 	syntax := UsageSyntax(CapabilityPolicy{
 		AllowedReleaseTracks: []ReleaseTrack{ReleaseTrackAlpha, ReleaseTrackBeta, ReleaseTrackProduction},
 		AllowDevUpgrade:      true,
 		AllowLocalUpgrade:    true,
 	})
-	for _, want := range []string{"`/upgrade track [alpha|beta|production]`", "`/upgrade dev`", "`/upgrade local`"} {
+	for _, want := range []string{"`/upgrade track [alpha|beta|production]`", "`/upgrade dev`", "`/upgrade local`", "`/upgrade codex-source`"} {
 		if !strings.Contains(syntax, want) {
 			t.Fatalf("syntax %q missing %q", syntax, want)
 		}
 	}
+}
+
+func TestCodexSourceOpensOwnerFlowWithoutDirectSourceMutation(t *testing.T) {
+	if !RunsImmediately("/upgrade codex-source") {
+		t.Fatal("Codex source picker must enter its owner flow rather than a navigation page")
+	}
+	for _, input := range []string{"/upgrade codex-source managed", "/upgrade codex-source external", "/upgrade codex-source legacy"} {
+		if _, err := ParseCommandText(input); err == nil {
+			t.Fatalf("source changes must require the owner card, accepted %q", input)
+		}
+	}
+}
+
+func TestCodexSourceOptionAvailableWithoutUpgradeCapabilities(t *testing.T) {
+	def := BuildDefinition(CapabilityPolicy{})
+	for _, option := range def.Options {
+		if option.CommandText == "/upgrade codex-source" {
+			if option.Label != "Codex 来源" || option.MenuKey != "upgrade_codex-source" {
+				t.Fatalf("unexpected Codex source option: %#v", option)
+			}
+			return
+		}
+	}
+	t.Fatalf("Codex source selector must not depend on installation upgradeability: %#v", def.Options)
 }

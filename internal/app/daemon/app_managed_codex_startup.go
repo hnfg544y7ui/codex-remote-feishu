@@ -69,7 +69,7 @@ func (a *App) maybeActivateManagedCodexCandidate(ctx context.Context) {
 		return
 	}
 	a.mu.Lock()
-	busy := a.codexUpgradeRuntime.Active != nil || a.managedCodexCandidateVersion != state.Candidate.Version || len(a.codexUpgradeBusyReasonsLocked("")) != 0
+	busy := a.codexSourceSwitch != nil || a.codexUpgradeRuntime.Active != nil || a.managedCodexCandidateVersion != state.Candidate.Version || len(a.codexUpgradeBusyReasonsLocked("")) != 0
 	a.mu.Unlock()
 	if busy {
 		return

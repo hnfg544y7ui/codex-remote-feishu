@@ -262,6 +262,16 @@ func buildUpgradeResultText(stateValue install.InstallState) string {
 	if pending == nil {
 		return "升级结果已就绪。"
 	}
+	if pending.CodexSourceSwitch != nil {
+		switch pending.Phase {
+		case install.PendingUpgradePhaseCommitted:
+			return "Codex 来源已切换为" + codexSourceLabel(pending.CodexSourceSwitch.TargetSource) + "，服务已恢复。"
+		case install.PendingUpgradePhaseRolledBack:
+			return "Codex 来源切换失败，已恢复原配置并重新启动服务。"
+		default:
+			return "Codex 来源切换失败，配置未切换。请检查服务日志。"
+		}
+	}
 	switch pending.Phase {
 	case install.PendingUpgradePhaseCommitted:
 		return fmt.Sprintf("已升级到 %s。", xutil.FirstNonEmpty(strings.TrimSpace(stateValue.CurrentVersion), strings.TrimSpace(pending.TargetSlot), strings.TrimSpace(pending.TargetVersion)))

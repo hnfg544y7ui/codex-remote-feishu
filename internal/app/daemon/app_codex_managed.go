@@ -15,8 +15,18 @@ type ensureManagedCodex func(context.Context, string, string, []string) (string,
 
 func (a *App) warmManagedCodex(ctx context.Context, startup bool, ensure ensureManagedCodex) {
 	a.mu.Lock()
+	if a.codexSourceSwitch != nil {
+		a.mu.Unlock()
+		return
+	}
+	a.codexRuntimeWarmInFlight++
 	cfg := a.headlessRuntime
 	a.mu.Unlock()
+	defer func() {
+		a.mu.Lock()
+		a.codexRuntimeWarmInFlight--
+		a.mu.Unlock()
+	}()
 	if cfg.CodexRuntime.Source == config.CodexRuntimeSourceExternal {
 		return
 	}

@@ -2,6 +2,20 @@ package control
 
 import "testing"
 
+func TestCodexSourcePickerEntersOwnerWithoutNavigationReplacement(t *testing.T) {
+	action, ok := ParseFeishuMenuActionWithoutCatalog("upgrade_codex-source")
+	if !ok {
+		t.Fatal("Codex source menu action did not parse")
+	}
+	contract := ResolveFeishuFrontstageActionContract(action)
+	if contract.LauncherDisposition != FeishuFrontstageLauncherEnterOwner || contract.CurrentCardMode != FeishuFrontstageCurrentCardNone {
+		t.Fatalf("source selection must hand off to its owner rather than replace as a navigation page: %#v", contract)
+	}
+	if !contract.RequiresDaemonFreshness {
+		t.Fatal("source selector lost daemon freshness")
+	}
+}
+
 func TestRenameOwnerCardRequiresDaemonFreshness(t *testing.T) {
 	action := Action{Kind: ActionRenameCommand, Text: "/rename 中文名称", Inbound: &ActionInboundMeta{CardCallback: true}}
 	contract := ResolveFeishuFrontstageActionContract(action)
@@ -441,6 +455,15 @@ func TestAllowsCommandCardResultReplacement(t *testing.T) {
 			action: Action{
 				Kind:    ActionUpgradeCommand,
 				Text:    "/upgrade codex",
+				Inbound: &ActionInboundMeta{CardDaemonLifecycleID: "life-1"},
+			},
+			want: false,
+		},
+		{
+			name: "upgrade codex source enters owner instead of navigation replacement",
+			action: Action{
+				Kind:    ActionUpgradeCommand,
+				Text:    "/upgrade codex-source",
 				Inbound: &ActionInboundMeta{CardDaemonLifecycleID: "life-1"},
 			},
 			want: false,

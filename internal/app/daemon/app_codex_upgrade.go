@@ -121,7 +121,7 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.codexUpgradeRuntime.Active != nil {
+	if a.codexSourceSwitch != nil || a.codexUpgradeRuntime.Active != nil {
 		return fmt.Errorf("another codex upgrade transaction is already running")
 	}
 	busyReasons := a.codexUpgradeBusyReasonsLocked(strings.TrimSpace(req.SurfaceSessionID))

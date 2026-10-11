@@ -128,6 +128,9 @@ type App struct {
 	pendingGlobalRuntimeNotices   map[string][]eventcontract.Event
 	recentGlobalRuntimeNotices    map[string]map[string]time.Time
 	headlessRuntime               HeadlessRuntimeConfig
+	codexSourceSwitch             *codexSourceSwitchRun
+	codexRuntimeWarmInFlight      int
+	startCodexSourceSwitch        func(install.CodexSourceSwitchOptions) error
 	vscodeDetect                  func() (vscodeDetectResponse, error)
 	detectPlatformDefaults        func() (install.PlatformDefaults, error)
 	vscodeCompatibility           vscodeCompatibilityCacheState

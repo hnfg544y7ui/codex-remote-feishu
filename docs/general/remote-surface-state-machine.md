@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-11`
-> Summary: 补充托管 Codex CLI 的候选、空闲切换、回退及输入暂停恢复边界。
+> Updated: `2026-10-12`
+> Summary: 增加 Codex 来源选择的全服务空闲门、原生 helper 重启和配置恢复边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2108,6 +2108,18 @@ retained-offline overlay 额外规则：
 - `previous` 回退须精确匹配当前检查结果；被替换版本进入 failed，防止自动流程立即装回。二进制回退不回滚账号、会话数据库或 CLI 数据格式。
 - CLI `codex-runtime status/prepare` 不改变路由及 active；prepare 在线使用仅限已迁移的 managed daemon，legacy 首次迁移须先停止旧 daemon，避免旧最高目录扫描消费新候选。`activate` 仅在同用户、同 XDG 状态目录的 daemon 已停止时可用，持有 daemon lock 至探测/激活结束。在线维护必须走 G10，不新增绕过 writer 仲裁的在线 CLI 切换入口。
 - 配置、命令、组件验证与验收边界见 [Remote 托管官方 Codex CLI](../implemented/managed-codex-runtime.md)。该文档记录分支代码，NanoPi 部署与真实会话验收须另行确认。
+
+## 10.3 Codex 来源选择与 daemon 重启
+
+- `/upgrade codex-source` 打开独立业务 owner flow，根页“Codex 来源”始终可见；选择 `managed` 或 `external` 改变 daemon 的启动策略，不改变当前 surface 的 selected thread、workspace 或会话数据。既有 CLI 选项固定当前配置或应用/PATH 解析出的程序路径并禁用 legacy 私有更新；legacy 单独显示为“兼容模式”，选择器不把它作为切换目标，也不编辑外部程序路径。
+- legacy/空 source 的首次 UI 迁移只允许先切 external；managed 按钮禁用且 callback 拒绝直接 legacy → managed。第一步完成并重启后才能准备 managed 候选，避免候选写入共享目录后第一步失败恢复 legacy 时被最高版本扫描消费。managed/external 之间可直接切换。
+- 来源策略在 daemon 启动时冻结，不能只写 JSON 或只重启 worker 作为完成。流程异步准备/验证目标 CLI，执行前重新检查全 daemon 空闲，然后复用原生升级 helper 的配置快照、服务重启、健康检查和失败恢复。
+- 空闲检查覆盖所有 backend、所有 surface，包括发起 surface；active/pending turn、请求、待派发工作、headless 启动/恢复和升级事务均阻止切换。启动/后台 CLI warm/update 使用 in-flight 守卫，更新已在进行时拒绝来源切换；准备期间沿用 upgrade owner gate 阻止竞争输入，并冻结全部派发、pool 启动和定时任务入口，避免 updater 与目标探测竞态。准备失败、取消或超时必须封口并释放 gate。不能依赖 worker 恢复 watchdog 解锁。
+- 卡片 owner 使用当前生命周期、active flow、15 分钟 TTL、surface 和 actor 守卫；`codex-source-owner-` 的 `upgrade_owner_flow(managed/external/cancel)` 不能借用旧卡或其他人身份执行。环境设置 SOURCE 覆盖时拒绝 UI 切换，避免持久来源与实际来源漂移。
+- 原生 helper 备份后写入目标来源并重启整台服务；失败恢复配置与程序，不回滚订阅凭据、机器人配置、CLI 数据库或历史。成功重启自然结束旧 owner gate，旧生命周期的卡片不能继续修改配置；用户以 `/upgrade codex-source` 重开入口查看当前来源。
+- 来源准备 deadline 3 分钟，helper launch deadline 25 秒，helper 主事务 deadline 3 分钟，失败 rollback 使用新的 1 分钟 deadline。旧 daemon 每秒匹配 requestedAt/digest/target 观察 journal；failed/rolled_back 只有实时 JSON source 与旧启动 source 一致才解锁，陈旧事务不能解锁。committed 仍冻结旧 daemon，不能把持久化成功误当作启动策略已更新。
+- helper 启动后 4 分 30 秒仍未退出旧 daemon，会 append 一次明确恢复提示，要求在主机终端执行 `codex-remote service restart`；继续冻结派发，避免与仍可能运行的 helper 重叠服务操作。原卡 sealed，新 daemon 的结果另发 notice，不复活旧 lifecycle 的 owner 卡。
+- 此流程是 daemon 来源配置事务，与 G10 的同来源 CLI 版本升级/回退不同；不能沿用 G10 对 VS Code/非 Codex backend 的排除或 initiator busy 例外。
 
 ## 11. 待讨论取舍
 

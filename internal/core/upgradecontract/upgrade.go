@@ -68,13 +68,14 @@ func (p CapabilityPolicy) AllowsReleaseTrack(track ReleaseTrack) bool {
 type CommandMode string
 
 const (
-	CommandShowStatus CommandMode = "status"
-	CommandShowTrack  CommandMode = "track_show"
-	CommandSetTrack   CommandMode = "track_set"
-	CommandLatest     CommandMode = "latest"
-	CommandCodex      CommandMode = "codex"
-	CommandDev        CommandMode = "dev"
-	CommandLocal      CommandMode = "local"
+	CommandShowStatus  CommandMode = "status"
+	CommandShowTrack   CommandMode = "track_show"
+	CommandSetTrack    CommandMode = "track_set"
+	CommandLatest      CommandMode = "latest"
+	CommandCodex       CommandMode = "codex"
+	CommandCodexSource CommandMode = "codex-source"
+	CommandDev         CommandMode = "dev"
+	CommandLocal       CommandMode = "local"
 )
 
 type ParsedCommand struct {
@@ -134,6 +135,8 @@ func ParseCommandText(text string) (ParsedCommand, error) {
 			return ParsedCommand{Mode: CommandLatest}, nil
 		case "codex":
 			return ParsedCommand{Mode: CommandCodex}, nil
+		case "codex-source":
+			return ParsedCommand{Mode: CommandCodexSource}, nil
 		case "dev":
 			return ParsedCommand{Mode: CommandDev}, nil
 		case "local":
@@ -159,7 +162,7 @@ func PresentationForParsed(parsed ParsedCommand) (Presentation, bool) {
 	switch parsed.Mode {
 	case CommandShowStatus, CommandShowTrack:
 		return PresentationPage, true
-	case CommandSetTrack, CommandLatest, CommandCodex, CommandDev, CommandLocal:
+	case CommandSetTrack, CommandLatest, CommandCodex, CommandCodexSource, CommandDev, CommandLocal:
 		return PresentationExecute, true
 	default:
 		return "", false
@@ -182,7 +185,7 @@ func RunsImmediately(text string) bool {
 func NormalizeMenuArgument(value string) (string, bool) {
 	mode := strings.ToLower(strings.TrimSpace(value))
 	switch mode {
-	case "latest", "local", "dev", "track":
+	case "latest", "local", "dev", "track", "codex-source":
 		return mode, true
 	}
 	for _, prefix := range []string{"track_", "track-", "track "} {
@@ -216,8 +219,8 @@ type Definition struct {
 
 func BuildDefinition(policy CapabilityPolicy) Definition {
 	policy = NormalizeCapabilityPolicy(policy)
-	formHints := []string{"track", "latest"}
-	examples := []string{"/upgrade", "/upgrade latest"}
+	formHints := []string{"track", "latest", "codex-source"}
+	examples := []string{"/upgrade", "/upgrade latest", "/upgrade codex-source"}
 	options := []Option{
 		{
 			CommandText: "/upgrade track",
@@ -233,6 +236,13 @@ func BuildDefinition(policy CapabilityPolicy) Definition {
 			Label:       "检查/继续升级",
 			Description: "检查或继续升级到当前 track 的最新 release。",
 		},
+		{
+			CommandText: "/upgrade codex-source",
+			MenuKey:     "upgrade_codex-source",
+			Value:       "codex-source",
+			Label:       "Codex 来源",
+			Description: "选择 Remote 托管或既有 Codex；确认后重启本机 Remote 服务。",
+		},
 	}
 	if trackExample := preferredTrackExample(policy); trackExample != "" {
 		examples = append(examples, "/upgrade track "+trackExample)
@@ -240,7 +250,7 @@ func BuildDefinition(policy CapabilityPolicy) Definition {
 	for _, track := range policy.AllowedReleaseTracks {
 		options = append(options, trackOption(track))
 	}
-	description := "查看升级状态、查看或切换当前 release track；`/upgrade latest` 检查或继续 release 升级。"
+	description := "查看升级状态、查看或切换当前 release track；`/upgrade latest` 检查或继续 release 升级，`/upgrade codex-source` 选择 Codex 来源。"
 	if policy.AllowDevUpgrade {
 		formHints = append(formHints, "dev")
 		examples = append(examples, "/upgrade dev")
@@ -276,7 +286,7 @@ func BuildDefinition(policy CapabilityPolicy) Definition {
 
 func UsageSummary(policy CapabilityPolicy) string {
 	policy = NormalizeCapabilityPolicy(policy)
-	parts := []string{"`track`", "`latest`"}
+	parts := []string{"`track`", "`latest`", "`codex-source`"}
 	if policy.AllowDevUpgrade {
 		parts = append(parts, "`dev`")
 	}
@@ -292,7 +302,7 @@ func UsageSyntax(policy CapabilityPolicy) string {
 	if len(policy.AllowedReleaseTracks) > 0 {
 		segments = append(segments, fmt.Sprintf("`/upgrade track [%s]`", strings.Join(trackStrings(policy.AllowedReleaseTracks), "|")))
 	}
-	segments = append(segments, "`/upgrade latest`")
+	segments = append(segments, "`/upgrade latest`", "`/upgrade codex-source`")
 	if policy.AllowDevUpgrade {
 		segments = append(segments, "`/upgrade dev`")
 	}

@@ -33,6 +33,9 @@ func (a *App) handleDaemonCommand(command control.DaemonCommand) []eventcontract
 }
 
 func (a *App) handleDaemonCommandLocked(command control.DaemonCommand) []eventcontract.Event {
+	if a.codexSourceSwitch != nil && command.Kind != control.DaemonCommandUpgradeOwnerFlow {
+		return codexSourceSwitchBlockedEvents(command.SurfaceSessionID)
+	}
 	switch command.Kind {
 	case control.DaemonCommandStartHeadless:
 		return a.startManagedHeadlessLocked(command)
@@ -84,6 +87,9 @@ func (a *App) startManagedHeadless(command control.DaemonCommand) []eventcontrac
 }
 
 func (a *App) startManagedHeadlessLocked(command control.DaemonCommand) []eventcontract.Event {
+	if a.codexSourceSwitch != nil {
+		return codexSourceSwitchBlockedEvents(command.SurfaceSessionID)
+	}
 	cfg := a.headlessRuntime
 	now := time.Now().UTC()
 	if strings.TrimSpace(cfg.BinaryPath) == "" {

@@ -14,9 +14,10 @@ import (
 )
 
 type LocalBinaryUpgradeOptions struct {
-	StatePath    string
-	SourceBinary string
-	Slot         string
+	StatePath         string
+	SourceBinary      string
+	Slot              string
+	CodexSourceSwitch *CodexSourceSwitch
 }
 
 func LocalUpgradeArtifactPath(stateValue InstallState) string {
@@ -35,6 +36,12 @@ func LocalUpgradeArtifactPath(stateValue InstallState) string {
 }
 
 func RunLocalBinaryUpgradeWithStatePath(opts LocalBinaryUpgradeOptions) (string, error) {
+	if opts.CodexSourceSwitch != nil {
+		return "", RunCodexSourceSwitchWithStatePath(CodexSourceSwitchOptions{
+			StatePath: opts.StatePath, TargetSource: opts.CodexSourceSwitch.TargetSource,
+			ConfigDigest: opts.CodexSourceSwitch.ConfigDigest,
+		})
+	}
 	statePath := strings.TrimSpace(opts.StatePath)
 	if statePath == "" {
 		return "", fmt.Errorf("state path is required")

@@ -23,9 +23,12 @@ checksum_first_field() {
 }
 
 tmp_dir="$(mktemp -d)"
+generated_go_tmp=""
 cleanup() {
   rm -rf "${tmp_dir}"
-  rm -f "${generated_go_tmp}"
+  if [[ -n "${generated_go_tmp}" ]]; then
+    rm -f "${generated_go_tmp}"
+  fi
 }
 trap cleanup EXIT
 
@@ -35,21 +38,29 @@ if [[ "${GOOS_VALUE}" == "windows" ]]; then
   binary_path="${binary_path}.exe"
 fi
 
+module_path="$(go list -m -f '{{.Path}}')"
+dependency_packages="$(CGO_ENABLED=0 GOOS="${GOOS_VALUE}" GOARCH="${GOARCH_VALUE}" go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/shim)"
 source_digest="$(
   {
     printf 'goversion=%s\n' "$(go env GOVERSION)"
     printf 'script=%s\n' "$(checksum_first_field "${SCRIPT_PATH}")"
+    printf 'gomod=%s\n' "$(checksum_first_field "${ROOT_DIR}/go.mod")"
+    printf 'gosum=%s\n' "$(checksum_first_field "${ROOT_DIR}/go.sum")"
     while IFS= read -r -d '' file; do
       printf '%s  %s\n' "$(checksum_first_field "${file}")" "${file}"
     done < <(
-      find "${ROOT_DIR}/cmd/shim" \
-        "${ROOT_DIR}/internal/app/vscodeshim" \
-        "${ROOT_DIR}/internal/app/upgradeshim" \
-        "${ROOT_DIR}/internal/shim" \
-        -type f -name '*.go' \
-        ! -path "${ROOT_DIR}/internal/shim/embed/*" \
-        -print0 |
-        sort -z
+      # The upgrade shim compiles install/config/runtime code too. Hash every
+      # repository dependency so a journal/schema/helper change cannot silently
+      # reuse an older embedded executable. Import paths avoid host path syntax.
+      while IFS= read -r package; do
+        case "${package}" in
+          "${module_path}") package_dir="${ROOT_DIR}" ;;
+          "${module_path}/"*) package_dir="${ROOT_DIR}/${package#"${module_path}/"}" ;;
+          *) continue ;;
+        esac
+        find "${package_dir}" -maxdepth 1 -type f -name '*.go' ! -name '*_test.go' -print0
+      done <<< "${dependency_packages}" |
+      sort -z
     )
   } | "${checksum_cmd[@]}" | awk '{print $1}'
 )"
