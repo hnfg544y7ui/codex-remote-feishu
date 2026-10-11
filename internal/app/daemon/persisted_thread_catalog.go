@@ -19,6 +19,13 @@ type daemonPersistedThreadCatalog struct {
 
 var _ threadcatalogcontract.BackendAwarePersistedThreadCatalog = (*daemonPersistedThreadCatalog)(nil)
 
+func (c *daemonPersistedThreadCatalog) DesktopProjects() (threadcatalogcontract.DesktopProjectSnapshot, error) {
+	if c == nil || c.codex == nil {
+		return threadcatalogcontract.DesktopProjectSnapshot{}, nil
+	}
+	return c.codex.DesktopProjects()
+}
+
 func newDaemonPersistedThreadCatalog(logf func(string, ...any)) (*daemonPersistedThreadCatalog, error) {
 	codexCatalog, err := codexstate.NewDefaultSQLiteThreadCatalog(codexstate.SQLiteThreadCatalogOptions{Logf: logf})
 	if err != nil {

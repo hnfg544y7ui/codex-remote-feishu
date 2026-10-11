@@ -1,8 +1,8 @@
 # Documentation Index
 
 > Type: `general`
-> Updated: `2026-10-10`
-> Summary: 增加飞书聊天本机定时任务实现文档。
+> Updated: `2026-10-11`
+> Summary: 增加已落地的桌面项目分组选择卡说明及部署验收记录。
 
 ## 1. 适用范围
 
@@ -159,6 +159,7 @@
 
 ### 6.2 `implemented`
 
+- [desktop-project-picker.md](./implemented/desktop-project-picker.md)
 - [cron-bitable-scheduler-design.md](./implemented/cron-bitable-scheduler-design.md)
 - [local-scheduled-tasks.md](./implemented/local-scheduled-tasks.md)
 - [feishu-md-preview-design.md](./implemented/feishu-md-preview-design.md)

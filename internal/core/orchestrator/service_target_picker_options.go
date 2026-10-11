@@ -139,11 +139,18 @@ func (s *Service) targetPickerWorkspaceEntriesForMode(surface *state.SurfaceCons
 }
 
 func (s *Service) targetPickerSessionOptions(surface *state.SurfaceConsoleRecord, entry workspaceSelectionEntry, source control.TargetPickerRequestSource, allowNewThread bool) []control.FeishuTargetPickerSessionOption {
+	if strings.TrimSpace(entry.workspaceKey) == "" {
+		return nil
+	}
+	views := s.threadViewsVisibleInNormalList(surface, s.mergedThreadViews(surface))
+	return s.targetPickerSessionOptionsWithViews(surface, entry, source, allowNewThread, views)
+}
+
+func (s *Service) targetPickerSessionOptionsWithViews(surface *state.SurfaceConsoleRecord, entry workspaceSelectionEntry, source control.TargetPickerRequestSource, allowNewThread bool, views []*mergedThreadView) []control.FeishuTargetPickerSessionOption {
 	workspaceKey := normalizeWorkspaceClaimKey(entry.workspaceKey)
 	if workspaceKey == "" {
 		return nil
 	}
-	views := s.threadViewsVisibleInNormalList(surface, s.mergedThreadViews(surface))
 	options := make([]control.FeishuTargetPickerSessionOption, 0, len(views)+1)
 	canUseWorkspace := !entry.busy
 	if canUseWorkspace && targetPickerAllowsNewThread(source, allowNewThread) && source == control.TargetPickerRequestSourceList {

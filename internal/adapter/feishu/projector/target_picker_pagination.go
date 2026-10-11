@@ -97,6 +97,9 @@ func targetPickerTargetPageElements(view control.FeishuTargetPickerView, daemonL
 }
 
 func targetPickerWorkspaceLane(view control.FeishuTargetPickerView) paginatedSelectFlowLane {
+	if view.ProjectGrouped {
+		return targetPickerWorkspaceLaneWithLabel(view, "项目", "选择项目")
+	}
 	return targetPickerWorkspaceLaneWithLabel(
 		view,
 		"工作区",
@@ -113,12 +116,16 @@ func targetPickerWorktreeWorkspaceLane(view control.FeishuTargetPickerView) pagi
 }
 
 func targetPickerWorkspaceLaneWithLabel(view control.FeishuTargetPickerView, label, placeholder string) paginatedSelectFlowLane {
+	selected := strings.TrimSpace(view.SelectedWorkspaceKey)
+	if view.ProjectGrouped {
+		selected = strings.TrimSpace(view.WorkspaceSelectionValue)
+	}
 	return paginatedSelectFlowLane{
 		Flow:          selectflow.TargetPickerWorkspaceFlow,
 		Label:         strings.TrimSpace(label),
 		Placeholder:   strings.TrimSpace(placeholder),
 		Cursor:        view.WorkspaceCursor,
-		SelectedValue: strings.TrimSpace(view.SelectedWorkspaceKey),
+		SelectedValue: selected,
 		Options:       targetPickerWorkspaceOptions(view.WorkspaceOptions),
 		SelectPayload: targetPickerPayload(view, actionPayloadTargetPicker(cardActionKindTargetPickerSelectWorkspace, view.PickerID)),
 		PagePayload: func(cursor int) map[string]any {

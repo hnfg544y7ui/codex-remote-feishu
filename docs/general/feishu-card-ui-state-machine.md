@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-11`
-> Summary: 工作区候选合同投影复用同轮实例分组，避免 Windows 历史目录重复扫描。
+> Summary: Codex 切换卡按桌面项目分组，显示值与执行目录分离并在确认时重验。
 
 ## 1. 文档定位
 
@@ -318,6 +318,8 @@
   - 目录下拉当前会在 `CanGoUp=true` 时额外插入一个值为 `..` 的首项；这条值仍然走 `path_picker_enter`，最终由 orchestrator 复用现有 root-boundary 校验解析到父目录
   - 当前路径选择器卡片已不再额外渲染 `path_picker_up` 按钮；目录下拉里的 `..` 是默认“返回上一级”入口，因此卡面统一保持“目录浏览走目录下拉、文件选择走文件下拉（若有）、确认/取消走底部按钮”的结构
 - `target_picker_select_workspace` / `target_picker_select_session`
+  - Codex 项目分组卡复用 workspace/session lane：workspace select 的显示值为 desktop-project:ID，标签为桌面项目名称，实际 SelectedWorkspaceKey 单独保留所选会话或新会话目录。kind、picker_id、owner、lifecycle 和字段名不变；projector 使用 WorkspaceSelectionValue 初始化项目下拉，gateway 原样回传显示值，orchestrator 按本轮只读项目快照解析，绝不把项目 ID 当路径。
+  - 同卡选择与分页保留项目范围；项目重命名、删根和会话移组在下一次 callback/confirm 自动刷新。失效归属、目录变化或占用变化时不分发输入；旧卡、非 owner 和非 editing 阶段继续由原有 guard 拒绝。
   - 同步构建候选时，同一实例内按原始 `(WorkspaceKey, CWD)` 对去重后再解析路径；去重只在本次调用内有效，后续调用仍重新解析符号链接，避免把旧工作区归属永久缓存。已有 CWD 不计算未使用的 fallback；相同原始路径无需重复做归属探测。
   - workspace 合同投影复用本次构建的在线、backend 过滤分组，避免历史工作区数量放大实例路径解析次数；每次回调仍检查最新占用，confirm 继续完整重验。
   - headless 会话标签复用本轮已解析的 target 状态，不为每个标签重新查询完整会话目录；工作区占用、兼容性、旧卡校验和同步替换合同保持不变，vscode 标签仍使用当前实例的 scope 校验。

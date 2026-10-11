@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-11`
-> Summary: 工作区候选合同投影复用同轮实例分组，避免 Windows 历史目录重复扫描。
+> Summary: Codex 切换卡按桌面项目分组，显示值与执行目录分离并在确认时重验。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -676,6 +676,8 @@ review mode 第一版当前不是新的 route state，而是挂在 surface 上�
 当前 `codex` 的工作会话主展示已经切到 `workspace` 命令族：bare `/workspace` / `/workspace new` 负责父页导航，`/workspace list` / `/workspace new dir` / `/workspace new git` / `/workspace new worktree` 负责四张独立业务卡；`/list` / `/use` / `/useall` 只保留 alias，并在 `codex` 下汇合到 `/workspace list`。
 
 对应实现里：
+
+Codex headless 的 `/workspace list`、`/list`、`/use`、`/useall` 在接入 desktop project catalog 时均展示项目和会话两级候选；各命令保留原 source，项目分组判定覆盖 list/use/useall 三种 source。每轮只读 SQL projects/project_roots 及 desktop global 的明确会话归属，中文项目名和多目录项目自动同步；显式未归属、cloud 归属或失效项目不按路径误猜。未知归属才按最深项目根目录边界推断，纯 CLI 主机统一归入未归属项目。项目 ID 只用于显示分组，thread/new-thread/worktree 的执行与 claim 始终使用真实目录。项目删除、会话移组、同一选择的目录变更和 workspace 占用变化都在 confirm 重验；变化时留在最新卡片重新确认。新会话默认使用项目第一条仍存在、未占用且能推断到本项目的根目录；Worktree 和锁定 workspace 流程继续使用实际路径。
 
 1. target picker 的 workspace 候选按入口分成 attach / list / worktree-base 三种模式。
    1. 在线实例先按可见 thread 的稳定 `WorkspaceKey` 归并 workspace；`thread.CWD` 只保留为最近活跃子目录。只有当某个 instance 当前完全没有可见 thread，或 thread 侧缺失稳定 root 时，才回退到该 instance 的 `WorkspaceKey/WorkspaceRoot`。
