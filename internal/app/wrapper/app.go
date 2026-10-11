@@ -45,6 +45,7 @@ type restartRequest struct {
 }
 
 type Config struct {
+	CodexRuntime    config.CodexRuntimeSettings
 	RelayServerURL  string
 	CodexRealBinary string
 	NameMode        string
@@ -85,9 +86,11 @@ func LoadConfig(args []string, version, branch string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	loaded.CodexRealBinary, err = resolveNormalCodexBinary(loaded.ConfigPath, loaded.CodexRealBinary)
-	if err != nil {
-		return Config{}, err
+	if loaded.CodexRuntime.Source == "" || loaded.CodexRuntime.Source == config.CodexRuntimeSourceLegacy {
+		loaded.CodexRealBinary, err = resolveNormalCodexBinary(loaded.ConfigPath, loaded.CodexRealBinary)
+		if err != nil {
+			return Config{}, err
+		}
 	}
 	services, err := config.LoadServicesConfig()
 	if err != nil {
@@ -144,6 +147,7 @@ func LoadConfig(args []string, version, branch string) (Config, error) {
 		backend = parsed
 	}
 	return Config{
+		CodexRuntime:              loaded.CodexRuntime,
 		RelayServerURL:            loaded.RelayServerURL,
 		CodexRealBinary:           loaded.CodexRealBinary,
 		NameMode:                  loaded.NameMode,

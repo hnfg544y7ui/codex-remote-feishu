@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kxn/codex-remote-feishu/internal/app/codexupgrade"
 	codexupgraderuntime "github.com/kxn/codex-remote-feishu/internal/app/daemon/codexupgraderuntime"
 	"github.com/kxn/codex-remote-feishu/internal/core/control"
 	"github.com/kxn/codex-remote-feishu/internal/core/eventcontract"
@@ -134,10 +135,18 @@ func codexUpgradeOwnerContextSections(flow *codexupgraderuntime.OwnerCardFlowRec
 		return nil
 	}
 	sections := make([]control.FeishuCardTextSection, 0, 2)
+	if source := codexUpgradeOwnerSourceLabel(flow.SourceKind); source != "" {
+		sections = append(sections, control.CommandCatalogTextSection("运行来源", source))
+	}
 	if current := strings.TrimSpace(flow.CurrentVersion); current != "" {
 		sections = append(sections, control.CommandCatalogTextSection("当前版本", current))
 	}
+	if previous := strings.TrimSpace(flow.PreviousVersion); previous != "" {
+		sections = append(sections, control.CommandCatalogTextSection("上一版本", previous))
+	}
 	switch {
+	case flow.Rollback && strings.TrimSpace(flow.TargetVersion) != "":
+		sections = append(sections, control.CommandCatalogTextSection("回退版本", strings.TrimSpace(flow.TargetVersion)))
 	case flow.HasUpdate && strings.TrimSpace(flow.TargetVersion) != "":
 		sections = append(sections, control.CommandCatalogTextSection("目标版本", strings.TrimSpace(flow.TargetVersion)))
 	case flow.Checked && strings.TrimSpace(flow.LatestVersion) != "":
@@ -167,6 +176,9 @@ func codexUpgradeOwnerReadyButtons(flow *codexupgraderuntime.OwnerCardFlowRecord
 	buttons := []control.CommandCatalogButton{}
 	if flow.HasUpdate && flow.CanUpgrade {
 		buttons = append(buttons, codexUpgradeOwnerButton("确认升级", flow.FlowID, upgradeOwnerActionConfirm, "primary"))
+	}
+	if flow.Stage == codexupgraderuntime.OwnerFlowStageReady && flow.Checked && flow.CanRollback && flow.SourceKind == codexupgrade.SourceManagedRuntime && strings.TrimSpace(flow.PreviousVersion) != "" && flow.PreviousVersion != flow.CurrentVersion {
+		buttons = append(buttons, codexUpgradeOwnerButton("回退上一版", flow.FlowID, codexUpgradeOwnerActionRollback, "default"))
 	}
 	label := "检查更新"
 	if flow.Checked {
@@ -250,14 +262,15 @@ func codexUpgradeOwnerStableEvent(surfaceID string, flow *codexupgraderuntime.Ow
 }
 
 func codexUpgradeOwnerRunningEvent(surfaceID string, flow *codexupgraderuntime.OwnerCardFlowRecord) eventcontract.Event {
+	title, preparing := codexUpgradeOwnerRunningText(flow)
 	return codexUpgradeOwnerCardEvent(
 		surfaceID,
 		flow,
-		"正在升级 Codex",
+		title,
 		"progress",
 		codexUpgradeOwnerContextSections(flow),
 		codexUpgradeOwnerNoticeSections(
-			"正在安装目标版本，并准备重启正在运行的 child Codex。",
+			preparing,
 			"普通输入已暂停，完成后会自动恢复。",
 		),
 		nil,
@@ -309,6 +322,8 @@ func (a *App) openCodexUpgradeOwnerFlowLocked(command control.DaemonCommand) []e
 	}
 	flow := a.newCodexUpgradeOwnerFlowLocked(command.SurfaceSessionID, a.service.SurfaceActorUserID(command.SurfaceSessionID), messageID)
 	flow.CurrentVersion = installation.CurrentVersion()
+	flow.SourceKind = installation.SourceKind
+	flow.PreviousVersion = installation.ManagedPreviousVersion
 	return []eventcontract.Event{codexUpgradeOwnerOpenEvent(command.SurfaceSessionID, flow)}
 }
 
@@ -316,6 +331,9 @@ func (a *App) startCodexUpgradeOwnerCheckLocked(command control.DaemonCommand) [
 	flow, blocked := a.requireCodexUpgradeOwnerFlowLocked(command.SurfaceSessionID, command.PickerID, a.service.SurfaceActorUserID(command.SurfaceSessionID))
 	if blocked != nil {
 		return blocked
+	}
+	if a.codexUpgradeRuntime.Active != nil || (flow.Stage != codexupgraderuntime.OwnerFlowStageOpen && flow.Stage != codexupgraderuntime.OwnerFlowStageReady) {
+		return []eventcontract.Event{upgradeNoticeEvent(command.SurfaceSessionID, "codex_upgrade_owner_invalid_stage", "当前操作正在处理中，请等待现有卡片更新。")}
 	}
 	a.refreshCodexUpgradeOwnerFlowLocked(flow, codexupgraderuntime.OwnerFlowStageChecking)
 	go a.runCodexUpgradeOwnerCheck(flow.FlowID, command.SurfaceSessionID)
@@ -352,7 +370,11 @@ func (a *App) finishCodexUpgradeOwnerCheckLocked(surfaceID, flowID string, check
 	a.refreshCodexUpgradeOwnerFlowLocked(flow, codexupgraderuntime.OwnerFlowStageReady)
 	if check.Installation.Upgradeable() {
 		flow.CurrentVersion = xutil.FirstNonEmpty(strings.TrimSpace(check.CurrentVersion), strings.TrimSpace(check.Installation.CurrentVersion()))
+		flow.SourceKind = check.Installation.SourceKind
 	}
+	flow.PreviousVersion = strings.TrimSpace(check.PreviousVersion)
+	flow.CanRollback = check.CanRollback && check.Installation.SourceKind == codexupgrade.SourceManagedRuntime && flow.PreviousVersion != ""
+	flow.Rollback = false
 	flow.LatestVersion = strings.TrimSpace(check.LatestVersion)
 	flow.TargetVersion = strings.TrimSpace(check.LatestVersion)
 	flow.Checked = check.Installation.Upgradeable()
@@ -384,6 +406,9 @@ func (a *App) finishCodexUpgradeOwnerCheckLocked(surfaceID, flowID string, check
 	if flow.HasUpdate && !flow.CanUpgrade {
 		lines = append(lines, codexUpgradeBusyNoticeLines(check)...)
 	}
+	if flow.SourceKind == codexupgrade.SourceManagedRuntime && flow.PreviousVersion != "" && !flow.CanRollback && len(check.BusyReasons) > 0 {
+		lines = append(lines, "回退需要其他窗口空闲；空闲后请再次检查。")
+	}
 	return []eventcontract.Event{codexUpgradeOwnerStableEvent(surfaceID, flow, lines...)}
 }
 
@@ -392,9 +417,10 @@ func (a *App) confirmCodexUpgradeOwnerFlowLocked(command control.DaemonCommand) 
 	if blocked != nil {
 		return blocked
 	}
-	if flow.Stage != codexupgraderuntime.OwnerFlowStageReady || !flow.Checked || !flow.HasUpdate || !flow.CanUpgrade {
+	if a.codexUpgradeRuntime.Active != nil || flow.Stage != codexupgraderuntime.OwnerFlowStageReady || !flow.Checked || !flow.HasUpdate || !flow.CanUpgrade {
 		return []eventcontract.Event{upgradeNoticeEvent(command.SurfaceSessionID, "codex_upgrade_owner_invalid_stage", "当前这张 Codex 升级卡片还不在可确认状态，请先重新检查。")}
 	}
+	flow.Rollback = false
 	a.refreshCodexUpgradeOwnerFlowLocked(flow, codexupgraderuntime.OwnerFlowStageChecking)
 	go a.runCodexUpgradeOwnerConfirm(flow.FlowID, command.SurfaceSessionID)
 	return []eventcontract.Event{codexUpgradeOwnerCardEvent(
@@ -414,16 +440,20 @@ func (a *App) runCodexUpgradeOwnerConfirm(flowID, surfaceID string) {
 	flow := a.activeCodexUpgradeOwnerFlowLocked()
 	targetVersion := ""
 	actorUserID := ""
-	if flow != nil && strings.TrimSpace(flow.FlowID) == strings.TrimSpace(flowID) {
-		targetVersion = flow.TargetVersion
-		actorUserID = flow.OwnerUserID
+	if flow == nil || strings.TrimSpace(flow.FlowID) != strings.TrimSpace(flowID) || flow.Stage != codexupgraderuntime.OwnerFlowStageChecking || strings.TrimSpace(flow.SurfaceSessionID) != strings.TrimSpace(surfaceID) {
+		a.mu.Unlock()
+		return
 	}
+	targetVersion = flow.TargetVersion
+	actorUserID = flow.OwnerUserID
+	rollback := flow.Rollback
 	a.mu.Unlock()
 
 	err := a.startStandaloneCodexUpgrade(context.Background(), codexUpgradeStartRequest{
 		SurfaceSessionID: surfaceID,
 		ActorUserID:      actorUserID,
 		TargetVersion:    targetVersion,
+		Rollback:         rollback,
 		OnComplete: func(err error) {
 			a.mu.Lock()
 			defer a.mu.Unlock()
@@ -448,9 +478,9 @@ func (a *App) runCodexUpgradeOwnerConfirm(flowID, surfaceID string) {
 		}
 		events := []eventcontract.Event{}
 		if checkErr != nil {
-			events = a.finishCodexUpgradeOwnerCheckLocked(surfaceID, flowID, codexUpgradeCheckResult{}, fmt.Sprintf("确认升级失败：%v", err))
+			events = a.finishCodexUpgradeOwnerCheckLocked(surfaceID, flowID, codexUpgradeCheckResult{}, fmt.Sprintf("%s：%v", codexUpgradeOwnerConfirmFailurePrefix(rollback), err))
 		} else {
-			events = a.finishCodexUpgradeOwnerCheckLocked(surfaceID, flowID, check, fmt.Sprintf("确认升级失败：%v", err))
+			events = a.finishCodexUpgradeOwnerCheckLocked(surfaceID, flowID, check, fmt.Sprintf("%s：%v", codexUpgradeOwnerConfirmFailurePrefix(rollback), err))
 		}
 		if len(events) != 0 {
 			a.handleUIEventsLocked(context.Background(), events)
@@ -480,7 +510,7 @@ func (a *App) finishCodexUpgradeOwnerRunLocked(surfaceID, flowID string, runErr 
 		event := codexUpgradeOwnerTerminalEvent(
 			surfaceID,
 			flow,
-			"Codex 升级失败",
+			codexUpgradeOwnerTerminalTitle(flow, false),
 			"error",
 			runErr.Error(),
 			"需要时可以重新发送 `/upgrade codex` 再检查一次。",
@@ -488,14 +518,17 @@ func (a *App) finishCodexUpgradeOwnerRunLocked(surfaceID, flowID string, runErr 
 		a.clearCodexUpgradeOwnerFlowLocked()
 		return []eventcontract.Event{event}
 	}
+	if flow.SourceKind == codexupgrade.SourceManagedRuntime {
+		flow.PreviousVersion = flow.CurrentVersion
+	}
 	flow.CurrentVersion = xutil.FirstNonEmpty(strings.TrimSpace(flow.TargetVersion), strings.TrimSpace(flow.LatestVersion), strings.TrimSpace(flow.CurrentVersion))
 	a.refreshCodexUpgradeOwnerFlowLocked(flow, codexupgraderuntime.OwnerFlowStageSucceeded)
 	event := codexUpgradeOwnerTerminalEvent(
 		surfaceID,
 		flow,
-		"Codex 升级完成",
+		codexUpgradeOwnerTerminalTitle(flow, true),
 		"success",
-		fmt.Sprintf("已升级到 %s。", xutil.FirstNonEmpty(strings.TrimSpace(flow.TargetVersion), strings.TrimSpace(flow.CurrentVersion), "unknown")),
+		codexUpgradeOwnerTerminalSummary(flow),
 	)
 	a.clearCodexUpgradeOwnerFlowLocked()
 	return []eventcontract.Event{event}
@@ -507,6 +540,8 @@ func (a *App) handleCodexUpgradeOwnerFlowCommandLocked(command control.DaemonCom
 		return a.startCodexUpgradeOwnerCheckLocked(command)
 	case upgradeOwnerActionConfirm:
 		return a.confirmCodexUpgradeOwnerFlowLocked(command)
+	case codexUpgradeOwnerActionRollback:
+		return a.confirmCodexRollbackOwnerFlowLocked(command)
 	default:
 		return nil
 	}

@@ -104,17 +104,25 @@ func RunMainWithArgs(ctx context.Context, args []string, version, branch string)
 	baseEnv := buildDaemonHeadlessBaseEnv(os.Environ(), capturedProxyEnv)
 	syncProcessPATHFromEnv(baseEnv)
 	codexRealBinary := strings.TrimSpace(loadedConfig.Config.Wrapper.CodexRealBinary)
-	if resolved, resolveErr := wrapper.ResolveNormalCodexBinaryPreview(codexRealBinary); resolveErr == nil {
-		codexRealBinary = resolved
+	codexRuntime, err := config.ResolveCodexRuntimeSettings(loadedConfig.Config.Wrapper.CodexRuntime)
+	if err != nil {
+		return err
+	}
+	if codexRuntime.Source == "" || codexRuntime.Source == config.CodexRuntimeSourceLegacy {
+		if resolved, resolveErr := wrapper.ResolveNormalCodexBinaryPreview(codexRealBinary); resolveErr == nil {
+			codexRealBinary = resolved
+		}
 	}
 	app.SetHeadlessRuntime(HeadlessRuntimeConfig{
 		BinaryPath:      identity.BinaryPath,
 		CodexRealBinary: codexRealBinary,
+		CodexRuntime:    codexRuntime,
 		ConfigPath:      cfg.ConfigPath,
 		BaseEnv:         baseEnv,
 		Paths:           paths,
 		MinIdle:         1,
 	})
+	app.configureManagedCodexUpgrade()
 	app.SetToolRuntime(toolruntime.Config{
 		ListenAddr: net.JoinHostPort(loadedConfig.Config.Tool.ListenHost, strconv.Itoa(loadedConfig.Config.Tool.ListenPort)),
 		StateFile:  paths.ToolServiceFile,

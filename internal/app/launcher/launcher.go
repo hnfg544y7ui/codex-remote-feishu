@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/kxn/codex-remote-feishu/internal/adapter/editor"
+	"github.com/kxn/codex-remote-feishu/internal/app/codexruntimecli"
 	"github.com/kxn/codex-remote-feishu/internal/app/daemon"
 	"github.com/kxn/codex-remote-feishu/internal/app/install"
 	"github.com/kxn/codex-remote-feishu/internal/app/installshim"
@@ -30,6 +31,7 @@ type RunnerSet struct {
 	RunPackagedInstall      func([]string, io.Reader, io.Writer, io.Writer, string) error
 	RunPackagedInstallProbe func([]string, io.Reader, io.Writer, io.Writer, string) error
 	RunLocalUpgrade         func([]string, io.Reader, io.Writer, io.Writer, string) error
+	RunCodexRuntime         func(context.Context, []string, io.Writer, io.Writer, string) error
 	RunService              func([]string, io.Reader, io.Writer, io.Writer, string) error
 	RunUpgradeHelper        func([]string, io.Reader, io.Writer, io.Writer, string) error
 	RunWrapper              func(context.Context, []string, io.Reader, io.Writer, io.Writer, string, string) (int, error)
@@ -111,6 +113,12 @@ func Main(opts Options) int {
 			return 1
 		}
 		return 0
+	case RoleCodexRuntime:
+		if err := opts.Runners.RunCodexRuntime(ctx, decision.Args, opts.Stdout, opts.Stderr, opts.Version); err != nil {
+			_, _ = fmt.Fprintf(opts.Stderr, "codex runtime error: %v\n", err)
+			return 1
+		}
+		return 0
 	case RoleUpgradeHelper:
 		if err := opts.Runners.RunUpgradeHelper(decision.Args, opts.Stdin, opts.Stdout, opts.Stderr, opts.Version); err != nil {
 			_, _ = fmt.Fprintf(opts.Stderr, "upgrade helper error: %v\n", err)
@@ -164,6 +172,9 @@ func withDefaults(opts Options) Options {
 	if opts.Runners.RunLocalUpgrade == nil {
 		opts.Runners.RunLocalUpgrade = install.RunLocalUpgrade
 	}
+	if opts.Runners.RunCodexRuntime == nil {
+		opts.Runners.RunCodexRuntime = codexruntimecli.Run
+	}
 	if opts.Runners.RunService == nil {
 		opts.Runners.RunService = install.RunService
 	}
@@ -184,6 +195,7 @@ func usageText() string {
   codex-remote packaged-install [flags]
   codex-remote packaged-install-probe [flags]
   codex-remote local-upgrade [flags]
+  codex-remote codex-runtime <status|prepare|activate> [flags]
   codex-remote service <subcommand> [flags]
   codex-remote app-server [codex app-server args...]
   codex-remote claude-app-server [claude app-server args...]

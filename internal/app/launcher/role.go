@@ -16,6 +16,7 @@ const (
 	RolePackagedInstall      Role = "packaged_install"
 	RolePackagedInstallProbe Role = "packaged_install_probe"
 	RoleLocalUpgrade         Role = "local_upgrade"
+	RoleCodexRuntime         Role = "codex_runtime"
 	RoleService              Role = "service"
 	RoleUpgradeHelper        Role = "upgrade_helper"
 	RoleWrapper              Role = "wrapper"
@@ -46,6 +47,8 @@ func Detect(args []string) (Decision, error) {
 		return Decision{Role: RolePackagedInstallProbe, Args: args[1:]}, nil
 	case "local-upgrade":
 		return Decision{Role: RoleLocalUpgrade, Args: args[1:]}, nil
+	case "codex-runtime":
+		return Decision{Role: RoleCodexRuntime, Args: args[1:]}, nil
 	case "service":
 		return Decision{Role: RoleService, Args: args[1:]}, nil
 	case "upgrade-helper":

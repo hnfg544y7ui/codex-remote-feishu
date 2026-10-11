@@ -11,6 +11,7 @@ import (
 )
 
 type WrapperConfig struct {
+	CodexRuntime    CodexRuntimeSettings
 	RelayServerURL  string
 	CodexRealBinary string
 	NameMode        string
@@ -76,8 +77,13 @@ func LoadWrapperConfig() (WrapperConfig, error) {
 	if err != nil {
 		return WrapperConfig{}, err
 	}
+	runtimeSettings, err := ResolveCodexRuntimeSettings(loaded.Config.Wrapper.CodexRuntime)
+	if err != nil {
+		return WrapperConfig{}, err
+	}
 	relayPort := chooseInt(os.Getenv(RelayPortEnv), loaded.Config.Relay.ListenPort)
 	cfg := WrapperConfig{
+		CodexRuntime: runtimeSettings,
 		RelayServerURL: chooseNonEmpty(
 			os.Getenv(RelayServerURLEnv),
 			loaded.Config.Relay.ServerURL,

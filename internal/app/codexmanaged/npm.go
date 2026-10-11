@@ -105,7 +105,7 @@ func installPrivateWithEnv(ctx context.Context, staging, target string, env []st
 	defer cancel()
 	// Explicit prefix and registry keep both install destination and release
 	// source independent of user npm defaults. Auth and CODEX_HOME are inherited.
-	args := []string{"install", "--prefix", staging, "--no-audit", "--no-fund", "--registry=https://registry.npmjs.org", "@openai/codex@" + target}
+	args := []string{"install", "--prefix", staging, "--include=optional", "--no-audit", "--no-fund", "--registry=https://registry.npmjs.org", "@openai/codex@" + target}
 	binary := "npm"
 	if runtime.GOOS == "windows" {
 		npm, err := executableFromEnv("npm", env)

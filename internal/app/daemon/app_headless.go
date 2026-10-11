@@ -165,6 +165,7 @@ func (a *App) startManagedHeadlessLocked(command control.DaemonCommand) []eventc
 		env = append(env, config.ResumeThreadIDEnv+"="+strings.TrimSpace(command.ThreadID))
 	}
 	if backend == agentproto.BackendCodex {
+		env = managedCodexLaunchEnv(env, cfg.CodexRuntime)
 		env = append(env, config.CodexRuntimeProfileIDEnv+"="+state.NormalizeCodexProfileID(command.CodexProfileID))
 	}
 	if backend == agentproto.BackendClaude {

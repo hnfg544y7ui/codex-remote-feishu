@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-11`
-> Summary: Codex 切换卡按桌面项目分组，显示值与执行目录分离并在确认时重验。
+> Summary: 补充托管 Codex CLI 的候选、空闲切换、回退及输入暂停恢复边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -521,7 +521,7 @@ review mode 第一版当前不是新的 route state，而是挂在 surface 上�
 | `G7 VSCodeCompatibilityBlocked` | `ProductMode=vscode`，surface detached，且本机检测到“不能安全自动收口”的 VS Code 兼容性问题 | daemon 不再自动恢复 exact instance，也不再发普通“请先打开 VS Code”提示，而是改发必要的修复/失败反馈；legacy `editor_settings` 若已存在可接管入口，会先静默自动迁到 `managed_shim`，只有缺 target、自动迁移失败或 stale managed shim 时才真正停在这个 gate。若这张提示由 stamped `/mode vscode` 当前卡同步触发，则优先承接到当前卡，否则保持独立 runtime 提示 |
 | `G8 TurnPatchEditing` | daemon 侧存在当前 surface 的 active turn-patch flow，且 `stage=editing` | 当前 frontstage 被 patch 卡占用；只有同一张 patch 卡的 `request_respond` / `request_control` 与 reaction/recall 可以继续，其它动作会被挡住并提示先提交或取消 |
 | `G9 UpgradeOwnerFlowRunning` | daemon 侧 active upgrade owner-flow 处于 `running` / `cancelling` / `restarting` | 这是 daemon 顶层的独立升级 gate；只允许 `/status`、`/upgrade`、`/debug`、reaction/recall 与同一张升级卡自身动作继续，其它 competing 输入会被拒绝 |
-| `G10 StandaloneCodexUpgradeRunning` | daemon 侧 active standalone Codex upgrade transaction 非空 | 这是 daemon 顶层的独立 upgrade gate，不复用现有 `codex-remote` owner-flow。发起 surface 的普通输入会被直接挡住；其它真正依赖 standalone Codex 的 attached surface 会继续走“写入队列 + notice + `paused_for_local`”语义；VS Code surface / instance 当前完全排除在这条 gate 之外；非 queueable 命令/卡片动作当前仍直接拒绝。事务只有在 install 完成、child restart `ack` 已确认、且匹配的 restore outcome 成功/失败/超时收口后才会退出，不会在 bare restart ack 后提前解 gate |
+| `G10 StandaloneCodexUpgradeRunning` | daemon 侧 active standalone / managed Codex upgrade transaction 非空 | 这是 daemon 顶层的独立 upgrade gate，不复用现有 `codex-remote` owner-flow。发起 surface 的普通输入会被直接挡住；其它真正依赖 standalone Codex 的 attached surface 会继续走“写入队列 + notice + `paused_for_local`”语义；VS Code surface / instance 当前完全排除在这条 gate 之外；非 queueable 命令/卡片动作当前仍直接拒绝。事务只有在 install 完成、child restart `ack` 已确认、且匹配的 restore outcome 成功/失败/超时收口后才会退出，不会在 bare restart ack 后提前解 gate |
 | `G11 TurnPatchTransactionRunning` | daemon 侧存在当前 instance 的 active turn-patch transaction | 发起 surface 与同 instance 上其它 attached surface 的状态改写类输入都会被挡住；当前只保留 `/status`、`/list`、`/help`、`/menu`、`/history`、`/debug`、reaction/recall 等查看类动作，直到 patch apply / rollback 收口。事务只会在 rollout 写盘后对应的 child restart 最终 outcome 成功，或在失败/超时后自动回滚并完成恢复 restart 收口后退出 |
 | `G12 BotCapabilitySettingsInvalid` | 合法 Feishu surface 对应的 gateway record 已存在，但 record 无法规范化或 storage key 与 record gateway 不一致 | capability effective read、配置与 lifecycle mutation、普通 action、queue 和 AutoContinue dispatch 全部 fail closed，不回退 raw surface；只保留 `/stop`、`/detach` 与 `/workspace detach` 释放执行和 route 资源。详细节流与恢复规则见 6.2 覆盖门禁 |
 
@@ -2095,6 +2095,19 @@ retained-offline overlay 额外规则：
 - 后台执行不改变 selected thread、不消费 staged inputs、不触发 AutoContinue/AutoWhip。暂停/删除撤销未发送轮次，已发送轮次保留；`/stop` 可中断当前运行。
 - 原 route 离线或工作区不一致时明确 pending/wait；已接受后 destination 漂移明确失败。重启后的运行中记录为 interrupted/unknown，不重放；通知失败只重试持久 outbox。
 - 使用和第一版恢复边界见 [本机定时任务](../implemented/local-scheduled-tasks.md)。
+
+## 10.2 独立托管 Codex CLI
+
+- `wrapper.codexRuntime.source=managed` 将官方 CLI 程序所有权交给 Remote；`external` 使用用户指定的外部 CLI，不运行私有自动安装；source 缺省/空/`legacy` 保持既有行为。`Managed` instance 标记与 CLI source 是两个不同的所有权概念。
+- `managed.json` 持有 `active/previous/candidate/failed`；wrapper 只解析 active，不扫描最高目录或在启动 child 时下载。无 active 的首次安装由 daemon 完成；失效 active 明确报错，不 silent fallback 到 App。
+- daemon 将解析后的 runtime source/channel/version/autoUpdate 环境传给新 wrapper，保持启动策略一致；运行中 JSON 变化不能把同一 daemon 的新 worker silent 切到另一 CLI 来源。
+- 自动更新默认关闭。显式 `autoUpdate=true` 且无 version pin 时，每 15 分钟准备、组件验证与隔离能力探测，每 30 秒检查能否在受影响窗口空闲后激活 candidate。busy 时等待，不抢占正在运行的任务；failed 版本需显式重试。
+- 自动确认只接受本进程 daemon 后台无 pin prepare/probe 记录的精确 candidate，要求同 channel 且版本严格高于 active。CLI/manual 候选不取得自动授权；daemon 重启后须等下一轮后台准备，激活/恢复 active 会清掉授权记录。
+- 手动升级、自动激活和回退共用 G10。新 managed 事务仅覆盖 daemon-owned managed Codex worker；VS Code 与非 Codex backend 不参与。发起窗口普通输入被拒绝，其他已 attach 的受影响窗口文本/图片/文件继续写原队列但暂停派发。
+- 切换前重新校验 busy/目标/transaction，激活后逐 worker restart，继续等待 child ack 与最终 thread restore outcome。失败时用独立恢复 deadline 尝试恢复原 CLI 和 worker；无论成功、失败或超时，最终都退出 transaction、恢复暂停窗口，不依赖 E4 的 local-activity watchdog。
+- `previous` 回退须精确匹配当前检查结果；被替换版本进入 failed，防止自动流程立即装回。二进制回退不回滚账号、会话数据库或 CLI 数据格式。
+- CLI `codex-runtime status/prepare` 不改变路由及 active；prepare 在线使用仅限已迁移的 managed daemon，legacy 首次迁移须先停止旧 daemon，避免旧最高目录扫描消费新候选。`activate` 仅在同用户、同 XDG 状态目录的 daemon 已停止时可用，持有 daemon lock 至探测/激活结束。在线维护必须走 G10，不新增绕过 writer 仲裁的在线 CLI 切换入口。
+- 配置、命令、组件验证与验收边界见 [Remote 托管官方 Codex CLI](../implemented/managed-codex-runtime.md)。该文档记录分支代码，NanoPi 部署与真实会话验收须另行确认。
 
 ## 11. 待讨论取舍
 

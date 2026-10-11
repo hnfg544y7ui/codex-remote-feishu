@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kxn/codex-remote-feishu/internal/app/codexmanaged"
+	"github.com/kxn/codex-remote-feishu/internal/config"
 )
 
 type ensureManagedCodex func(context.Context, string, string, []string) (string, error)
@@ -16,6 +17,13 @@ func (a *App) warmManagedCodex(ctx context.Context, startup bool, ensure ensureM
 	a.mu.Lock()
 	cfg := a.headlessRuntime
 	a.mu.Unlock()
+	if cfg.CodexRuntime.Source == config.CodexRuntimeSourceExternal {
+		return
+	}
+	if cfg.CodexRuntime.Source == config.CodexRuntimeSourceManaged {
+		a.warmStandaloneManagedCodex(ctx, cfg, startup)
+		return
+	}
 	if strings.TrimSpace(cfg.CodexRealBinary) == "" || strings.TrimSpace(cfg.Paths.StateDir) == "" {
 		return
 	}
@@ -43,12 +51,16 @@ func (a *App) warmManagedCodex(ctx context.Context, startup bool, ensure ensureM
 func (a *App) runManagedCodexUpdates(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
+	idleTicker := time.NewTicker(30 * time.Second)
+	defer idleTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			a.warmManagedCodex(ctx, false, nil)
+		case <-idleTicker.C:
+			a.maybeActivateManagedCodexCandidate(ctx)
 		}
 	}
 }

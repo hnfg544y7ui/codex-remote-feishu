@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-11`
-> Summary: 增加已落地的桌面项目分组选择卡说明及部署验收记录。
+> Summary: 索引独立托管官方 Codex CLI 的配置、版本切换、回退与维护边界。
 
 ## 1. 适用范围
 
@@ -165,6 +165,7 @@
 - [feishu-md-preview-design.md](./implemented/feishu-md-preview-design.md)
 - [feishu-request-approval-design.md](./implemented/feishu-request-approval-design.md)
 - [headless-pool-workspace-thread-selection-fix.md](./implemented/headless-pool-workspace-thread-selection-fix.md)
+- [managed-codex-runtime.md](./implemented/managed-codex-runtime.md)
 - [managed-headless-pool-design.md](./implemented/managed-headless-pool-design.md)
 - [feishu-queued-message-applause-shell-command-design.md](./implemented/feishu-queued-message-applause-shell-command-design.md)
 - [new-thread-command-design.md](./implemented/new-thread-command-design.md)

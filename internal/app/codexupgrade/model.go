@@ -9,6 +9,7 @@ const (
 	SourceVSCodeBundle    SourceKind = "vscode_bundle"
 	SourceStandaloneNPM   SourceKind = "standalone_npm"
 	SourceStandaloneOther SourceKind = "standalone_other"
+	SourceManagedRuntime  SourceKind = "managed_runtime"
 )
 
 const (
@@ -17,11 +18,13 @@ const (
 )
 
 type Installation struct {
-	ConfiguredBinary string
-	EffectiveBinary  string
-	ResolvedBinary   string
-	SourceKind       SourceKind
-	Problem          string
+	ManagedPreviousVersion string
+	RuntimeRoot            string
+	ConfiguredBinary       string
+	EffectiveBinary        string
+	ResolvedBinary         string
+	SourceKind             SourceKind
+	Problem                string
 
 	NPMCommand      string
 	NPMPrefix       string
@@ -35,7 +38,7 @@ type Installation struct {
 }
 
 func (i Installation) Upgradeable() bool {
-	return i.SourceKind == SourceStandaloneNPM && i.PackageVersion != ""
+	return (i.SourceKind == SourceStandaloneNPM || i.SourceKind == SourceManagedRuntime) && i.PackageVersion != ""
 }
 
 func (i Installation) BundleBacked() bool {
