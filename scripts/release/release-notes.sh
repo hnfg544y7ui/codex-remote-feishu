@@ -7,11 +7,13 @@ cd "${ROOT_DIR}"
 version="${VERSION:-}"
 latest_tag="${LATEST_TAG:-}"
 track="${RELEASE_TRACK:-}"
+repository="${CODEX_REMOTE_REPO:-${GITHUB_REPOSITORY:-kxn/codex-remote-feishu}}"
 
 if [[ -z "${version}" ]]; then
   echo "VERSION is required." >&2
   exit 1
 fi
+installer_url="https://raw.githubusercontent.com/${repository}/${version}"
 
 if [[ -z "${track}" ]]; then
   case "${version}" in
@@ -98,14 +100,14 @@ echo
 echo "Latest production install:"
 echo
 echo '```bash'
-echo "curl -fsSL https://raw.githubusercontent.com/kxn/codex-remote-feishu/master/install-release.sh | bash"
+echo "curl -fsSL ${installer_url}/install-release.sh | CODEX_REMOTE_REPO=${repository} bash -s -- --repo ${repository}"
 echo '```'
 echo
 if [[ "${track}" != "production" ]]; then
   echo "Latest ${track} install:"
   echo
   echo '```bash'
-  echo "curl -fsSL https://raw.githubusercontent.com/kxn/codex-remote-feishu/master/install-release.sh | bash -s -- --track ${track}"
+  echo "curl -fsSL ${installer_url}/install-release.sh | CODEX_REMOTE_REPO=${repository} bash -s -- --repo ${repository} --track ${track}"
   echo '```'
   echo
 fi
@@ -114,13 +116,20 @@ echo
 echo "Pin this version:"
 echo
 echo '```bash'
-echo "curl -fsSL https://raw.githubusercontent.com/kxn/codex-remote-feishu/master/install-release.sh | bash -s -- --version ${version}"
+echo "curl -fsSL ${installer_url}/install-release.sh | CODEX_REMOTE_REPO=${repository} bash -s -- --repo ${repository} --version ${version}"
+echo '```'
+echo
+echo "Windows PowerShell:"
+echo
+echo '```powershell'
+printf '$env:CODEX_REMOTE_REPO = "%s"\n' "${repository}"
+printf '& ([scriptblock]::Create((irm %s/install-release.ps1))) -Repo %s -Version %s\n' "${installer_url}" "${repository}" "${version}"
 echo '```'
 echo
 echo "Manual archive install:"
 echo
 echo '```bash'
-echo "./codex-remote install -bootstrap-only -start-daemon"
+echo "CODEX_REMOTE_REPO=${repository} ./codex-remote install -bootstrap-only -start-daemon"
 echo '```'
 echo
 echo "## Detailed Changes"

@@ -1,8 +1,8 @@
 # Release Roadmap Workflow
 
 > Type: `general`
-> Updated: `2026-04-27`
-> Summary: 定义 `master` 单主干、短命 `release/*` 封版分支、固定 `dev-latest` 滚动 prerelease，以及 milestone / release tracker / 显式 production 版本号驱动的发版闸门。
+> Updated: `2026-10-11`
+> Summary: 支持三段和四段发布版本，说明 fork 从 develop 发布 v1.0.0.1 时的显式编号与升级边界。
 
 ## 1. 当前基线
 
@@ -84,6 +84,16 @@
 - `alpha` 只保留兼容 / 手动语义，不再作为日常开发快照公开分发主面
 - `dev-latest` 不参与 semver 版本计算，它是一条固定 tag / fixed prerelease，只滚动覆盖 asset 与 manifest
 - 需要时预发布仍可通过 release tracker 显式指定某个 `beta` / `alpha` 版本号
+
+### 4.3 四段版本与 fork 重新编号
+
+- 发布校验、安装脚本和客户端升级识别兼容 `vX.Y.Z` 与 `vX.Y.Z.R`；预发布可追加 `-beta.N` 或 `-alpha.N`，不接受五段数字。
+- 本 fork 使用 `develop` 集成改动，首次重新编号发布为 `v1.0.0.1`。手动 release workflow 指定 `ref=develop`、`track=production`、`version=v1.0.0.1`。
+- 编译时注入完整版本，资产名称保留完整四段版本；macOS bundle 数字元数据使用前三段，完整修订号仍保留在程序和发布包中。
+- 升级查询按 GitHub 发布列表顺序选择首个符合 track 的版本，不按最大数字排序，因此允许从旧 `v2.1.2` 切换到重新编号版本。发布时应显式将新正式版设为 GitHub Latest。
+- 旧客户端的三段版本过滤不能识别四段版本；首次切换需要指定完整版本安装，或使用本地升级安装支持四段版本的客户端。
+- `next-version.sh` 自动推导仍以历史最高数字正式 tag 为基线，自动输出三段 major/minor/patch。重新编号后的四段发行使用显式版本，避免受到旧 `v2.*` tag 影响。
+- fork Release 不会自动改变客户端的升级仓库；从本 fork 安装或更新时设置 `CODEX_REMOTE_REPO=hnfg544y7ui/codex-remote-feishu`。
 
 ## 5. 日常使用方式
 

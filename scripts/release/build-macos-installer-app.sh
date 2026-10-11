@@ -72,10 +72,12 @@ bundle_versions_for_app() {
   local base=""
   local pre_kind=""
   local pre_num=""
-  if [[ "${version}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-(alpha|beta)\.([0-9]+))?$ ]]; then
+  if [[ "${version}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(\.([0-9]+))?(-(alpha|beta)\.([0-9]+))?$ ]]; then
+    # Apple's bundle metadata uses three numeric fields. Keep the base there;
+    # the full maintenance revision remains in package and installer labels.
     base="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
-    pre_kind="${BASH_REMATCH[5]:-}"
-    pre_num="${BASH_REMATCH[6]:-}"
+    pre_kind="${BASH_REMATCH[7]:-}"
+    pre_num="${BASH_REMATCH[8]:-}"
     local bundle_version="${base}"
     case "${pre_kind}" in
       alpha)

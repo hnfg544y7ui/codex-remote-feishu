@@ -109,6 +109,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Check Windows release version lookup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/check/release-four-part-version.ps1
+
       - name: Resolve Go version spec
         id: go_version
         shell: bash

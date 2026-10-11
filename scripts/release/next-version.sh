@@ -24,7 +24,7 @@ esac
 
 latest_production_tag="$(
   git tag --list 'v*' --sort=-version:refname |
-    grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+    grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$' |
     head -n1 ||
     true
 )"
@@ -38,7 +38,10 @@ if [[ -z "${latest_production_tag}" ]]; then
   fi
 else
   version_core="${latest_production_tag#v}"
-  IFS=. read -r major minor patch <<<"${version_core}"
+  # The optional revision identifies a maintenance release. Automatic major,
+  # minor, and patch bumps keep their existing three-part output, but use the
+  # latest maintenance tag as the commit-range boundary.
+  IFS=. read -r major minor patch revision <<<"${version_core}"
 
   if [[ -z "${major:-}" || -z "${minor:-}" || -z "${patch:-}" ]]; then
     echo "Latest production tag is not a semantic version: ${latest_production_tag}" >&2

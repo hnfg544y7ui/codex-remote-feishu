@@ -17,6 +17,7 @@ cd "${repo_dir}"
 git init -q
 git config user.name "Codex Remote Tests"
 git config user.email "tests@example.com"
+git config core.autocrlf false
 
 run_next_version() {
   local track="$1"
@@ -80,3 +81,30 @@ assert_eq "$(run_next_version production auto)" "v0.2.0" "production ignores pre
 
 git tag v0.2.0
 assert_fails run_next_version production auto
+
+printf '\nmaintenance\n' >> README.md
+git add README.md
+git commit -qm "feat: already released maintenance feature"
+git tag v0.2.0.1
+assert_fails run_next_version production auto
+
+printf '\nfix\n' >> README.md
+git add README.md
+git commit -qm "fix: follow-up maintenance fix"
+assert_eq "$(run_next_version production auto)" "v0.2.1" "four-part tag bounds unreleased commits"
+assert_eq "$(run_next_version production minor)" "v0.3.0" "explicit minor bump from four-part tag"
+assert_eq "$(run_next_version production major)" "v1.0.0" "explicit major bump from four-part tag"
+assert_eq "$(run_next_version beta auto)" "v0.2.1-beta.1" "beta core follows latest four-part stable"
+
+# Numeric Git sorting must prefer revision 10 to revision 2.
+git tag v0.2.0.2
+git tag v0.2.0.10
+git tag v9.9.9.9.9
+assert_fails run_next_version production auto
+printf '\nnew feature\n' >> README.md
+git add README.md
+git commit -qm "feat: post-maintenance feature"
+assert_eq "$(run_next_version production auto)" "v0.3.0" "feature bump after four-part release"
+
+echo "release track version selftest: ok"
+bash "${ROOT_DIR}/scripts/check/release-four-part-version.sh"

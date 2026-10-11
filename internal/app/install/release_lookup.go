@@ -31,9 +31,9 @@ type ReleaseLookupOptions struct {
 }
 
 var (
-	productionReleasePattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
-	betaReleasePattern       = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$`)
-	alphaReleasePattern      = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$`)
+	productionReleasePattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$`)
+	betaReleasePattern       = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?-beta\.[0-9]+$`)
+	alphaReleasePattern      = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?-alpha\.[0-9]+$`)
 )
 
 func ResolveLatestRelease(ctx context.Context, opts ReleaseLookupOptions) (ReleaseInfo, error) {
