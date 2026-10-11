@@ -43,6 +43,13 @@ func stdinLoop(ctx context.Context, stdin io.Reader, writeCh chan<- []byte, runt
 				}
 				forwardOriginal = !result.Suppress
 			} else {
+				if isSharedBackendRuntime(runtime) {
+					select {
+					case errCh <- parseErr:
+					case <-ctx.Done():
+					}
+					return
+				}
 				if debugf != nil {
 					debugf("stdin observe parse failed: err=%v preview=%q", parseErr, previewRawLine(line))
 				}
@@ -183,6 +190,13 @@ func stdoutLoop(ctx context.Context, childStdout io.Reader, parentStdout io.Writ
 					}
 				}
 			} else {
+				if isSharedBackendRuntime(runtime) {
+					select {
+					case errCh <- parseErr:
+					case <-ctx.Done():
+					}
+					return
+				}
 				if debugf != nil {
 					debugf("stdout observe parse failed: err=%v preview=%q", parseErr, previewRawLine(line))
 				}

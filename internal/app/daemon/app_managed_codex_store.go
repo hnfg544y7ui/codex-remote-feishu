@@ -162,7 +162,7 @@ func (a *App) inspectManagedCodexInstallation(cfg HeadlessRuntimeConfig) (codexu
 
 func (a *App) configureManagedCodexUpgrade() {
 	cfg := a.managedCodexConfig()
-	if cfg.CodexRuntime.Source != config.CodexRuntimeSourceManaged {
+	if cfg.CodexAppServerURL != "" || cfg.CodexRuntime.Source != config.CodexRuntimeSourceManaged {
 		return
 	}
 	// Menu visibility invokes Inspect while holding App.mu. Capture the immutable

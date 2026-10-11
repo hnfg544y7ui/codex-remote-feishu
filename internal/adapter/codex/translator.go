@@ -8,6 +8,7 @@ import (
 type Translator struct {
 	adapterkit.TranslatorBase
 	instanceID                 string
+	shared                     *sharedBackendState
 	currentThreadID            string
 	activeTurnByThread         map[string]string
 	knownThreadCWD             map[string]string

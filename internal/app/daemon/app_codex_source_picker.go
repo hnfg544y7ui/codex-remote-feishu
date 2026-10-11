@@ -27,6 +27,9 @@ func codexSourceLabel(source string) string {
 }
 
 func (a *App) openCodexSourcePickerLocked(command control.DaemonCommand, stateValue install.InstallState) []eventcontract.Event {
+	if a.sharedCodexBackendLocked() {
+		return sharedCodexMaintenanceEvents(command.SurfaceSessionID)
+	}
 	if a.codexSourceSwitch != nil || a.upgradeRuntime.StartInFlight || a.upgradeRuntime.CheckInFlight || a.codexUpgradeRuntime.Active != nil || pendingUpgradeBusy(stateValue.PendingUpgrade) {
 		return codexSourceSwitchBlockedEvents(command.SurfaceSessionID)
 	}
@@ -77,6 +80,9 @@ func (a *App) handleCodexSourcePickerLocked(command control.DaemonCommand) []eve
 		event := upgradeOwnerTerminalEvent(command.SurfaceSessionID, flow, "Codex 来源切换已取消", "info", nil, upgradeOwnerNoticeSections("当前来源保持不变。"))
 		a.clearUpgradeOwnerFlowLocked()
 		return []eventcontract.Event{event}
+	}
+	if a.sharedCodexBackendLocked() {
+		return a.finishCodexSourceSwitchFailureLocked(flow.FlowID, sharedCodexMaintenanceError().Error())
 	}
 	target := strings.TrimSpace(command.OptionID)
 	if target != config.CodexRuntimeSourceManaged && target != config.CodexRuntimeSourceExternal {

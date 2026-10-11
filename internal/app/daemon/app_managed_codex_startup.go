@@ -58,7 +58,7 @@ func (a *App) warmStandaloneManagedCodex(ctx context.Context, cfg HeadlessRuntim
 
 func (a *App) maybeActivateManagedCodexCandidate(ctx context.Context) {
 	cfg := a.managedCodexConfig()
-	if cfg.CodexRuntime.Source != config.CodexRuntimeSourceManaged || !cfg.CodexRuntime.AutoUpdate || cfg.CodexRuntime.Version != "" {
+	if cfg.CodexAppServerURL != "" || cfg.CodexRuntime.Source != config.CodexRuntimeSourceManaged || !cfg.CodexRuntime.AutoUpdate || cfg.CodexRuntime.Version != "" {
 		return
 	}
 	state, err := a.managedCodexStore().inspect(managedCodexRoot(cfg))

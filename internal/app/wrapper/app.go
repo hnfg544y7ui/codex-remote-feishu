@@ -45,12 +45,13 @@ type restartRequest struct {
 }
 
 type Config struct {
-	CodexRuntime    config.CodexRuntimeSettings
-	RelayServerURL  string
-	CodexRealBinary string
-	NameMode        string
-	Args            []string
-	ConfigPath      string
+	CodexRuntime      config.CodexRuntimeSettings
+	RelayServerURL    string
+	CodexRealBinary   string
+	CodexAppServerURL string
+	NameMode          string
+	Args              []string
+	ConfigPath        string
 
 	InstanceID                string
 	DisplayName               string
@@ -86,7 +87,7 @@ func LoadConfig(args []string, version, branch string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if loaded.CodexRuntime.Source == "" || loaded.CodexRuntime.Source == config.CodexRuntimeSourceLegacy {
+	if loaded.CodexAppServerURL == "" && (loaded.CodexRuntime.Source == "" || loaded.CodexRuntime.Source == config.CodexRuntimeSourceLegacy) {
 		loaded.CodexRealBinary, err = resolveNormalCodexBinary(loaded.ConfigPath, loaded.CodexRealBinary)
 		if err != nil {
 			return Config{}, err
@@ -150,6 +151,7 @@ func LoadConfig(args []string, version, branch string) (Config, error) {
 		CodexRuntime:              loaded.CodexRuntime,
 		RelayServerURL:            loaded.RelayServerURL,
 		CodexRealBinary:           loaded.CodexRealBinary,
+		CodexAppServerURL:         loaded.CodexAppServerURL,
 		NameMode:                  loaded.NameMode,
 		Args:                      args,
 		ConfigPath:                xutil.FirstNonEmpty(services.ConfigPath, loaded.ConfigPath, paths.ConfigFile),
@@ -472,7 +474,7 @@ func (a *App) Run(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer
 		case err := <-waitErrCh:
 			waitForSessionStdoutStopped(activeChild, wrapperChildWaitTimeout)
 			closeChildSessionPipes(activeChild)
-			emitRuntimeExitReconciliation(client, turnTracker, err, problems.Emit)
+			emitChildSessionExit(activeChild, client, turnTracker, err, problems.Emit)
 			drainAndCloseRelayClient(client, problems.Emit)
 			if err == nil {
 				return 0, nil
@@ -482,6 +484,9 @@ func (a *App) Run(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer
 			}
 			return 1, err
 		case err := <-errCh:
+			if activeChild != nil && activeChild.sharedBackend && err != nil && err != context.Canceled {
+				problems.Emit(sharedBackendTransportProblem(err))
+			}
 			drainAndCloseRelayClient(client, problems.Emit)
 			stopChildSession(activeChild, a.debugf)
 			if err == nil || err == context.Canceled {

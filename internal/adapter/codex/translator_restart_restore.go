@@ -34,7 +34,11 @@ func (t *Translator) BuildChildRestartRestoreFrame(commandID string) ([]byte, st
 		delete(t.pendingChildRestartRestore, requestID)
 		return nil, "", false, err
 	}
-	return append(bytes, '\n'), requestID, true, nil
+	frame := append(bytes, '\n')
+	if t.shared != nil {
+		t.recordSharedOutbound([][]byte{frame}, agentproto.Initiator{})
+	}
+	return frame, requestID, true, nil
 }
 
 func (t *Translator) PrepareChildRestartRestorePolicy(policy *agentproto.CodexResumePolicy) {
@@ -47,4 +51,7 @@ func (t *Translator) CancelChildRestartRestore(requestID string) {
 		return
 	}
 	delete(t.pendingChildRestartRestore, requestID)
+	if t.shared != nil {
+		delete(t.shared.requests, sharedRequestKey(requestID))
+	}
 }

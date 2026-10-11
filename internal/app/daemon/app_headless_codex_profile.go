@@ -20,6 +20,8 @@ func codexHeadlessLaunchProblem(err error, defaults agentproto.ErrorInfo) agentp
 	problem.Retryable = false
 	problem.Details = codexprofile.RuntimeErrorStage(err)
 	switch code {
+	case codexprofile.ErrorSharedBackendProfileUnsupported:
+		problem.Message = "共享后端只支持继承后端配置，请选择共享后端的本机默认 Profile；账号和 API 配置由后端宿主管理。"
 	case codexprofile.ErrorProfileDefinitionIncomplete:
 		problem.Message = "Codex Profile 缺少必需的模型或推理配置，请先完成配置。"
 	case codexprofile.ErrorProfileSecretMissing:
@@ -60,6 +62,9 @@ func (a *App) applyCodexHeadlessProfileConfigLocked(baseEnv, baseArgs []string, 
 	args := append([]string{}, baseArgs...)
 	if agentproto.NormalizeBackend(backend) != agentproto.BackendCodex {
 		return env, args, nil, nil
+	}
+	if a.sharedCodexBackendLocked() {
+		return a.applySharedCodexHeadlessProfileLocked(env, args, profileID, admissionRef)
 	}
 
 	loaded, err := a.loadAdminConfig()

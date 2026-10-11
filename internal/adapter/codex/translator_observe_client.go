@@ -11,6 +11,17 @@ import (
 )
 
 func (t *Translator) ObserveClient(raw []byte) (Result, error) {
+	if err := t.checkSharedParentResponse(raw); err != nil {
+		return Result{Suppress: true}, err
+	}
+	result, err := t.observeClient(raw)
+	if err == nil && t.shared != nil && !result.Suppress {
+		t.recordSharedOutbound([][]byte{raw}, agentproto.Initiator{Kind: agentproto.InitiatorLocalUI})
+	}
+	return result, err
+}
+
+func (t *Translator) observeClient(raw []byte) (Result, error) {
 	var message map[string]any
 	if err := json.Unmarshal(raw, &message); err != nil {
 		return Result{}, err

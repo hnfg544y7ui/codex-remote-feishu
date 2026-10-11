@@ -1,8 +1,8 @@
 # Documentation Index
 
 > Type: `general`
-> Updated: `2026-10-11`
-> Summary: 索引独立托管官方 Codex CLI 的配置、版本切换、回退与维护边界。
+> Updated: `2026-10-12`
+> Summary: 增加共享 Codex 后端的显式配置、Windows 接入与验收边界索引。
 
 ## 1. 适用范围
 
@@ -172,6 +172,7 @@
 - [non-linux-user-autostart-design.md](./implemented/non-linux-user-autostart-design.md)
 - [relay-backpressure-hardening-design.md](./implemented/relay-backpressure-hardening-design.md)
 - [shared-exploration-progress-card-design.md](./implemented/shared-exploration-progress-card-design.md)
+- [shared-codex-backend.md](./implemented/shared-codex-backend.md)
 - [authenticated-external-access-foundation-design.md](./implemented/authenticated-external-access-foundation-design.md)
 - [cross-layer-event-contract-redesign.md](./implemented/cross-layer-event-contract-redesign.md)
 - [thread-description-unification-plan.md](./implemented/thread-description-unification-plan.md)

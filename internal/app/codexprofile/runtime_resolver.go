@@ -19,14 +19,17 @@ import (
 )
 
 const (
-	ErrorProfileRevisionUnavailable  = "profile_revision_unavailable"
-	ErrorProfileDefinitionIncomplete = "profile_definition_incomplete"
-	ErrorProfileSecretMissing        = "profile_secret_missing"
-	ErrorOAuthMissing                = "oauth_missing"
-	ErrorManagedModelCatalogMissing  = "managed_model_catalog_missing"
+	ErrorProfileRevisionUnavailable      = "profile_revision_unavailable"
+	ErrorProfileDefinitionIncomplete     = "profile_definition_incomplete"
+	ErrorProfileSecretMissing            = "profile_secret_missing"
+	ErrorOAuthMissing                    = "oauth_missing"
+	ErrorManagedModelCatalogMissing      = "managed_model_catalog_missing"
+	ErrorSharedBackendProfileUnsupported = "shared_backend_profile_unsupported"
+	SharedNativeCapabilitySetV1          = "codex-shared-native-v1"
 )
 
 type RuntimeResolver struct {
+	SharedBackend           bool
 	APIProfiles             []config.CodexAPIProfileRecord
 	Preference              func(state.CodexContextPreferenceRef) (state.ProfileContextPreference, bool)
 	OAuthState              *state.CodexOAuthProfileState
@@ -138,8 +141,14 @@ func RuntimeErrorStage(err error) string {
 
 func (r RuntimeResolver) Resolve(ref state.CodexAdmissionRef) (RuntimeProjection, error) {
 	profileID := strings.TrimSpace(ref.ProfileRef.ID)
+	if r.SharedBackend && profileID != state.NativeCodexProfileID {
+		return RuntimeProjection{}, runtimeError(ErrorSharedBackendProfileUnsupported)
+	}
 	if profileID == "" || ref.ProfileRef.Revision == 0 || ref.ContextPreferenceRef.ProfileID != profileID || ref.ContextPreferenceRef.Revision == 0 {
 		return RuntimeProjection{}, runtimeError(ErrorProfileRevisionUnavailable)
+	}
+	if r.SharedBackend {
+		return r.resolveSharedNative(ref)
 	}
 	capabilitySet := strings.TrimSpace(r.CapabilitySet)
 	if profileID == state.OAuthCodexProfileID {

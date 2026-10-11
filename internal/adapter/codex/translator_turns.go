@@ -15,6 +15,12 @@ func (t *Translator) resolveTurnInitiator(threadID, turnID string, trafficClass 
 	if trafficClass == agentproto.TrafficClassInternalHelper {
 		return agentproto.Initiator{Kind: agentproto.InitiatorInternalHelper}
 	}
+	if t.shared != nil {
+		if initiator := t.turnInitiators[turnID]; initiator.Kind != "" {
+			return initiator
+		}
+		return agentproto.Initiator{Kind: agentproto.InitiatorLocalUI}
+	}
 	if surfaceID := t.pendingRemoteTurnByThread[threadID]; surfaceID != "" {
 		delete(t.pendingRemoteTurnByThread, threadID)
 		delete(t.pendingLocalTurnByThread, threadID)

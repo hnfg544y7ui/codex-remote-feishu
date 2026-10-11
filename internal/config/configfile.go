@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kxn/codex-remote-feishu/internal/app/appserverendpoint"
 	"github.com/kxn/codex-remote-feishu/internal/atomicfile"
 	"github.com/kxn/codex-remote-feishu/internal/core/netutil"
 	"github.com/kxn/codex-remote-feishu/internal/core/relayurl"
@@ -118,10 +119,11 @@ type TryCloudflareSettings struct {
 }
 
 type WrapperSettings struct {
-	CodexRuntime    CodexRuntimeSettings `json:"codexRuntime,omitempty"`
-	CodexRealBinary string               `json:"codexRealBinary,omitempty"`
-	NameMode        string               `json:"nameMode,omitempty"`
-	IntegrationMode string               `json:"integrationMode,omitempty"`
+	CodexRuntime      CodexRuntimeSettings `json:"codexRuntime,omitempty"`
+	CodexAppServerURL string               `json:"codexAppServerURL,omitempty"`
+	CodexRealBinary   string               `json:"codexRealBinary,omitempty"`
+	NameMode          string               `json:"nameMode,omitempty"`
+	IntegrationMode   string               `json:"integrationMode,omitempty"`
 }
 
 type FeishuSettings struct {
@@ -228,6 +230,11 @@ func WriteAppConfig(path string, cfg AppConfig) error {
 	if err := ValidateCodexRuntimeSettings(cfg.Wrapper.CodexRuntime); err != nil {
 		return err
 	}
+	endpoint, err := appserverendpoint.NormalizeURL(cfg.Wrapper.CodexAppServerURL)
+	if err != nil {
+		return fmt.Errorf("validate codex app-server URL: %w", err)
+	}
+	cfg.Wrapper.CodexAppServerURL = endpoint
 	if err := ValidateCodexAPIProfileRecords(cfg.Codex.Profiles); err != nil {
 		return err
 	}
@@ -293,6 +300,11 @@ func readConfigFile(path string) (AppConfig, error) {
 	if err := ValidateCodexRuntimeSettings(cfg.Wrapper.CodexRuntime); err != nil {
 		return AppConfig{}, fmt.Errorf("validate codex runtime %s: %w", path, err)
 	}
+	endpoint, err := appserverendpoint.NormalizeURL(cfg.Wrapper.CodexAppServerURL)
+	if err != nil {
+		return AppConfig{}, fmt.Errorf("validate codex app-server URL %s: %w", path, err)
+	}
+	cfg.Wrapper.CodexAppServerURL = endpoint
 	if err := ValidateCodexAPIProfileRecords(cfg.Codex.Profiles); err != nil {
 		return AppConfig{}, fmt.Errorf("validate codex profile catalog %s: %w", path, err)
 	}

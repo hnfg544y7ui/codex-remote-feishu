@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -18,23 +19,27 @@ import (
 )
 
 type childSession struct {
-	cmd         *exec.Cmd
-	stdin       io.WriteCloser
-	stdout      io.Reader
-	stderr      io.Reader
-	stdoutClose io.Closer
-	stderrClose io.Closer
-	generation  int64
-	waitErr     chan error
-	cancel      context.CancelFunc
-	ioCancel    context.CancelFunc
-	writeCancel context.CancelFunc
-	stdoutDone  chan struct{}
-	stderrDone  chan struct{}
-	writeDone   chan struct{}
+	sharedBackend bool
+	cmd           *exec.Cmd
+	stdin         io.WriteCloser
+	stdout        io.Reader
+	stderr        io.Reader
+	stdoutClose   io.Closer
+	stderrClose   io.Closer
+	generation    int64
+	waitErr       chan error
+	cancel        context.CancelFunc
+	ioCancel      context.CancelFunc
+	writeCancel   context.CancelFunc
+	stdoutDone    chan struct{}
+	stderrDone    chan struct{}
+	writeDone     chan struct{}
 }
 
 func (a *App) launchCodexChildSession(ctx context.Context, rawLogger *debuglog.RawLogger, reportProblem func(agentproto.ErrorInfo)) (*childSession, error) {
+	if strings.TrimSpace(a.config.CodexAppServerURL) != "" {
+		return a.launchSharedCodexSession(ctx, rawLogger, reportProblem)
+	}
 	privateArgs, err := appserverargs.PrivateStdioArgs(a.config.Args)
 	if err != nil {
 		return nil, err
@@ -225,7 +230,7 @@ func waitForSessionStdoutStopped(session *childSession, timeout time.Duration) b
 }
 
 func (a *App) restartChildSession(ctx context.Context, request restartRequest, current *childSession, parentStdout, parentStderr io.Writer, writeCh chan []byte, client *relayws.Client, commandResponses *commandResponseTracker, turnTracker *runtimeTurnTracker, activeGeneration *int64, generation int64, errCh chan<- error, rawLogger *debuglog.RawLogger, reportProblem func(agentproto.ErrorInfo)) (*childSession, error) {
-	if a.runtime.Backend() == agentproto.BackendCodex {
+	if a.runtime.Backend() == agentproto.BackendCodex && strings.TrimSpace(a.config.CodexAppServerURL) == "" {
 		_, env := a.buildCodexChildLaunch(a.config.Args)
 		binary, err := a.selectCodexChildBinary(ctx, env, nil)
 		if err != nil {

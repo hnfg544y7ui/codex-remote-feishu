@@ -102,6 +102,9 @@ type codexOAuthProbeTask struct {
 }
 
 func (a *App) beginCodexOAuthProbeLocked(forceAuthGeneration bool) (codexOAuthProbeTask, bool) {
+	if a.sharedCodexBackendLocked() {
+		return codexOAuthProbeTask{}, false
+	}
 	if a.codexOAuthProfileState.probeInFlight || a.codexOAuthProfileState.store == nil || a.codexOAuthProfileState.err != nil ||
 		a.runCodexOAuthProbe == nil || strings.TrimSpace(a.headlessRuntime.CodexRealBinary) == "" {
 		return codexOAuthProbeTask{}, false
@@ -177,6 +180,10 @@ func (a *App) runCodexOAuthProbeTask(ctx context.Context, task codexOAuthProbeTa
 
 func (a *App) ensureCodexRuntimeCapability(ctx context.Context) {
 	a.mu.Lock()
+	if a.sharedCodexBackendLocked() {
+		a.mu.Unlock()
+		return
+	}
 	state := a.codexRuntimeCapability
 	if state.checked && (state.capabilitySet != "" || time.Since(state.failedAt) < codexProbeRetryInterval) {
 		a.mu.Unlock()
@@ -252,6 +259,9 @@ func (a *App) maybeRetryCodexRuntimeProbeIfDue(ctx context.Context) {
 }
 
 func (a *App) effectiveCodexRuntimeCapabilitySetLocked() string {
+	if a.sharedCodexBackendLocked() {
+		return codexprofile.SharedNativeCapabilitySetV1
+	}
 	if a.codexRuntimeCapability.checked {
 		return strings.TrimSpace(a.codexRuntimeCapability.capabilitySet)
 	}

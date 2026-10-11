@@ -11,17 +11,19 @@ import (
 )
 
 type WrapperConfig struct {
-	CodexRuntime    CodexRuntimeSettings
-	RelayServerURL  string
-	CodexRealBinary string
-	NameMode        string
-	IntegrationMode string
-	ConfigPath      string
-	DebugRelayFlow  bool
-	DebugRelayRaw   bool
+	CodexRuntime      CodexRuntimeSettings
+	CodexAppServerURL string
+	RelayServerURL    string
+	CodexRealBinary   string
+	NameMode          string
+	IntegrationMode   string
+	ConfigPath        string
+	DebugRelayFlow    bool
+	DebugRelayRaw     bool
 }
 
 type ServicesConfig struct {
+	CodexAppServerURL    string
 	RelayHost            string
 	RelayPort            string
 	RelayAPIHost         string
@@ -52,6 +54,7 @@ const (
 	RelayAPIHostEnv           = "RELAY_API_HOST"
 	RelayAPIPortEnv           = "RELAY_API_PORT"
 	CodexRealBinaryEnv        = "CODEX_REAL_BINARY"
+	CodexAppServerURLEnv      = "CODEX_REMOTE_CODEX_APP_SERVER_URL"
 	WrapperNameModeEnv        = "CODEX_REMOTE_WRAPPER_NAME_MODE"
 	WrapperIntegrationModeEnv = "CODEX_REMOTE_WRAPPER_INTEGRATION_MODE"
 	FeishuGatewayIDEnv        = "FEISHU_GATEWAY_ID"
@@ -81,9 +84,14 @@ func LoadWrapperConfig() (WrapperConfig, error) {
 	if err != nil {
 		return WrapperConfig{}, err
 	}
+	endpoint, err := ResolveCodexAppServerURL(loaded.Config.Wrapper.CodexAppServerURL)
+	if err != nil {
+		return WrapperConfig{}, err
+	}
 	relayPort := chooseInt(os.Getenv(RelayPortEnv), loaded.Config.Relay.ListenPort)
 	cfg := WrapperConfig{
-		CodexRuntime: runtimeSettings,
+		CodexRuntime:      runtimeSettings,
+		CodexAppServerURL: endpoint,
 		RelayServerURL: chooseNonEmpty(
 			os.Getenv(RelayServerURLEnv),
 			loaded.Config.Relay.ServerURL,
@@ -124,12 +132,17 @@ func LoadServicesConfig() (ServicesConfig, error) {
 	if err != nil {
 		return ServicesConfig{}, err
 	}
+	endpoint, err := ResolveCodexAppServerURL(loaded.Config.Wrapper.CodexAppServerURL)
+	if err != nil {
+		return ServicesConfig{}, err
+	}
 	selectedApp := SelectRuntimeFeishuApp(loaded.Config.Feishu.Apps)
 	cfg := ServicesConfig{
-		RelayHost:    chooseNonEmpty(os.Getenv(RelayHostEnv), loaded.Config.Relay.ListenHost, defaultRelayListenHost),
-		RelayPort:    strconv.Itoa(chooseInt(os.Getenv(RelayPortEnv), loaded.Config.Relay.ListenPort)),
-		RelayAPIHost: chooseNonEmpty(os.Getenv(RelayAPIHostEnv), loaded.Config.Admin.ListenHost, defaultAdminListenHost),
-		RelayAPIPort: strconv.Itoa(chooseInt(os.Getenv(RelayAPIPortEnv), loaded.Config.Admin.ListenPort)),
+		CodexAppServerURL: endpoint,
+		RelayHost:         chooseNonEmpty(os.Getenv(RelayHostEnv), loaded.Config.Relay.ListenHost, defaultRelayListenHost),
+		RelayPort:         strconv.Itoa(chooseInt(os.Getenv(RelayPortEnv), loaded.Config.Relay.ListenPort)),
+		RelayAPIHost:      chooseNonEmpty(os.Getenv(RelayAPIHostEnv), loaded.Config.Admin.ListenHost, defaultAdminListenHost),
+		RelayAPIPort:      strconv.Itoa(chooseInt(os.Getenv(RelayAPIPortEnv), loaded.Config.Admin.ListenPort)),
 		FeishuGatewayID: chooseNonEmpty(
 			os.Getenv(FeishuGatewayIDEnv),
 			selectedApp.ID,

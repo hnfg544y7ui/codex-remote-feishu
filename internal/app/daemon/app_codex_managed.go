@@ -15,7 +15,7 @@ type ensureManagedCodex func(context.Context, string, string, []string) (string,
 
 func (a *App) warmManagedCodex(ctx context.Context, startup bool, ensure ensureManagedCodex) {
 	a.mu.Lock()
-	if a.codexSourceSwitch != nil {
+	if a.codexSourceSwitch != nil || a.sharedCodexBackendLocked() {
 		a.mu.Unlock()
 		return
 	}
@@ -70,6 +70,7 @@ func (a *App) runManagedCodexUpdates(ctx context.Context) {
 		case <-ticker.C:
 			a.warmManagedCodex(ctx, false, nil)
 		case <-idleTicker.C:
+			a.maybeRetryCodexNativeProbeIfDue(ctx)
 			a.maybeActivateManagedCodexCandidate(ctx)
 		}
 	}

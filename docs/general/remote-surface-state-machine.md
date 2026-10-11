@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-12`
-> Summary: 增加 Codex 来源选择的全服务空闲门、原生 helper 重启和配置恢复边界。
+> Summary: 记录 Codex 来源维护与显式共享后端的连接、归属、恢复及配置所有权边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -1599,7 +1599,7 @@ Codex 自有 headless 的版本与上游服务边界（2026-10-01）：
 1. daemon 在 API 已开始服务、能力探测和 headless pool 启动之前，先准备私有稳定版，最长等待两分钟；后续每十五分钟在后台检查并下载。成功的官方 npm 稳定版检查缓存十五分钟，失败不缓存。安装目录为 runtime `StateDir/codex-runtime/releases/<version>`，先在独立 staging 安装、验证真实二进制版本，再原子发布；并发启动共用更新锁，坏 release 会隔离后重新安装。
 2. 每次 daemon-owned managed headless 的真实 child 启动仍检查版本，最长五秒，选择配置版本和已验证私有版本中较新的版本；不降级，显式预览版本保留原选择。确认有更新但安装失败时，不悄悄启动已知旧版；官方 registry 不可达时允许使用已验证的现有版本，并记录检查失败。
 3. 自动检查和下载不停止正在运行的 child。`process.child.restart` 在停止旧 child、重置协议状态之前完成版本准备；准备失败直接返回错误并保留旧 child，准备成功才进入原有的 stop → launch → restore 合同。初次启动失败仍由 `G1 PendingHeadlessStarting` 的现有超时、`/detach` 和 `/mode` 退出路径收口，不增加持久 gate。
-4. wrapper 只包装私有 stdio app-server，明确使用 `--listen=stdio://`；拒绝 app-server 子命令、Unix/WebSocket/off transport、`--managed-daemon` 和启动时的 `--remote-control`。所有本机 config/OAuth/capability probes 同样显式使用 stdio，并通过进程级环境标记关闭继承的 Remote Control enrollment，不修改用户持久化偏好。
+4. 未配置共享端点时，wrapper 只包装私有 stdio app-server，明确使用 `--listen=stdio://`；拒绝 app-server 子命令、Unix/WebSocket/off transport、`--managed-daemon` 和启动时的 `--remote-control`。私有 config/OAuth/capability probes 同样显式使用 stdio，并通过进程级环境标记关闭继承的 Remote Control enrollment，不修改用户持久化偏好。显式 `codexAppServerURL` 的 headless/cron 连接例外见 §10.4：不启动或管理后端进程，配置证据从实际共享端点只读获取。
 5. 私有自动更新只用于 daemon-owned managed headless，不改变 VS Code host-bound 客户端自己的版本、全局 npm CLI、上游默认 daemon 的安装包或控制 socket；`CODEX_HOME` 和现有凭据保留。现有显式 standalone Codex upgrade 事务仍是独立的全局升级入口，不用作后台自动更新。
 
 daemon startup 的 headless resume 额外规则：
@@ -2121,7 +2121,20 @@ retained-offline overlay 额外规则：
 - helper 启动后 4 分 30 秒仍未退出旧 daemon，会 append 一次明确恢复提示，要求在主机终端执行 `codex-remote service restart`；继续冻结派发，避免与仍可能运行的 helper 重叠服务操作。原卡 sealed，新 daemon 的结果另发 notice，不复活旧 lifecycle 的 owner 卡。
 - 此流程是 daemon 来源配置事务，与 G10 的同来源 CLI 版本升级/回退不同；不能沿用 G10 对 VS Code/非 Codex backend 的排除或 initiator busy 例外。
 
+## 10.4 显式共享 Codex 后端
+
+- `wrapper.codexAppServerURL` 或 `CODEX_REMOTE_CODEX_APP_SERVER_URL` 在 daemon 启动时冻结。仅允许显式端口的 loopback WebSocket；URL 无效或后端离线时 fail closed，不回退私有 CLI。默认仍为私有 stdio。共享路径只用于 Codex headless/cron，非 headless wrapper 拒绝启用；Claude/OpenCode 不继承该连接。
+- 共享后端由外部宿主管理版本、凭据与进程。Remote 只关闭自己的连接；worker 退出、detach、超时清理和 `process.child.restart` 均不结束外部后端。managed 安装、预热、自动升级、激活、回退和来源切换全部停用；`/upgrade codex-source` 显式提示宿主管理，不建立 owner gate。
+- Profile 目录仅提供 `cp_native`（共享后端，继承配置），API/OAuth 拒绝。`initialize/initialized/config/read` 直接从共享端点获得 native evidence；探测失败不把私有 CLI 或旧缓存当作可用证据，后台按已有探测重试周期恢复。projection 使用 `codex-shared-native-v1`，精确校验 native revision/generation 与 context preference；不生成 child 环境凭据、CLI override 或 managed file。
+- 进入已有 thread 时，在报告 worker 已接管之前完成有界 startup initialize 和仅携带 `threadId` 的 `thread/resume`，成功响应必须精确匹配目标；新 thread 由本连接成功的 `thread/start` 响应建立 scope。外部 thread 广播不能改变 selected thread。重连只恢复连接和订阅，不自动重放旧 prompt。
+- turn 归属由本连接的请求 ID 与成功响应内 turn ID 建立；通知先于响应时有界缓存（128 帧/1 MiB、15 秒），竞态、超限或归属无法证明均明确失败并关闭连接。其他客户端在已订阅 thread 上运行的 turn 投影为 `local_ui`，不消费 Remote pending owner；不同 thread 的通知不投影。
+- native 工具/审批只有已证明属于本连接 Remote turn 的请求才能进入飞书；外部请求和对应 resolved 广播不进入可回答 gate。已处理或已 resolved 的请求不能重复回答。已有同 thread writer 仲裁仍成立：两端交替运行，不支持同 thread 同时运行两个 turn。
+- 共享 WebSocket 断开不等价于后端 turn 完成。wrapper 不合成 `TurnCompleted`，发送明确的连接故障及后端状态未知；用户可 `/detach`、重选 `/use` 恢复订阅并核对实际状态，不能盲目自动继续旧请求。Remote 连接恢复受既有 pending timeout/manual escape 约束，不留下只能等待外部通知的永久 gate。
+- 该实现不支持热接入当前桌面 App 的私有 stdio 后端。App 必须从 `CODEX_APP_SERVER_WS_URL` 环境重新启动；同一端点先按一个 Remote daemon 管理，跨独立 daemon 的同 thread claim 不协调。配置示例及本机隔离证据见 [共享 Codex 后端](../implemented/shared-codex-backend.md)。
+
 ## 11. 待讨论取舍
+
+- 共享后端的服务安装、端口分配、桌面启动环境和版本兼容性由外部宿主管理；本版安全默认显式配置且失败不回退。是否增加统一宿主生命周期与可视化连接设置，需另外设计，不把 Remote worker 重启扩展成后端重启。
 
 - 本机定时任务暂时复用原 surface 在线实例；是否增加独立后台实例恢复，需要统一 headless ownership 生命周期。本版安全默认为等待原 workspace 恢复，允许用户查询、暂停、删除，不抢占其他聊天。
 

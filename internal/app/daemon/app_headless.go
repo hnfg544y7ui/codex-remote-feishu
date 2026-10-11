@@ -171,8 +171,12 @@ func (a *App) startManagedHeadlessLocked(command control.DaemonCommand) []eventc
 		env = append(env, config.ResumeThreadIDEnv+"="+strings.TrimSpace(command.ThreadID))
 	}
 	if backend == agentproto.BackendCodex {
+		env = config.UpsertEnvValue(env, config.CodexAppServerURLEnv, cfg.CodexAppServerURL)
 		env = managedCodexLaunchEnv(env, cfg.CodexRuntime)
 		env = append(env, config.CodexRuntimeProfileIDEnv+"="+state.NormalizeCodexProfileID(command.CodexProfileID))
+	}
+	if backend != agentproto.BackendCodex {
+		env = config.UpsertEnvValue(env, config.CodexAppServerURLEnv, "")
 	}
 	if backend == agentproto.BackendClaude {
 		env = append(env, config.ClaudeRuntimeProfileIDEnv+"="+state.NormalizeClaudeProfileID(command.ClaudeProfileID))

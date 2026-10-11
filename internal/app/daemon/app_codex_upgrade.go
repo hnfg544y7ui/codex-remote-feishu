@@ -41,6 +41,9 @@ type codexUpgradeStartRequest struct {
 }
 
 func (a *App) inspectStandaloneCodexInstallation(ctx context.Context) (codexupgrade.Installation, error) {
+	if a.headlessRuntime.CodexAppServerURL != "" {
+		return codexupgrade.Installation{}, sharedCodexMaintenanceError()
+	}
 	loaded, err := a.loadAdminConfig()
 	if err != nil {
 		return codexupgrade.Installation{}, err
@@ -98,6 +101,9 @@ func (a *App) checkStandaloneCodexUpgrade(ctx context.Context, initiatorSurfaceI
 }
 
 func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeStartRequest) error {
+	if a.headlessRuntime.CodexAppServerURL != "" {
+		return sharedCodexMaintenanceError()
+	}
 	check, err := a.codexUpgradeRequestCheck(ctx, req)
 	if err != nil {
 		return err

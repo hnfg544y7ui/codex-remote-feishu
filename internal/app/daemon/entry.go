@@ -108,19 +108,20 @@ func RunMainWithArgs(ctx context.Context, args []string, version, branch string)
 	if err != nil {
 		return err
 	}
-	if codexRuntime.Source == "" || codexRuntime.Source == config.CodexRuntimeSourceLegacy {
+	if cfg.CodexAppServerURL == "" && (codexRuntime.Source == "" || codexRuntime.Source == config.CodexRuntimeSourceLegacy) {
 		if resolved, resolveErr := wrapper.ResolveNormalCodexBinaryPreview(codexRealBinary); resolveErr == nil {
 			codexRealBinary = resolved
 		}
 	}
 	app.SetHeadlessRuntime(HeadlessRuntimeConfig{
-		BinaryPath:      identity.BinaryPath,
-		CodexRealBinary: codexRealBinary,
-		CodexRuntime:    codexRuntime,
-		ConfigPath:      cfg.ConfigPath,
-		BaseEnv:         baseEnv,
-		Paths:           paths,
-		MinIdle:         1,
+		BinaryPath:        identity.BinaryPath,
+		CodexRealBinary:   codexRealBinary,
+		CodexAppServerURL: cfg.CodexAppServerURL,
+		CodexRuntime:      codexRuntime,
+		ConfigPath:        cfg.ConfigPath,
+		BaseEnv:           baseEnv,
+		Paths:             paths,
+		MinIdle:           1,
 	})
 	app.configureManagedCodexUpgrade()
 	app.SetToolRuntime(toolruntime.Config{

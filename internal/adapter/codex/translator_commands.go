@@ -11,6 +11,28 @@ import (
 )
 
 func (t *Translator) TranslateCommand(command agentproto.Command) ([][]byte, error) {
+	if err := t.sharedRequestRespondAllowed(command); err != nil {
+		return nil, err
+	}
+	if t.shared != nil && t.shared.problem != nil {
+		return nil, t.shared.problem
+	}
+	frames, err := t.translateCommand(command)
+	if err == nil && t.shared != nil {
+		t.recordSharedOutbound(frames, agentproto.Initiator{Kind: agentproto.InitiatorRemoteSurface, SurfaceSessionID: command.Origin.Surface})
+		if t.shared.problem != nil {
+			return nil, t.shared.problem
+		}
+		if command.Kind == agentproto.CommandRequestRespond {
+			delete(t.shared.nativeRequests, command.Request.RequestID)
+			delete(t.shared.nativeTurns, command.Request.RequestID)
+			t.shared.pruneNativeHistory()
+		}
+	}
+	return frames, err
+}
+
+func (t *Translator) translateCommand(command agentproto.Command) ([][]byte, error) {
 	switch command.Kind {
 	case agentproto.CommandThreadNameSet:
 		return t.translateThreadNameSet(command)

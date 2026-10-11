@@ -60,6 +60,9 @@ func (a *App) bootstrapHeadlessCodex(childStdin io.Writer, childStdout io.Reader
 				}
 				return io.MultiReader(bytes.NewReader(replay.Bytes()), reader), nil
 			}
+			if isSharedBackendRuntime(a.runtime) && replay.Len()+len(line) > sharedBootstrapReplayLimit {
+				return nil, fmt.Errorf("shared backend initialize replay buffer exceeded limit")
+			}
 			replay.Write(line)
 		}
 

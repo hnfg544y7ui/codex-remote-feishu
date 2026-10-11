@@ -101,9 +101,13 @@ func newBackendRuntime(cfg Config) backendRuntime {
 			translator: acpadapter.NewTranslator(cfg.InstanceID, cfg.WorkspaceRoot),
 		}
 	default:
+		translator := codex.NewTranslator(cfg.InstanceID)
+		translator.SetSharedBackend(strings.TrimSpace(cfg.CodexAppServerURL) != "")
 		return &codexBackendRuntime{
-			translator:   codex.NewTranslator(cfg.InstanceID),
-			shellCommand: newShellCommandRuntime(cfg.RuntimePaths.StateDir, cfg.InstanceID),
+			translator:          translator,
+			shellCommand:        newShellCommandRuntime(cfg.RuntimePaths.StateDir, cfg.InstanceID),
+			sharedBackend:       strings.TrimSpace(cfg.CodexAppServerURL) != "",
+			sharedInitialResume: strings.TrimSpace(cfg.ResumeThreadID),
 		}
 	}
 }
@@ -263,9 +267,18 @@ func mapOpenCodeResolvedCommandResponses(responses []acpadapter.ResolvedCommandR
 }
 
 type codexBackendRuntime struct {
-	mu           sync.Mutex
-	translator   *codex.Translator
-	shellCommand *shellCommandRuntime
+	sharedBackend       bool
+	sharedInitialResume string
+	mu                  sync.Mutex
+	translator          *codex.Translator
+	shellCommand        *shellCommandRuntime
+}
+
+func (r *codexBackendRuntime) SharedBackend() bool { return r.sharedBackend }
+
+func isSharedBackendRuntime(runtime backendRuntime) bool {
+	r, ok := runtime.(interface{ SharedBackend() bool })
+	return ok && r.SharedBackend()
 }
 
 func (r *codexBackendRuntime) Backend() agentproto.Backend {
@@ -357,6 +370,7 @@ func (r *codexBackendRuntime) PrepareChildRestart(_ string, _ agentproto.PromptD
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.shellCommand.invalidateDetection()
+	r.translator.ResetSharedConnection()
 	r.translator.PrepareChildRestartRestorePolicy(policy)
 	return nil
 }
@@ -386,6 +400,12 @@ func (r *codexBackendRuntime) SetDebugLogger(debugLog func(string, ...any)) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.translator.SetDebugLogger(debugLog)
+}
+
+func (r *codexBackendRuntime) CheckSharedBackendTimeout(now time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.translator.CheckSharedBackendTimeout(now)
 }
 
 type claudeBackendRuntime struct {

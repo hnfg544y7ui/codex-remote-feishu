@@ -44,6 +44,7 @@ func (a *App) ensureCodexNativeConnectionEvidence(ctx context.Context) {
 	runProbe := a.runCodexNativeConfigProbe
 	options := codexprofile.NativeConfigProbeOptions{
 		BinaryPath: a.headlessRuntime.CodexRealBinary,
+		ServerURL:  a.headlessRuntime.CodexAppServerURL,
 		Env:        append([]string{}, a.headlessRuntime.BaseEnv...),
 		Version:    a.serverIdentity.Version,
 	}
@@ -53,7 +54,7 @@ func (a *App) ensureCodexNativeConnectionEvidence(ctx context.Context) {
 	observation := codexprofile.NativeConfigObservation{}
 	probeSucceeded := false
 	failedAt := time.Time{}
-	if runProbe != nil && strings.TrimSpace(options.BinaryPath) != "" {
+	if runProbe != nil && (strings.TrimSpace(options.ServerURL) != "" || strings.TrimSpace(options.BinaryPath) != "") {
 		probeCtx, cancel := context.WithTimeout(ctx, codexOAuthProbeTimeout)
 		probed, err := runProbe(probeCtx, options)
 		cancel()

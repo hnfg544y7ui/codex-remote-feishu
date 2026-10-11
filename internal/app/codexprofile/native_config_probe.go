@@ -22,6 +22,7 @@ type NativeConfigProbeOptions struct {
 	BinaryPath string
 	Env        []string
 	Version    string
+	ServerURL  string
 }
 
 type NativeConfigObservation struct {
@@ -55,6 +56,9 @@ func RunNativeConfigProbeSession(ctx context.Context, reader io.Reader, writer i
 }
 
 func RunNativeConfigProbe(ctx context.Context, options NativeConfigProbeOptions) (NativeConfigObservation, error) {
+	if strings.TrimSpace(options.ServerURL) != "" {
+		return runSharedNativeConfigProbe(ctx, options)
+	}
 	binaryPath := strings.TrimSpace(options.BinaryPath)
 	if binaryPath == "" {
 		return NativeConfigObservation{}, nativeConfigProbeError("launch_binary_missing")

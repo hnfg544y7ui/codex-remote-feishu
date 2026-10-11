@@ -11,8 +11,8 @@ var embeddedShim_linux_arm64 []byte
 
 func init() {
 	register(Asset{
-		SourceDigest: "b175ff137a0198ef0d19156d2c111838492ae2f54c9ca5ac3ac030e19793a1fb",
-		SHA256:       "3f39db8b0178bfd3f2834e65012793b02a0b60f5425c517ccef78ec4d6ca5863",
+		SourceDigest: "3bcf29ceadd326f8c1e45d5c1aa2e2868cece12186399287b9cd5e47dedc1f4e",
+		SHA256:       "ef5b51f5b58e4664e062bf1b0e8e32703758916425ee9d66c18f606d7a0546de",
 		Zstd:         embeddedShim_linux_arm64,
 	})
 }

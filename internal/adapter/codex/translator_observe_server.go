@@ -12,6 +12,17 @@ import (
 )
 
 func (t *Translator) ObserveServer(raw []byte) (Result, error) {
+	if t.shared != nil {
+		result, err := t.observeSharedServer(raw)
+		if err != nil {
+			t.shared.problem = err
+		}
+		return result, err
+	}
+	return t.observeServer(raw)
+}
+
+func (t *Translator) observeServer(raw []byte) (Result, error) {
 	var message map[string]any
 	if err := json.Unmarshal(raw, &message); err != nil {
 		return Result{}, err

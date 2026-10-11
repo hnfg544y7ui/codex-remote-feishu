@@ -38,6 +38,10 @@ func (a *App) materializeCodexProfileSummariesLocked(cfg config.AppConfig) []sta
 		Available:       true,
 		ContextEditable: true,
 	}}
+	if a.sharedCodexBackendLocked() {
+		profiles[0].Name = "共享后端（继承配置）"
+		return profiles
+	}
 	if oauth, ok := a.codexOAuthProfileState.current(); ok {
 		profiles = append(profiles, codexOAuthProfileSummary(oauth, state.ProfileContextPreference{}))
 	}

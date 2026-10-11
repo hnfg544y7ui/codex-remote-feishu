@@ -37,16 +37,17 @@ import (
 )
 
 type HeadlessRuntimeConfig struct {
-	BinaryPath      string
-	CodexRealBinary string
-	CodexRuntime    config.CodexRuntimeSettings
-	ConfigPath      string
-	BaseEnv         []string
-	Paths           relayruntime.Paths
-	LaunchArgs      []string
-	IdleTTL         time.Duration
-	KillGrace       time.Duration
-	StartTTL        time.Duration
+	BinaryPath        string
+	CodexRealBinary   string
+	CodexAppServerURL string
+	CodexRuntime      config.CodexRuntimeSettings
+	ConfigPath        string
+	BaseEnv           []string
+	Paths             relayruntime.Paths
+	LaunchArgs        []string
+	IdleTTL           time.Duration
+	KillGrace         time.Duration
+	StartTTL          time.Duration
 
 	IdleRefreshInterval time.Duration
 	IdleRefreshTimeout  time.Duration
@@ -463,7 +464,9 @@ func (a *App) Run(ctx context.Context) error {
 	defer cancelManagedUpdates()
 	a.warmManagedCodex(managedUpdateCtx, true, nil)
 	go a.runManagedCodexUpdates(managedUpdateCtx)
-	a.ensureCodexRuntimeCapability(ctx)
+	if a.headlessRuntime.CodexAppServerURL == "" {
+		a.ensureCodexRuntimeCapability(ctx)
+	}
 	a.ensureCodexNativeConnectionEvidence(ctx)
 	a.startIngressPump(ctx, errCh)
 	a.requestCodexOAuthProbe(ctx, false)
