@@ -24,6 +24,7 @@ const (
 	FeishuCommandDetach               = "detach"
 	FeishuCommandStop                 = "stop"
 	FeishuCommandCompact              = "compact"
+	FeishuCommandRename               = "rename"
 	FeishuCommandSteerAll             = "steerall"
 	FeishuCommandMode                 = "mode"
 	FeishuCommandAutoWhip             = "autowhip"
@@ -41,6 +42,7 @@ const (
 	FeishuCommandMenu                 = "menu"
 	FeishuCommandDebug                = "debug"
 	FeishuCommandCron                 = "cron"
+	FeishuCommandSchedule             = "schedule"
 	FeishuCommandMCPOAuth             = "mcp_oauth"
 	FeishuCommandUpgrade              = "upgrade"
 	FeishuCommandPatch                = "patch"
@@ -222,6 +224,8 @@ var feishuCommandSpecs = []feishuCommandSpec{
 			{alias: "history", action: Action{Kind: ActionShowHistory, Text: "/history"}},
 		},
 	},
+	feishuRenameCommandSpec,
+	feishuScheduleCommandSpec,
 	feishuPrimaryCommandSpec,
 	feishuCoworkersCommandSpec,
 	reviewCommandSpec(),

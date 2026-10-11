@@ -262,15 +262,15 @@ function Resolve-LatestVersionFromReleaseApi([string]$SelectedTrack) {
   }
   switch ($SelectedTrack) {
     "production" {
-      $tagPattern = '^v[0-9]+\.[0-9]+\.[0-9]+$'
+      $tagPattern = '^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$'
       $expectedPrerelease = $false
     }
     "beta" {
-      $tagPattern = '^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$'
+      $tagPattern = '^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?-beta\.[0-9]+$'
       $expectedPrerelease = $true
     }
     "alpha" {
-      $tagPattern = '^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$'
+      $tagPattern = '^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?-alpha\.[0-9]+$'
       $expectedPrerelease = $true
     }
     default {

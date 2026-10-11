@@ -363,6 +363,12 @@ func (a *App) stopIngressAndServers() {
 }
 
 func (a *App) finishShutdown(errs ...error) error {
+	a.mu.Lock()
+	if a.scheduledTasks.store != nil {
+		errs = append(errs, a.scheduledTasks.store.Close())
+		a.scheduledTasks.store = nil
+	}
+	a.mu.Unlock()
 	if a.rawLogger != nil {
 		_ = a.rawLogger.Close()
 	}

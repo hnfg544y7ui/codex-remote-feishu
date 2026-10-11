@@ -25,6 +25,7 @@ import (
 	upgraderuntime "github.com/kxn/codex-remote-feishu/internal/app/daemon/upgraderuntime"
 	"github.com/kxn/codex-remote-feishu/internal/app/install"
 	"github.com/kxn/codex-remote-feishu/internal/codexstate"
+	"github.com/kxn/codex-remote-feishu/internal/config"
 	"github.com/kxn/codex-remote-feishu/internal/core/agentproto"
 	"github.com/kxn/codex-remote-feishu/internal/core/eventcontract"
 	"github.com/kxn/codex-remote-feishu/internal/core/orchestrator"
@@ -38,6 +39,7 @@ import (
 type HeadlessRuntimeConfig struct {
 	BinaryPath      string
 	CodexRealBinary string
+	CodexRuntime    config.CodexRuntimeSettings
 	ConfigPath      string
 	BaseEnv         []string
 	Paths           relayruntime.Paths
@@ -151,6 +153,7 @@ type App struct {
 	feishuRuntime                 feishuRuntimeState
 	daemonAsyncRuntime            daemonAsyncRuntimeState
 	cronRuntime                   cronRuntimeState
+	scheduledTasks                scheduledTaskRuntime
 	botCapabilitySettingsState    botCapabilitySettingsRuntimeState
 	feishuBotIdentityState        feishuBotIdentityRuntimeState
 	feishuFactsState              feishuFactsRuntimeState
@@ -163,17 +166,19 @@ type App struct {
 	goalInterlockRuntime          persistedStoreRuntimeState[*goalinterlockstore.Store]
 	profileCatalogMigrationErr    error
 
-	adminAuth                  *adminauth.Manager
-	admin                      adminRuntimeState
-	externalAccess             *externalaccess.Service
-	externalAccessRuntime      ExternalAccessRuntimeConfig
-	externalAccessShutdownWait chan struct{}
-	desktopSession             desktopSessionRuntimeState
-	webPreviewGrants           map[string]*previewGrantRecord
-	surfaceResumeRuntime       surfaceResumeRuntimeState
-	codexUpgradeRuntime        codexupgraderuntime.State
-	upgradeRuntime             upgraderuntime.State
-	turnPatchRuntime           turnpatchruntime.State
+	adminAuth                    *adminauth.Manager
+	admin                        adminRuntimeState
+	externalAccess               *externalaccess.Service
+	externalAccessRuntime        ExternalAccessRuntimeConfig
+	externalAccessShutdownWait   chan struct{}
+	desktopSession               desktopSessionRuntimeState
+	webPreviewGrants             map[string]*previewGrantRecord
+	surfaceResumeRuntime         surfaceResumeRuntimeState
+	codexUpgradeRuntime          codexupgraderuntime.State
+	managedCodex                 managedCodexHooks
+	managedCodexCandidateVersion string
+	upgradeRuntime               upgraderuntime.State
+	turnPatchRuntime             turnpatchruntime.State
 
 	relayListener          net.Listener
 	apiListener            net.Listener

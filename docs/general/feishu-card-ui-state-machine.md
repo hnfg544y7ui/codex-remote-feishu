@@ -1,8 +1,8 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-08-29`
-> Summary: 补充路径选择器 stale 初始路径会回退到最近存在父目录，不再中断 `/workspace new` 子步骤。
+> Updated: `2026-10-11`
+> Summary: 补充托管 Codex 的来源展示、回退 owner 动作及并发和 freshness 守卫。
 
 ## 1. 文档定位
 
@@ -147,7 +147,7 @@
 | `plan_proposal` | `mixed` | turn 完成后若本轮存在 completed plan item text（或仅兼容兜底的 `item/plan/delta` 草稿），orchestrator 会 append 一张 patchable `FeishuPageView` 提案计划卡；completed item text 优先于 delta 草稿。这张 page 当前显式设置 `SuppressDefaultRelatedButtons=true`，不会自动补默认 related back button。点击 `直接执行` / `清空上下文并执行` / `取消` 时，gateway 解析 `picker_id + option_id` 回到 `ActionPlanProposalDecision`，并继续在同一张卡上 seal 收口。该卡不是 request gate，不阻塞后续输入；一旦用户继续输入、切线程/切 route、开始新 turn 或卡片过期，也会被服务端 seal 成失效态 |
 | `autocontinue_status` | `mixed` | 上游可重试失败进入 autoContinue overlay 时，orchestrator 会 append 一张 patchable `FeishuPageView` 状态卡。该卡显式 reply 到原始用户消息，并通过 `TrackingKey=AutoContinueEpisodeID` 回写 `message_id`；只要它仍是当前 surface 尾卡，scheduled / running / failed / cancelled 会继续 patch 回同一张卡。一旦后面出现新的消息，这张卡就冻结；后续同 episode 状态改为 append 新卡。该卡只承载自动继续状态，不接管后续业务输出的 reply anchor |
 | bare `/review` / `/review commit` / `/review uncommitted` / 普通 final card review footer / review final card 三种结果动作 | `mixed` | bare `/review` 当前会先进入一张 review root page，而不是直接打开 commit picker：该页显式提供 `Review 待提交内容` 与 `Review 指定提交` 两个按钮，并都走 `page_local_action + daemon_lifecycle_id` 的当前卡 freshness 链路，不再继续依赖 catalog provenance。`Review 待提交内容` 会在当前 root card 上同位收口成 detached review owner 的 `正在进入审阅` 首卡；`Review 指定提交` 才会继续在当前 root card 上同位进入 commit picker。bare `/review commit` 仍可直接打开 commit picker；picker 继续记录当前 `instance_id + parent_thread_id + thread_cwd + recent_commits`，并要求后续 submit/cancel 命中同一 `message_id` 才继续；若中途切换到其他实例，picker submit 会直接拒绝并要求重新发送 `/review commit`。普通 final card 的 `Review 待提交内容` 与 `评审 <short-sha>` footer 仍保持 append-only。review session final card 提供 `继续追问审阅`、`退出审阅`、`按审阅意见继续修改`：追问动作本身 append notice 并开启一次性文字 capture，不替换结果卡；退出与应用继续复用 stamped first-result replacement。应用仅在初始结果 ready 且 review thread 无 queued / dispatching / running turn 时生效，追问结果不得覆盖初始 apply payload。三种动作除 daemon lifecycle freshness 外，还必须命中当前 ReviewSession 最新 `ActionMessageID`；旧结果卡只追加失效提示，不做产品 mutation。真正的 detached review session 启动、capture、runtime 清理和结果回带仍由 orchestrator 承接 |
-| bare `/cron` / `/upgrade` / `/debug` | `mixed` | 参数不足时当前统一打开 `FeishuPageView` 根页，不再顺手展示独立状态卡；根页现在只保留实际菜单入口，不再混入“快捷操作 / 手动输入 / 说明文案”，其中 `/debug` 根页当前只保留迁移到系统管理后的入口按钮：`打开系统管理`、`打开管理页`、`查看网络模式`；`/upgrade track` 子页当前仅保留 track 切换按钮；`/upgrade` 根页会在当前 Codex 是 standalone-upgradeable 安装时额外显示 `Codex 升级` 按钮，bundle-backed 或其他不可升级安装则静默隐藏；`/upgrade dev` 与 `开发构建` 按钮当前会在允许 dev feed 的 flavor（源码 `dev` 与 release `alpha`）下暴露，`/upgrade local` 与 `本地升级` 只会在源码 `dev` flavor 下暴露。若来自带 `daemon_lifecycle_id` 的当前 page callback，且动作属于“不立即执行”的根页 / 子页 / 非法参数回显路径，daemon 会走 page result replacement，把下一张 page 继续同位替回当前卡；真正立即执行的动作（如 `/cron reload`、`/cron repair`、`/cron run <id>`、`/upgrade latest`、`/upgrade codex`、允许 dev feed 的 flavor 下的 `/upgrade dev`、源码 `dev` flavor 下的 `/upgrade local`）仍进入各自原有执行流。`/debug admin` 当前不再执行旧流，而是直接拒绝并提示改用 `/admin web`。文本或表单输入的非法参数当前不会外跳 notice，而是继续留在同一张 page 上显示错误并保留表单默认值 |
+| bare `/cron` / `/upgrade` / `/debug` | `mixed` | 参数不足时当前统一打开 `FeishuPageView` 根页，不再顺手展示独立状态卡；根页现在只保留实际菜单入口，不再混入“快捷操作 / 手动输入 / 说明文案”，其中 `/debug` 根页当前只保留迁移到系统管理后的入口按钮：`打开系统管理`、`打开管理页`、`查看网络模式`；`/upgrade track` 子页当前仅保留 track 切换按钮；`/upgrade` 根页会在当前 Codex 是 standalone-upgradeable 或已有 active 的 managed runtime 安装时额外显示 `Codex 升级` 按钮，bundle-backed 或其他不可升级安装则静默隐藏；`/upgrade dev` 与 `开发构建` 按钮当前会在允许 dev feed 的 flavor（源码 `dev` 与 release `alpha`）下暴露，`/upgrade local` 与 `本地升级` 只会在源码 `dev` flavor 下暴露。若来自带 `daemon_lifecycle_id` 的当前 page callback，且动作属于“不立即执行”的根页 / 子页 / 非法参数回显路径，daemon 会走 page result replacement，把下一张 page 继续同位替回当前卡；真正立即执行的动作（如 `/cron reload`、`/cron repair`、`/cron run <id>`、`/upgrade latest`、`/upgrade codex`、允许 dev feed 的 flavor 下的 `/upgrade dev`、源码 `dev` flavor 下的 `/upgrade local`）仍进入各自原有执行流。`/debug admin` 当前不再执行旧流，而是直接拒绝并提示改用 `/admin web`。文本或表单输入的非法参数当前不会外跳 notice，而是继续留在同一张 page 上显示错误并保留表单默认值 |
 | stamped `/vscode-migrate` / `vscode_migrate_owner_flow` | `mixed` | `/vscode-migrate` 当前先打开 `FeishuPageView` root page；若入口来自带 `daemon_lifecycle_id` 的当前卡 callback，daemon 会走 page-result replacement，把 root page / 校验失败页 / `仅 VS Code 模式可用` 页同位替回当前卡。真正执行迁移的按钮当前发 `vscode_migrate_owner_flow` callback，迁移结果与后续 `/list` / open VS Code / 恢复提示都会继续 patch 在同一张 guidance card 上，不再经由旧文本重解析回调或 bare continuation |
 | `request approve` / `approval_command` / `approval_file_change` / `approval_network` / `approval_can_use_tool` / `request_user_input` / `tool_callback` / `permissions_request_approval` / `mcp_server_elicitation` / `mcp_server_elicitation_approval` / `captureFeedback` / `revise` | `mixed` | 卡片按钮、表单字段、`request_control` payload、lifecycle stamp 属于 Feishu UI；request gate、反馈 capture、request family 统一的 `editing -> waiting_dispatch -> resolved/restore` 生命周期，以及由 orchestrator 单点 request presentation owner 基于 `requestType/rawType/metadata` 归一化出的 `SemanticKind + Title/Sections/Options/Questions/HintText` contract，属于产品状态机。`mcp_server_elicitation_approval` 仍沿用 `mcp_server_elicitation` request type 与 `request_respond` transport，只是卡面语义和 response `_meta.persist=session` 由 orchestrator 单点决定；`tool_callback` 当前也走同一 owner，但落成只读 fail-closed auto-dispatch；projector 当前只消费 `FeishuRequestView`，不再自己回猜 approval / permissions / MCP subtype。Codex detached Review 若冻结为 `full_access`，且 request 精确命中当前 review thread/turn 与纯权限白名单，orchestrator 会直接发送一次性/turn-scope response，正常路径不创建 `FeishuRequestView`；若 command 提交失败，同一 pending request 会恢复成普通 editing request card 并附失败 notice。`confirm`、旧/缺冻结值、身份不匹配和所有非权限交互继续走普通卡片路径 |
 | `attach_instance` / `attach_workspace` / `use_thread` | `product-owned` | 卡片只负责把选择结果送入产品层；`attach_instance` 是 VS Code instance 兼容入口，headless 收到旧卡回调会由 orchestrator 拒绝且不改变 route；是否允许接管、是否跨 workspace、接管后进入什么 route 都由 orchestrator 决定 |
@@ -246,7 +246,7 @@
 | `target_picker_confirm` | `picker_id`、`target_picker_workspace`、`target_picker_session`、`request_answers` | 四张独立工作会话卡共用的确认按钮：`/workspace list` 把当前表单值送到产品层执行 attach / switch；若 `target_picker_session=worktree_create`，则只把当前卡切入 Worktree 子页。`/workspace new dir` 当前第一次确认只做服务端 `检查目标目录`，并把 `目标目录`、busy、known workspace、目标目录已存在、非法目录名等结果回写到同一张 owner card；只有最近一次检查结果仍然有效时，第二次确认才会真的执行 `接入并继续` 或 `创建并继续`。`/workspace new git` 与 `/workspace new worktree` 继续在同一张 owner card 上做 submit-time validation 并进入 processing / terminal；Git 路径要求 repo / 落地父目录预览有效，worktree 路径则从 `request_answers` 里恢复 `target_picker_worktree_branch_name` / `target_picker_worktree_directory_name` 草稿，并要求基准工作区、分支名和目标路径预览有效；worktree 在发送 daemon create 前会 dry-run 检查群 workspace primary/busy gate，不通过则同卡回写错误且不创建目录；Git 长链路会先 patch 成 `正在导入 Git 工作区`，随后在 clone 成功后继续 patch 到“接入工作区 / 准备会话”，并允许同卡 `取消导入`；worktree 长链路会先 patch 成 `正在创建 Worktree 工作区`，随后在创建成功后继续 patch 到“正在接入工作区”，并允许同卡 `取消创建` |
 | `history_page` | `picker_id`、`page` | `/history` 列表页翻页；命中当前 history owner-card flow 时同步替换当前卡为 loading，然后异步重查当前 thread history |
 | `history_detail` | `picker_id`、`turn_id` 或 `field_name + selected option` | `/history` 进入某一轮详情，或在详情页前后切换；命中当前 history owner-card flow 时同样先切 loading；gateway 按 `payload value -> form_value[field_name] -> option -> options` 恢复 turn id |
-| `upgrade_owner_flow` | `picker_id`、`option_id` | `/upgrade latest` 与 `/upgrade codex` 共用的 daemon owner-card 显式动作；gateway 只解析 `picker_id` / `option_id`，daemon 再按 flow id 前缀路由到 release 或 Codex flow。release flow 当前使用 `check` / `confirm` / `cancel`，Codex flow 当前使用 `check` / `confirm`；两者都要求命中当前 active flow id，旧卡或他人卡片不会继续改写升级状态。首卡若没有现成 `message_id`，会先以 page `TrackingKey` append，待 gateway 分配 `message_id` 后再回写到对应 owner flow，后续 checking / confirm-ready / running / terminal 一律 patch 同一张卡 |
+| `upgrade_owner_flow` | `picker_id`、`option_id` | `/upgrade latest` 与 `/upgrade codex` 共用的 daemon owner-card 显式动作；gateway 只解析 `picker_id` / `option_id`，daemon 再按 flow id 前缀路由到 release 或 Codex flow。release flow 当前使用 `check` / `confirm` / `cancel`，Codex flow 当前使用 `check` / `confirm` / `rollback`，rollback 仅限完成检查且存在可回退 previous 的 managed runtime；两者都要求命中当前 active flow id，旧卡或他人卡片不会继续改写升级状态。首卡若没有现成 `message_id`，会先以 page `TrackingKey` append，待 gateway 分配 `message_id` 后再回写到对应 owner flow，后续 checking / confirm-ready / running / terminal 一律 patch 同一张卡 |
 | `plan_proposal` | `picker_id`、`option_id` | 提案计划卡的 owner-flow callback；`option_id` 当前只用 `execute` / `execute_new` / `cancel`。gateway 只负责按当前 active proposal id 解析回 `ActionPlanProposalDecision`；真正的 `PlanMode=off`、继续派发 follow-up turn，以及 seal 当前卡，仍由 orchestrator 决定 |
 | `page_local_action` | `action_kind`、`action_arg(可选)` | 当前卡上的本地按钮动作；gateway 解析后直接写回 `Action.Kind` 并生成 canonical `Action.Text`，同时把 `Action.LocalPageAction=true`。这条 payload 用于 keep/back/root/menu 与其他 page-owner 本地导航，也用于 `/debug` `/upgrade` `/cron` 这类 direct page 的 current-card 按钮、`/bendtomywill` success card 的 rollback，以及 review final-card footer 的 `Review 待提交内容` / `评审 <short-sha>` / `继续追问审阅` / `退出审阅` / `按审阅意见继续修改`。它不带 catalog provenance，也不会先触发 `command_entry_expired`。若动作后续仍路由到 daemon command，runtime 会继续把“这次确实来自当前卡 callback”的事实传给下游 daemon command |
 | `page_local_submit` | `action_kind`、`field_name`、`action_arg_prefix(可选)` | page 卡内的本地表单提交；gateway 继续按 `form_value[field_name]`/`option` 取参数并组装 canonical `Action.Text`，同时把 `Action.LocalPageAction=true`。这条 payload 用于仍留在当前 page/session 语义内的本地提交，不带 catalog provenance |
@@ -318,6 +318,13 @@
   - 目录下拉当前会在 `CanGoUp=true` 时额外插入一个值为 `..` 的首项；这条值仍然走 `path_picker_enter`，最终由 orchestrator 复用现有 root-boundary 校验解析到父目录
   - 当前路径选择器卡片已不再额外渲染 `path_picker_up` 按钮；目录下拉里的 `..` 是默认“返回上一级”入口，因此卡面统一保持“目录浏览走目录下拉、文件选择走文件下拉（若有）、确认/取消走底部按钮”的结构
 - `target_picker_select_workspace` / `target_picker_select_session`
+  - Codex 项目分组卡复用 workspace/session lane：workspace select 的显示值为 desktop-project:ID，标签为桌面项目名称，实际 SelectedWorkspaceKey 单独保留所选会话或新会话目录。kind、picker_id、owner、lifecycle 和字段名不变；projector 使用 WorkspaceSelectionValue 初始化项目下拉，gateway 原样回传显示值，orchestrator 按本轮只读项目快照解析，绝不把项目 ID 当路径。
+  - 同卡选择与分页保留项目范围；项目重命名、删根和会话移组在下一次 callback/confirm 自动刷新。失效归属、目录变化或占用变化时不分发输入；旧卡、非 owner 和非 editing 阶段继续由原有 guard 拒绝。
+  - 同步构建候选时，同一实例内按原始 `(WorkspaceKey, CWD)` 对去重后再解析路径；去重只在本次调用内有效，后续调用仍重新解析符号链接，避免把旧工作区归属永久缓存。已有 CWD 不计算未使用的 fallback；相同原始路径无需重复做归属探测。
+  - workspace 合同投影复用本次构建的在线、backend 过滤分组，避免历史工作区数量放大实例路径解析次数；每次回调仍检查最新占用，confirm 继续完整重验。
+  - headless 会话标签复用本轮已解析的 target 状态，不为每个标签重新查询完整会话目录；工作区占用、兼容性、旧卡校验和同步替换合同保持不变，vscode 标签仍使用当前实例的 scope 校验。
+  - claim 查询在入口解析一次工作区 key，内部 owner/surface 查询复用该 canonical key，不在每层重复探测文件系统；不增加跨回调缓存。
+  - 批量 merged thread 投影按原始路径对解析工作区身份，供同一批只读候选复用；下一次 callback 或 confirm 构建新的 views，重新读取 alias 目标。
   - 这两条 workspace/session lane 当前也复用 `internal/adapter/feishu/selectflow`，并与 path / thread / history 一起统一到 immediate callback recover contract
   - gateway 当前按 `payload value -> form_value[field_name] -> action.option -> action.options[0]` 的顺序提取选中的 workspace / session
   - 这样 `select_static` 在群聊里即使带回旧 option，也会以前端最新 `form_value` 为准，原卡才能稳定推进到下一步，而不会停在 silent no-op
@@ -522,7 +529,7 @@ MCP request 卡片当前新增的可视语义：
   - `/new` 仅在 headless working（当前 stage token 仍为 `normal_working`）可见
   - `/history` 当前不额外分阶段，headless / `vscode` 里都默认可见；真正能否拿到历史由当前 route 是否能解析出 thread 决定
   - 其余命令默认可见
-  - `codex` 的 `current_work` 分组当前可见 `/stop`、`/compact`、`/steerall`、`/status`，以及仅 headless working（当前 stage token 仍为 `normal_working`）可见的 `/new`
+  - `codex` 的 `current_work` 分组当前可见 `/stop`、`/compact`、`/steerall`、`/status`，并在 Codex headless 中显示 `/rename`，以及仅 headless working（当前 stage token 仍为 `normal_working`）可见的 `/new`
   - `claude` 的 `current_work` 分组当前只保留 `/stop`、`/new`、`/status`
   - `codex` 的 `send_settings` 分组当前可见 `/mode`、`/reasoning`、`/model`、`/access`、`/plan`、`/verbose`、`/autocontinue`、`/codexprofile`
   - `claude` 的 `send_settings` 分组当前保留 `/mode`、`/reasoning`、`/access`、`/plan`、`/verbose`、`/claudeprofile`
@@ -727,6 +734,16 @@ MCP request 卡片当前新增的可视语义：
   - 对没有用户可展示文本或图片结果的 `dynamic_tool_call`，当前实现保持静默，不再额外发“空结果”notice
   - 可见性当前分两层：`file_change` / `mcp_tool_call` / `context_compaction` 在 normal / verbose / chatty 可见，quiet 静默；`exec_command` / `web_search` / `dynamic_tool_call` 与 exploration 在 verbose / chatty 可见；reasoning 按上述四档独立投影。normal 继续保留 plan、final reply，以及会影响当前状态的共享过程项
   - 一旦首个非空 assistant 正文 delta 到达，orchestrator 就终结旧进度卡生命周期；文本即使尚未 flush 成可见块，后续工具也不会再 patch 文本之前的旧卡
+
+### 5.3.1 `/rename` 命令入口
+
+Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/compact` 后提供“重命名会话”。点击菜单的 `page_local_action` 裸 `/rename` 会更新原卡为名称输入表单，不发 native 请求。表单复用 `FeishuCommandArgumentText` 与统一 `OwnerEntry` binding；本地菜单导航不携带 catalog provenance，表单构建时按已验证的当前 surface context 解析并写入完整 provenance，提交仍走严格校验。submit 使用现有 `page_submit`，携带原 `instance_id/thread_id`，gateway 仅对 rename 将其与 `field_name` 复制到 Action。VS Code、Claude、OpenCode hidden + reject。
+
+直接输入 `/rename 新名称` 与菜单提交走同一 action。直接 slash 空名称显示用法；表单空白提交保留输入框并提示错误，均不改原名。表单打开后若当前 instance/thread 已切换，提交拒绝并引导重新打开，不静默改新选中的会话；请求发出后捕获目标仍不会随之后的选择变化。打开菜单表单和空白提交提示由同步 callback 的 `ReplaceCurrentCard` 替换原卡，表单 view 不设置 MessageID，避免在同步 callback 返回前另发 REST patch 与回调更新竞争。等待卡与终态继续通过 gateway 更新原 MessageID，callback 不追加第二张卡；直接 slash 使用 TrackingKey 回写新 owner 卡的 MessageID。等待、成功、native 错误、超时与断链结果由同一命令 owner card 收口，动态名称与错误保留为结构化文本字段。菜单来源仍要求当前 daemon lifecycle，过期表单不能绕过 freshness gate。
+
+表单卡有名称输入框和提交按钮，等待与终态仅有目标/名称/结果文本，无 table；展示将 thread ID、名称、错误分别限制在 100/300/2000 个字符，完整新名称仍发送给 Codex。原名称不超过 300 字符时完整预填，超过时留空，不能将截断值作为默认可提交名称。等待与终态各一次更新，异步 native 回应不占用飞书三秒 callback 等待窗口。
+
+回归覆盖命令前缀边界、中文/内部空格、菜单参数 round trip、支持矩阵、精确目标/ownership/visibility、错误和迟到结果，以及从真实菜单 payload 打开表单的同步回调替换（无 REST patch）、空白提示与后续原卡更新和终态。
 
 ### 5.4 当前保留的独立例外
 
@@ -1047,6 +1064,24 @@ MCP request 卡片当前新增的可视语义：
 10. route / attach 上下文变化后，workspace page / target picker / path picker / history / review picker 这类旧卡是否仍会留下“看似可点、第一次点才报过期”的假活状态
 11. AppID 替换或删除时，旧 gateway generation 的 callback 是否在旧 surface/UI runtime 清理前完成关闭与排空；identity pending transition 是否能挡住清理失败后的旧 AppID unchanged 启动；新 App 不得因复用 GatewayID 而继承旧 card owner 或 turn patch owner runtime
 
+## 本机定时任务入口
+
+- `/schedule` 仅在 Codex headless normal 模式可用，归入 `common_tools`。help/list 输出 append-only 文本，不新增参数卡与导航替换链路。
+- pause/resume/delete 是实际任务状态变化，结果不得替换菜单 launcher 当作导航。任务权限使用原始 `DaemonCommand.ActorUserID`，不读取群内后来变化的 surface actor。
+- 旧卡 freshness 校验沿用统一 command catalog；本功能没有新增 callback 字段或第二套卡片协议。
+- 自然语言调用通过 loopback bearer MCP 绑定实际 turn；任务回报使用持久化原群地址，不引用虚构的消息 ID。
+
+## 托管 Codex 的升级与回退 owner card
+
+- `/upgrade codex` 打开卡片不自动检查安装源；当前来源、版本和已知上一版用结构化 `FeishuCardTextSection` 展示，不在 daemon 拼接 raw markdown。
+- 检查完成后，在 `ready + Checked + CanRollback + source=managed_runtime + previous非空且不同于current` 时显示“回退上一版”。当前没有新版本也可回退；external npm 和 bundle 不显示该按钮。
+- callback 沿用 `upgrade_owner_flow`、`picker_id`、`option_id=rollback`。projector 仍发出原合同，gateway 仍写入 `Action.OwnerFlow`，daemon 按 Codex flow 前缀分流；没有新增兼容字段或第二套 owner runtime。
+- 全部动作经过现有 daemon lifecycle freshness、active flow/TTL/surface/owner 校验。回退与升级确认还要求正确 stage 和不存在 active transaction；重复检查不能覆盖 checking/running。实际 start 再次检查精确 previous/目标、busy 和事务状态，不以旧按钮的可见性授权执行。
+- checking、ready、running 与 sealed terminal 仍 patch 同一 owner message；终态没有按钮，旧 flow 只能收到重开卡片提示。若精确 previous 已变化或状态变忙，确认失败返回可重新检查的卡，不自动改成另一目标。
+- 安装来源读取可能发生在 App mutex 已持有的菜单/owner 路径，必须使用安全启动快照或无递归 App 锁的只读实现，不能让 managed 来源检测挂住 callback。
+- 生命周期与二进制回退的数据边界见 [Remote 托管官方 Codex CLI](../implemented/managed-codex-runtime.md)。本轮部署/实际卡片验收未在本文声明完成。
+
 ## 待讨论取舍
 
+- managed Codex 已知本地 previous 时，“检查更新”仍需要最新目录查询成功才开放回退按钮。是否保留 partial check、单独开放本地回退能力并明确目录失败，应在卡片状态语义上另行决定；默认保留 active，不把查询失败伪装成已是最新版，必要时通过停 daemon 的离线维护恢复。
 - final reply split 当前采用“主卡保留原标题与 footer，overflow 统一标题为 `✅ 最后答复（续）`”的最小语义；是否要进一步升级成显式 `1/N` 编号、或把 footer 改挂到最后一张 continuation card，仍是产品取舍。

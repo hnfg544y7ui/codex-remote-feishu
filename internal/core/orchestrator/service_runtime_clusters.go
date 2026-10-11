@@ -170,6 +170,18 @@ func (r *serviceCatalogRuntime) hasPersistedThreads() bool {
 	return r != nil && r.persistedThreads != nil
 }
 
+func (r *serviceCatalogRuntime) desktopProjects() (threadcatalogcontract.DesktopProjectSnapshot, bool, error) {
+	if r == nil {
+		return threadcatalogcontract.DesktopProjectSnapshot{}, false, nil
+	}
+	catalog, ok := r.persistedThreads.(threadcatalogcontract.DesktopProjectCatalog)
+	if !ok {
+		return threadcatalogcontract.DesktopProjectSnapshot{}, false, nil
+	}
+	snapshot, err := catalog.DesktopProjects()
+	return snapshot, true, err
+}
+
 func (r *serviceCatalogRuntime) recentPersistedThreads(limit int) []state.ThreadRecord {
 	return r.recentPersistedThreadsForBackend(agentproto.BackendCodex, limit)
 }

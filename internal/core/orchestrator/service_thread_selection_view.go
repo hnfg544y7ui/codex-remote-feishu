@@ -133,6 +133,30 @@ func (s *Service) threadSelectionStatus(surface *state.SurfaceConsoleRecord, vie
 		return "当前仅可见；后续将按恢复路径处理", false
 	}
 	target := s.resolveThreadTargetWithScope(surface, view.ThreadID, allowCrossWorkspace)
+	return s.threadSelectionStatusFromTarget(surface, view, target)
+}
+
+// Project a target already resolved during the same selection build. This avoids
+// rebuilding the thread catalog and rechecking workspace paths for every label.
+func (s *Service) threadSelectionStatusFromTarget(surface *state.SurfaceConsoleRecord, view *mergedThreadView, target resolvedThreadTarget) (string, bool) {
+	if view == nil {
+		return "", true
+	}
+	if surface != nil && view != nil && surface.SelectedThreadID == view.ThreadID && s.surfaceOwnsThread(surface, view.ThreadID) {
+		if surface.RouteMode == state.RouteModeFollowLocal {
+			return "当前跟随中", false
+		}
+		return "已接管", false
+	}
+	if view.BusyOwner != nil {
+		return "已被其他飞书会话接管", true
+	}
+	if !s.mergedThreadViewHasCompatibleVisibleInstance(surface, view) {
+		if strings.TrimSpace(threadCWD(view)) == "" {
+			return "当前仅可见，暂不可直接接管", true
+		}
+		return "当前仅可见；后续将按恢复路径处理", false
+	}
 	switch target.Mode {
 	case threadAttachCurrentVisible:
 		return "可接管", false

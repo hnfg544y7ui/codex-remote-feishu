@@ -205,7 +205,7 @@ func (s *Service) autoWhipSurfaceReady(surface *state.SurfaceConsoleRecord) bool
 }
 
 func (s *Service) maybeScheduleAutoWhipAfterRemoteTurn(surface *state.SurfaceConsoleRecord, item *state.QueueItemRecord, turnID string, cause terminalCause, finalText string, summary *control.FileChangeSummary) []eventcontract.Event {
-	if surface == nil || item == nil || !surface.AutoWhip.Enabled {
+	if surface == nil || item == nil || item.ScheduledRunID != "" || !surface.AutoWhip.Enabled {
 		return nil
 	}
 	if surface.AutoWhip.SuppressOnce {

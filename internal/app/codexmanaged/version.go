@@ -9,6 +9,17 @@ import (
 
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$`)
 
+// IsNewerVersion is the strict ordering used for automatic updates. Invalid
+// versions never authorize a switch, and a channel change cannot downgrade CLI.
+func IsNewerVersion(candidate, current string) bool {
+	left, err := parseVersion(candidate)
+	if err != nil {
+		return false
+	}
+	right, err := parseVersion(current)
+	return err == nil && left.newerThan(right)
+}
+
 type version struct {
 	text    string
 	parts   [3]uint64

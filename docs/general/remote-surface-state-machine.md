@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-01`
-> Summary: 补充 Feishu 群聊纯 @ 主机器人快捷切换，以及 `/workspace new` 路径子步骤对已删除当前目录的回退规则。
+> Updated: `2026-10-11`
+> Summary: 补充托管 Codex CLI 的候选、空闲切换、回退及输入暂停恢复边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -521,7 +521,7 @@ review mode 第一版当前不是新的 route state，而是挂在 surface 上�
 | `G7 VSCodeCompatibilityBlocked` | `ProductMode=vscode`，surface detached，且本机检测到“不能安全自动收口”的 VS Code 兼容性问题 | daemon 不再自动恢复 exact instance，也不再发普通“请先打开 VS Code”提示，而是改发必要的修复/失败反馈；legacy `editor_settings` 若已存在可接管入口，会先静默自动迁到 `managed_shim`，只有缺 target、自动迁移失败或 stale managed shim 时才真正停在这个 gate。若这张提示由 stamped `/mode vscode` 当前卡同步触发，则优先承接到当前卡，否则保持独立 runtime 提示 |
 | `G8 TurnPatchEditing` | daemon 侧存在当前 surface 的 active turn-patch flow，且 `stage=editing` | 当前 frontstage 被 patch 卡占用；只有同一张 patch 卡的 `request_respond` / `request_control` 与 reaction/recall 可以继续，其它动作会被挡住并提示先提交或取消 |
 | `G9 UpgradeOwnerFlowRunning` | daemon 侧 active upgrade owner-flow 处于 `running` / `cancelling` / `restarting` | 这是 daemon 顶层的独立升级 gate；只允许 `/status`、`/upgrade`、`/debug`、reaction/recall 与同一张升级卡自身动作继续，其它 competing 输入会被拒绝 |
-| `G10 StandaloneCodexUpgradeRunning` | daemon 侧 active standalone Codex upgrade transaction 非空 | 这是 daemon 顶层的独立 upgrade gate，不复用现有 `codex-remote` owner-flow。发起 surface 的普通输入会被直接挡住；其它真正依赖 standalone Codex 的 attached surface 会继续走“写入队列 + notice + `paused_for_local`”语义；VS Code surface / instance 当前完全排除在这条 gate 之外；非 queueable 命令/卡片动作当前仍直接拒绝。事务只有在 install 完成、child restart `ack` 已确认、且匹配的 restore outcome 成功/失败/超时收口后才会退出，不会在 bare restart ack 后提前解 gate |
+| `G10 StandaloneCodexUpgradeRunning` | daemon 侧 active standalone / managed Codex upgrade transaction 非空 | 这是 daemon 顶层的独立 upgrade gate，不复用现有 `codex-remote` owner-flow。发起 surface 的普通输入会被直接挡住；其它真正依赖 standalone Codex 的 attached surface 会继续走“写入队列 + notice + `paused_for_local`”语义；VS Code surface / instance 当前完全排除在这条 gate 之外；非 queueable 命令/卡片动作当前仍直接拒绝。事务只有在 install 完成、child restart `ack` 已确认、且匹配的 restore outcome 成功/失败/超时收口后才会退出，不会在 bare restart ack 后提前解 gate |
 | `G11 TurnPatchTransactionRunning` | daemon 侧存在当前 instance 的 active turn-patch transaction | 发起 surface 与同 instance 上其它 attached surface 的状态改写类输入都会被挡住；当前只保留 `/status`、`/list`、`/help`、`/menu`、`/history`、`/debug`、reaction/recall 等查看类动作，直到 patch apply / rollback 收口。事务只会在 rollout 写盘后对应的 child restart 最终 outcome 成功，或在失败/超时后自动回滚并完成恢复 restart 收口后退出 |
 | `G12 BotCapabilitySettingsInvalid` | 合法 Feishu surface 对应的 gateway record 已存在，但 record 无法规范化或 storage key 与 record gateway 不一致 | capability effective read、配置与 lifecycle mutation、普通 action、queue 和 AutoContinue dispatch 全部 fail closed，不回退 raw surface；只保留 `/stop`、`/detach` 与 `/workspace detach` 释放执行和 route 资源。详细节流与恢复规则见 6.2 覆盖门禁 |
 
@@ -677,9 +677,15 @@ review mode 第一版当前不是新的 route state，而是挂在 surface 上�
 
 对应实现里：
 
+Codex headless 的 `/workspace list`、`/list`、`/use`、`/useall` 在接入 desktop project catalog 时均展示项目和会话两级候选；各命令保留原 source，项目分组判定覆盖 list/use/useall 三种 source。每轮只读 SQL projects/project_roots 及 desktop global 的明确会话归属，中文项目名和多目录项目自动同步；显式未归属、cloud 归属或失效项目不按路径误猜。未知归属才按最深项目根目录边界推断，纯 CLI 主机统一归入未归属项目。项目 ID 只用于显示分组，thread/new-thread/worktree 的执行与 claim 始终使用真实目录。项目删除、会话移组、同一选择的目录变更和 workspace 占用变化都在 confirm 重验；变化时留在最新卡片重新确认。新会话默认使用项目第一条仍存在、未占用且能推断到本项目的根目录；Worktree 和锁定 workspace 流程继续使用实际路径。
+
 1. target picker 的 workspace 候选按入口分成 attach / list / worktree-base 三种模式。
    1. 在线实例先按可见 thread 的稳定 `WorkspaceKey` 归并 workspace；`thread.CWD` 只保留为最近活跃子目录。只有当某个 instance 当前完全没有可见 thread，或 thread 侧缺失稳定 root 时，才回退到该 instance 的 `WorkspaceKey/WorkspaceRoot`。
    2. merged thread views / persisted recent threads 仍会把 recoverable-only workspace 补进候选。
+      workspace 合同投影复用本次构建已按在线状态和 backend 过滤的实例分组，不对每个历史工作区重新扫描全部实例；每轮仍读取最新 workspace owner，确认切换继续执行完整合同解析。
+      候选构建只在一次调用内按原始 `(WorkspaceKey, CWD)` 对去重，再进行真实路径解析；相同 WorkspaceKey、不同 CWD 不会合并。已有 CWD 的归属判断不计算未使用的 fallback；headless 标签复用本轮已解析 target 的状态，后续确认仍重新解析并执行原有 claim、scope 和 freshness 校验。
+      claim 查询内部复用入口已解析的 canonical key；owner/surface 子查询不重复做路径解析，也不引入跨回调缓存。
+      批量 merged thread views 只在本次只读投影中复用路径身份；下一次动作重建 views，重新解析符号链接。
    3. attach 模式仍会过滤 busy workspace，以及既不能 attach 也没有 recoverable thread 支撑的 workspace。
    4. `/workspace list` / `/list` 的 list 模式会把 busy Git workspace 保留为 Worktree base；它不会暴露旧会话或新建会话，只暴露 `worktree_create` 操作。busy 非 Git workspace 仍过滤。
    5. `/workspace new worktree` 与 list 内部 Worktree 子页使用 worktree-base 模式，只保留可识别的 Git workspace；busy Git workspace 可以作为基准工作区。
@@ -1785,6 +1791,16 @@ transport degraded retained attachment
    4. `gateway_apply_failed` 当前会先排入 daemon 的 pending runtime notice 队列，待下一次正常 gateway apply 成功前置冲刷；同 surface 同 family 的重复错误会按 dedupe key 收敛
 12. 因此，后续若新增真正属于 runtime 层的提示，默认应进入这条独立车道，而不是继续直接手写普通 `UIEventNotice`。
 
+### 5.7 `/rename` 是精确目标的元数据请求
+
+`/rename 新名称` 仅支持 `codex headless`。它要求在线 attached instance、显式选中的可见普通 thread，以及当前 surface 持有该 thread claim；不从 active thread、prepared thread 或最近会话推断目标。VS Code、Claude、OpenCode 隐藏并拒绝，用户可先 `/mode codex`，再 `/list` 选择会话。
+
+- R0/R1/R5 或缺少 ownership/visibility 时拒绝并引导重新选择；直接 slash 空名称展示用法，菜单裸入口则显示原卡名称表单，均不发 native 请求。表单绑定打开时的 instance/thread；提交时当前选择已变化则拒绝，不静默重定向。空白提交保留表单并提示错误。去除名称首尾空白，保留中文和内部空格。
+- 从命令发出时捕获 instance/thread/surface/command ID 和名称。即使等待卡投递期间切换 attached instance，daemon 仍只向捕获的原实例派发；已结束的请求不会回退到新实例。改名不切换 route、增删 claim、重建 thread、开新 turn或改变队列；正常执行中的 thread 也可改名。
+- 只有匹配的 `thread.name.command.result` 成功才更新原目标的 `ThreadRecord.Name`；发送 ack 不代表成功。用户随后切换会话，结果仍属于原目标，不覆盖新选中的会话。
+- 同一 instance/thread 同时最多一个改名请求；等待超过 30 秒、dispatch rejection、断链/degraded 时清理 pending 并显示失败；实例移除在下次 Tick 收口。未知、重复和错配结果不会制造 thread 或成功提示；超时后可 `/list` 刷新确认是否已保存，再重试。
+- 名称由 Codex native 持久化，daemon 重启后通过 thread/list/read 或名称通知恢复。picker/history/status 的现有正式名称优先规则保持不变，工作区标签不受影响。
+
 ## 6. 命令矩阵
 
 ### 6.1 基础路由态
@@ -1797,6 +1813,7 @@ transport degraded retained attachment
 | `/workspace` `/workspace new` | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开工作会话父页 / 新建方式页；`claude headless`: hidden + allow，继续复用同一工作区与会话壳；`vscode`: 拒绝并提示先切到 headless |
 | `/workspace list` `/workspace new dir` `/workspace new git` `/workspace new worktree` | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless | `codex headless`: 允许，分别打开切换卡 / 目录新建卡 / Git 新建卡 / Worktree 新建卡；`claude headless`: `/workspace new dir` visible + allow，`/workspace list` / `/workspace new git` / `/workspace new worktree` hidden + allow，继续复用同一 target picker / 新建工作区卡；`vscode`: 拒绝并提示先切到 headless |
 | `/new` | 拒绝 | `headless`: 允许；`vscode`: 拒绝 | `headless`: 允许；若存在 compact/steer/queued/dispatching/running 或运行中的 review turn 则拒绝；空闲 review session 会被清掉；`vscode`: 拒绝 | 拒绝 | 拒绝 | 允许；若首条消息已 dispatching/running 则拒绝；空闲 review session 会被清掉 |
+| `/rename 新名称` | 拒绝并引导选择会话 | 拒绝并引导选择会话 | 仅 Codex headless 可改名；不改变路由、turn 或队列 | VS Code 拒绝 | VS Code 拒绝 | 拒绝并引导选择已有会话 |
 | `/compact` | 提示先 `/list` / `/use` 接管并绑定会话 | 提示先 `/use`，或直接发文本开启新会话 | 允许；仅对当前已绑定 thread 生效，若已有 compact/steer/queued/dispatching/running 则拒绝 | 提示先在 VS Code 里进入会话，或手动 `/use` | 允许；仅对当前跟随到的 thread 生效，若已有 compact/steer/queued/dispatching/running 则拒绝 | 提示先发送首条文本真正创建会话 |
 | `/history` | 提示先 `/list` 接管在线实例 | 提示先 `/use`，或直接发文本开启新会话 | 允许；读取当前选中 thread 的历史 | 提示先在 VS Code 里进入会话，或手动 `/use` | 允许；读取当前跟随 thread 的历史 | 提示先发送首条文本真正创建会话 |
 | `/mcpoauth <server>` | 拒绝并提示先 `/list` / `/use` 接管实例 | 允许；省略 `threadId` 发起 app-scoped OAuth login | 允许；传当前 selected thread 作为 `threadId` | 允许；没有 selected thread 时省略 `threadId` | 允许；传当前跟随 thread 作为 `threadId` | 允许；省略 `threadId` 发起 app-scoped OAuth login |
@@ -2070,7 +2087,31 @@ retained-offline overlay 额外规则：
 
 2026-08-15 #896 review 修复补充：确认卡/编辑表单打开时在服务端暂存当前 thread 的 Goal fingerprint（createdAt/objective/budget），执行 `clear --confirm` / `new|edit` 前先与最新 thread Goal 比对，漂移则取消操作并出错误卡，避免外部 mutation 窗口内的误清/误改；goal 命令 dispatch 失败会清理 pending `goalUserCommands` 并回错误卡，不再静默丢弃；卡片入口触发的 loading 与结果卡通过 `MessageID + Patchable` 在同一 message 上 patch，不残留无按钮死卡；错误卡复用 config 命令 builder（非 sealed），失败原因不伪装成 no-goal 状态。
 
+## 10.1 本机聊天定时任务
+
+- Codex headless `/schedule` 与 `schedule_*` MCP 工具提供独立本机持久任务，不依赖旧 `/cron` Bitable。创建者冻结自用户 queue actor，不借用群内后来发言者。
+- 每任务唯一 outstanding run；到期预订先保存任务快照，队列接受先保存运行关联，再发送 wire command。`running` 包括已接受但未开始的排队轮次，turn ID 来自实际开始事件。
+- Scheduled queue 保存精确实例、workspace 根、CWD 和 execution thread；发送前重复验证 claim/writer。固定 `relay-schedule-<runID>` 命令只匹配对应 live pending binding，陈旧/取消命令不能落回当前聊天实例。
+- 后台执行不改变 selected thread、不消费 staged inputs、不触发 AutoContinue/AutoWhip。暂停/删除撤销未发送轮次，已发送轮次保留；`/stop` 可中断当前运行。
+- 原 route 离线或工作区不一致时明确 pending/wait；已接受后 destination 漂移明确失败。重启后的运行中记录为 interrupted/unknown，不重放；通知失败只重试持久 outbox。
+- 使用和第一版恢复边界见 [本机定时任务](../implemented/local-scheduled-tasks.md)。
+
+## 10.2 独立托管 Codex CLI
+
+- `wrapper.codexRuntime.source=managed` 将官方 CLI 程序所有权交给 Remote；`external` 使用用户指定的外部 CLI，不运行私有自动安装；source 缺省/空/`legacy` 保持既有行为。`Managed` instance 标记与 CLI source 是两个不同的所有权概念。
+- `managed.json` 持有 `active/previous/candidate/failed`；wrapper 只解析 active，不扫描最高目录或在启动 child 时下载。无 active 的首次安装由 daemon 完成；失效 active 明确报错，不 silent fallback 到 App。
+- daemon 将解析后的 runtime source/channel/version/autoUpdate 环境传给新 wrapper，保持启动策略一致；运行中 JSON 变化不能把同一 daemon 的新 worker silent 切到另一 CLI 来源。
+- 自动更新默认关闭。显式 `autoUpdate=true` 且无 version pin 时，每 15 分钟准备、组件验证与隔离能力探测，每 30 秒检查能否在受影响窗口空闲后激活 candidate。busy 时等待，不抢占正在运行的任务；failed 版本需显式重试。
+- 自动确认只接受本进程 daemon 后台无 pin prepare/probe 记录的精确 candidate，要求同 channel 且版本严格高于 active。CLI/manual 候选不取得自动授权；daemon 重启后须等下一轮后台准备，激活/恢复 active 会清掉授权记录。
+- 手动升级、自动激活和回退共用 G10。新 managed 事务仅覆盖 daemon-owned managed Codex worker；VS Code 与非 Codex backend 不参与。发起窗口普通输入被拒绝，其他已 attach 的受影响窗口文本/图片/文件继续写原队列但暂停派发。
+- 切换前重新校验 busy/目标/transaction，激活后逐 worker restart，继续等待 child ack 与最终 thread restore outcome。失败时用独立恢复 deadline 尝试恢复原 CLI 和 worker；无论成功、失败或超时，最终都退出 transaction、恢复暂停窗口，不依赖 E4 的 local-activity watchdog。
+- `previous` 回退须精确匹配当前检查结果；被替换版本进入 failed，防止自动流程立即装回。二进制回退不回滚账号、会话数据库或 CLI 数据格式。
+- CLI `codex-runtime status/prepare` 不改变路由及 active；prepare 在线使用仅限已迁移的 managed daemon，legacy 首次迁移须先停止旧 daemon，避免旧最高目录扫描消费新候选。`activate` 仅在同用户、同 XDG 状态目录的 daemon 已停止时可用，持有 daemon lock 至探测/激活结束。在线维护必须走 G10，不新增绕过 writer 仲裁的在线 CLI 切换入口。
+- 配置、命令、组件验证与验收边界见 [Remote 托管官方 Codex CLI](../implemented/managed-codex-runtime.md)。该文档记录分支代码，NanoPi 部署与真实会话验收须另行确认。
+
 ## 11. 待讨论取舍
+
+- 本机定时任务暂时复用原 surface 在线实例；是否增加独立后台实例恢复，需要统一 headless ownership 生命周期。本版安全默认为等待原 workspace 恢复，允许用户查询、暂停、删除，不抢占其他聊天。
 
 1. 群聊 on-demand 恢复遇到 terminal 失败后，同一恢复目标下的后续普通文本会被静默吞掉（不重复发失败卡），直到恢复目标变化、恢复成功或用户显式重选（`/list`、`/use`、`/new`）。这是为了避免刷屏的有意取舍；风险是用户可能误以为机器人无响应，需要错误卡上的指引文案足够明确。
 2. 群聊/其他 surface 在 bot 级 Profile 切换时若正在执行 turn，切换不会立即生效：surface 标记待收敛，直到下一次交互（实例空闲）才重启实例。这是为避免硬杀进行中任务的有意取舍；若用户希望立即生效，可等待当前任务完成或手动 `/detach` 后重连。

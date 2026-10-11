@@ -29,7 +29,7 @@ if [[ "${endpoint}" == "repos/kxn/codex-remote-feishu" ]]; then
 {"default_branch":"master"}
 JSON
 elif [[ "${scenario}" == "ready" && "${endpoint}" == "repos/kxn/codex-remote-feishu/issues/200" ]]; then
-    cat <<'JSON'
+    sed "s/v0.14.0/${FAKE_VERSION:-v0.14.0}/g" <<'JSON'
 {"number":200,"state":"closed","milestone":{"number":7,"title":"v0.14.0"},"labels":[{"name":"release:tracker"}],"body":"### 版本号\n\nv0.14.0\n\n### 发布轨道\n\nproduction\n\n### 发布前检查\n\n- [x] 同 Milestone 下未标记 `release:stretch` 的 issue 都已关闭\n- [x] `go test ./...` 已通过\n- [x] 安装 / 升级 / 关键路径验证已完成\n- [x] Release notes、目标版本号和发布轨道已确认\n"}
 JSON
 elif [[ "${scenario}" == "ready" && "${endpoint}" == "repos/kxn/codex-remote-feishu/branches/master" ]]; then
@@ -107,13 +107,14 @@ chmod +x "${fake_gh}"
 expect_success() {
   local scenario="$1"
   local expected_ref="$2"
+  local expected_version="${3:-v0.14.0}"
   local output_file="${work_dir}/output-${scenario}.txt"
-  FAKE_SCENARIO="${scenario}" GH_BIN="${fake_gh}" REPOSITORY="kxn/codex-remote-feishu" GITHUB_OUTPUT="${output_file}" \
+  FAKE_SCENARIO="${scenario}" FAKE_VERSION="${expected_version}" GH_BIN="${fake_gh}" REPOSITORY="kxn/codex-remote-feishu" GITHUB_OUTPUT="${output_file}" \
     bash "${SCRIPT_PATH}" --issue 200 --require-closed >/dev/null
   grep -Fx "ref=${expected_ref}" "${output_file}" >/dev/null
   grep -Fx "track=production" "${output_file}" >/dev/null
-  grep -Fx "version=v0.14.0" "${output_file}" >/dev/null
-  grep -Fx "milestone=v0.14.0" "${output_file}" >/dev/null
+  grep -Fx "version=${expected_version}" "${output_file}" >/dev/null
+  grep -Fx "milestone=${expected_version}" "${output_file}" >/dev/null
 }
 
 expect_failure() {
@@ -130,10 +131,19 @@ expect_failure() {
 }
 
 expect_success ready master
+expect_success ready master v1.0.0.1
 expect_success release_branch release/1.5
 expect_failure blocker "blocking milestone issues remain"
 expect_failure unchecked "unchecked 发布前检查 items"
 expect_failure mismatch "does not match tracker version"
 expect_failure missing_branch "does not exist in repo"
+
+invalid_version_log="${work_dir}/invalid-version.log"
+if FAKE_SCENARIO=ready FAKE_VERSION=v1.0.0.1.2 GH_BIN="${fake_gh}" REPOSITORY="kxn/codex-remote-feishu" \
+  bash "${SCRIPT_PATH}" --issue 200 --require-closed >"${invalid_version_log}" 2>&1; then
+  echo "expected a five-part tracker version to fail" >&2
+  exit 1
+fi
+grep -F "does not match track production" "${invalid_version_log}" >/dev/null
 
 echo "release readiness selftest: ok"

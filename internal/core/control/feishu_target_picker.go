@@ -100,12 +100,15 @@ type FeishuTargetPickerView struct {
 	WorkspaceCursor          int
 	SessionCursor            int
 	SelectedWorkspaceKey     string
-	SelectedSessionValue     string
-	SelectedWorkspaceLabel   string
-	SelectedWorkspaceMeta    string
-	SelectedSessionLabel     string
-	SelectedSessionMeta      string
-	ConfirmLabel             string
+	// Project grouping changes the dropdown value, never the execution workspace.
+	ProjectGrouped          bool
+	WorkspaceSelectionValue string
+	SelectedSessionValue    string
+	SelectedWorkspaceLabel  string
+	SelectedWorkspaceMeta   string
+	SelectedSessionLabel    string
+	SelectedSessionMeta     string
+	ConfirmLabel            string
 	// ConfirmValidatesOnSubmit keeps the confirm button clickable when the
 	// current page depends on Feishu form inputs that cannot be live-validated.
 	ConfirmValidatesOnSubmit bool

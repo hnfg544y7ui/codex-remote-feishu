@@ -21,18 +21,22 @@ type codexUpgradeBusyReason struct {
 }
 
 type codexUpgradeCheckResult struct {
-	Installation   codexupgrade.Installation
-	CurrentVersion string
-	LatestVersion  string
-	BusyReasons    []codexUpgradeBusyReason
-	HasUpdate      bool
-	CanUpgrade     bool
+	Installation    codexupgrade.Installation
+	CurrentVersion  string
+	LatestVersion   string
+	BusyReasons     []codexUpgradeBusyReason
+	HasUpdate       bool
+	CanUpgrade      bool
+	PreviousVersion string
+	CanRollback     bool
 }
 
 type codexUpgradeStartRequest struct {
 	SurfaceSessionID string
 	ActorUserID      string
 	TargetVersion    string
+	Rollback         bool
+	Automatic        bool
 	OnComplete       func(error)
 }
 
@@ -59,8 +63,9 @@ func (a *App) checkStandaloneCodexUpgrade(ctx context.Context, initiatorSurfaceI
 		return codexUpgradeCheckResult{}, err
 	}
 	result := codexUpgradeCheckResult{
-		Installation:   installation,
-		CurrentVersion: installation.CurrentVersion(),
+		Installation:    installation,
+		CurrentVersion:  installation.CurrentVersion(),
+		PreviousVersion: installation.ManagedPreviousVersion,
 	}
 	if installation.Upgradeable() {
 		lookup := a.codexUpgradeRuntime.LatestLookup
@@ -88,11 +93,12 @@ func (a *App) checkStandaloneCodexUpgrade(ctx context.Context, initiatorSurfaceI
 	}
 	result.BusyReasons = a.codexUpgradeBusyReasonsLocked(strings.TrimSpace(initiatorSurfaceID))
 	result.CanUpgrade = installation.Upgradeable() && result.HasUpdate && len(result.BusyReasons) == 0
+	result.CanRollback = installation.SourceKind == codexupgrade.SourceManagedRuntime && result.PreviousVersion != "" && len(result.BusyReasons) == 0
 	return result, nil
 }
 
 func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeStartRequest) error {
-	check, err := a.checkStandaloneCodexUpgrade(ctx, req.SurfaceSessionID)
+	check, err := a.codexUpgradeRequestCheck(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -109,7 +115,7 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 	if targetVersion == "" {
 		return fmt.Errorf("missing target version for codex upgrade")
 	}
-	if !check.HasUpdate || targetVersion == check.CurrentVersion {
+	if (!check.HasUpdate && !req.Rollback) || targetVersion == check.CurrentVersion {
 		return fmt.Errorf("current codex is already on %s", xutil.FirstNonEmpty(check.CurrentVersion, "the latest version"))
 	}
 
@@ -133,6 +139,8 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 		RestartInstanceIDs: a.affectedOnlineInstanceIDsLocked(),
 		PausedSurfaceIDs:   map[string]bool{},
 		StartedAt:          time.Now().UTC(),
+		Rollback:           req.Rollback,
+		Automatic:          req.Automatic,
 	}
 	a.pauseCodexUpgradeSurfacesLocked(tx)
 	a.codexUpgradeRuntime.Active = tx
@@ -144,6 +152,10 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 func (a *App) runStandaloneCodexUpgrade(tx *codexupgraderuntime.Transaction, onComplete func(error)) {
 	ctx, cancel := context.WithTimeout(context.Background(), codexUpgradeInstallTimeout)
 	defer cancel()
+	if tx.Install.SourceKind == codexupgrade.SourceManagedRuntime {
+		a.runManagedCodexUpgrade(ctx, tx, onComplete)
+		return
+	}
 
 	var runErr error
 	installFn := a.codexUpgradeRuntime.Install
@@ -247,7 +259,7 @@ func (a *App) affectedOnlineInstanceIDsLocked() []string {
 	instances := a.service.Instances()
 	values := make([]string, 0, len(instances))
 	for _, inst := range instances {
-		if inst == nil || !inst.Online || !standaloneCodexUpgradeAffectsInstance(inst) {
+		if inst == nil || !inst.Online || !a.codexUpgradeAffectsInstanceLocked(inst) {
 			continue
 		}
 		values = append(values, inst.InstanceID)
@@ -259,7 +271,7 @@ func (a *App) affectedOnlineInstanceIDsLocked() []string {
 func (a *App) codexUpgradeBusyReasonsLocked(initiatorSurfaceID string) []codexUpgradeBusyReason {
 	var reasons []codexUpgradeBusyReason
 	for _, inst := range a.service.Instances() {
-		if inst == nil || !inst.Online || !standaloneCodexUpgradeAffectsInstance(inst) {
+		if inst == nil || !inst.Online || !a.codexUpgradeAffectsInstanceLocked(inst) {
 			continue
 		}
 		if strings.TrimSpace(inst.ActiveTurnID) != "" {

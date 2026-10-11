@@ -1,8 +1,8 @@
 # Documentation Index
 
 > Type: `general`
-> Updated: `2026-08-11`
-> Summary: 收紧 docs lifecycle 规则：排除 `docs/superpowers/**`，强制 obsoleted `Superseded By`，并同步 unified binary 文档归档。
+> Updated: `2026-10-11`
+> Summary: 索引独立托管官方 Codex CLI 的配置、版本切换、回退与维护边界。
 
 ## 1. 适用范围
 
@@ -159,10 +159,13 @@
 
 ### 6.2 `implemented`
 
+- [desktop-project-picker.md](./implemented/desktop-project-picker.md)
 - [cron-bitable-scheduler-design.md](./implemented/cron-bitable-scheduler-design.md)
+- [local-scheduled-tasks.md](./implemented/local-scheduled-tasks.md)
 - [feishu-md-preview-design.md](./implemented/feishu-md-preview-design.md)
 - [feishu-request-approval-design.md](./implemented/feishu-request-approval-design.md)
 - [headless-pool-workspace-thread-selection-fix.md](./implemented/headless-pool-workspace-thread-selection-fix.md)
+- [managed-codex-runtime.md](./implemented/managed-codex-runtime.md)
 - [managed-headless-pool-design.md](./implemented/managed-headless-pool-design.md)
 - [feishu-queued-message-applause-shell-command-design.md](./implemented/feishu-queued-message-applause-shell-command-design.md)
 - [new-thread-command-design.md](./implemented/new-thread-command-design.md)

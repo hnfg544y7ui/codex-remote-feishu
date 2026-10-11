@@ -171,11 +171,11 @@ jobs:
             fi
             case "${track}" in
               production)
-                version_pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+                version_pattern='^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$'
                 prerelease=false
                 ;;
               beta|alpha)
-                version_pattern="^v[0-9]+\.[0-9]+\.[0-9]+-${track}\\.[0-9]+$"
+                version_pattern="^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?-${track}\\.[0-9]+$"
                 prerelease=true
                 ;;
               *)
@@ -189,7 +189,7 @@ jobs:
             fi
             latest_tag="$(
               git tag --list 'v*' --sort=-version:refname |
-                grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+                grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$' |
                 grep -vx "${version}" |
                 head -n1 ||
                 true
@@ -380,6 +380,9 @@ jobs:
           fi
           if [[ "${{ needs.build-release-assets.outputs.prerelease }}" == "true" ]]; then
             flags+=(--prerelease)
+          elif [[ "${{ inputs.draft }}" != "true" ]]; then
+            # Fork release numbering can restart below older upstream tags.
+            flags+=(--latest)
           fi
           gh release create "${{ needs.build-release-assets.outputs.version }}" \
             --title "${{ needs.build-release-assets.outputs.version }}" \

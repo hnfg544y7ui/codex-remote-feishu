@@ -90,12 +90,16 @@ func (s *Service) targetPickerWorkspaceEntriesForMode(surface *state.SurfaceCons
 		hasVSCodeActivity := s.workspaceHasVSCodeActivity(instances)
 		attachable := false
 		recoverableOnly := len(instances) == 0 && recoverableWorkspaceSeen[workspaceKey]
-		if filterByBackend {
-			switch s.resolveWorkspaceContract(surface, workspaceKey, targetBackend).Mode {
+		busy := s.workspaceBusyOwnerForSurface(surface, workspaceKey) != nil
+		if filterByBackend && !busy {
+			// grouped already contains exactly the online instances for this
+			// workspace/backend. Reuse it instead of rescanning every instance
+			// and resolving its thread paths for each historical workspace.
+			switch s.resolveWorkspaceContractForInstances(surface, workspaceKey, targetBackend, instances).Mode {
 			case contractResolutionAttachVisible, contractResolutionReuseManaged, contractResolutionRestartManaged:
 				attachable = true
 			}
-		} else {
+		} else if !filterByBackend {
 			attachable = s.resolveWorkspaceAttachInstanceFromCandidates(surface, workspaceKey, instances) != nil
 		}
 		gitInfo := gitmeta.WorkspaceInfo{}
@@ -103,7 +107,6 @@ func (s *Service) targetPickerWorkspaceEntriesForMode(surface *state.SurfaceCons
 			gitInfo = inspectWorkspaceDisplayInfo(workspaceKey)
 		}
 		worktreeBase := s.config.GitAvailable && gitInfo.InRepo()
-		busy := s.workspaceBusyOwnerForSurface(surface, workspaceKey) != nil
 		switch mode {
 		case targetPickerWorkspaceEntryModeWorktreeBase:
 			if !worktreeBase {
@@ -136,11 +139,18 @@ func (s *Service) targetPickerWorkspaceEntriesForMode(surface *state.SurfaceCons
 }
 
 func (s *Service) targetPickerSessionOptions(surface *state.SurfaceConsoleRecord, entry workspaceSelectionEntry, source control.TargetPickerRequestSource, allowNewThread bool) []control.FeishuTargetPickerSessionOption {
+	if strings.TrimSpace(entry.workspaceKey) == "" {
+		return nil
+	}
+	views := s.threadViewsVisibleInNormalList(surface, s.mergedThreadViews(surface))
+	return s.targetPickerSessionOptionsWithViews(surface, entry, source, allowNewThread, views)
+}
+
+func (s *Service) targetPickerSessionOptionsWithViews(surface *state.SurfaceConsoleRecord, entry workspaceSelectionEntry, source control.TargetPickerRequestSource, allowNewThread bool, views []*mergedThreadView) []control.FeishuTargetPickerSessionOption {
 	workspaceKey := normalizeWorkspaceClaimKey(entry.workspaceKey)
 	if workspaceKey == "" {
 		return nil
 	}
-	views := s.threadViewsVisibleInNormalList(surface, s.mergedThreadViews(surface))
 	options := make([]control.FeishuTargetPickerSessionOption, 0, len(views)+1)
 	canUseWorkspace := !entry.busy
 	if canUseWorkspace && targetPickerAllowsNewThread(source, allowNewThread) && source == control.TargetPickerRequestSourceList {
@@ -173,12 +183,15 @@ func (s *Service) targetPickerSessionOptions(surface *state.SurfaceConsoleRecord
 				}
 				continue
 			}
-			entry := s.threadSelectionViewEntry(surface, view, true)
-			meta := targetPickerSessionMetaText(source, s.threadSelectionMetaText(surface, view, entry.Status))
+			status, _ := s.threadSelectionStatusFromTarget(surface, view, target)
+			if s.surfaceIsVSCode(surface) {
+				status, _ = s.threadSelectionStatus(surface, view, true)
+			}
+			meta := targetPickerSessionMetaText(source, s.threadSelectionMetaText(surface, view, status))
 			options = append(options, control.FeishuTargetPickerSessionOption{
 				Value:    targetPickerThreadValue(view.ThreadID),
 				Kind:     control.FeishuTargetPickerSessionThread,
-				Label:    entry.Summary,
+				Label:    s.threadSelectionSummary(surface, view),
 				MetaText: meta,
 			})
 		}

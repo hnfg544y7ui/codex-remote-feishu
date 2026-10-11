@@ -19,6 +19,8 @@ type Transaction struct {
 	RestartInstanceIDs []string
 	PausedSurfaceIDs   map[string]bool
 	StartedAt          time.Time
+	Rollback           bool
+	Automatic          bool
 }
 
 type OwnerCardFlowStage string
@@ -33,6 +35,10 @@ const (
 )
 
 type OwnerCardFlowRecord struct {
+	SourceKind       codexupgrade.SourceKind
+	PreviousVersion  string
+	CanRollback      bool
+	Rollback         bool
 	FlowID           string
 	SurfaceSessionID string
 	OwnerUserID      string

@@ -12,6 +12,8 @@ import (
 
 func (t *Translator) TranslateCommand(command agentproto.Command) ([][]byte, error) {
 	switch command.Kind {
+	case agentproto.CommandThreadNameSet:
+		return t.translateThreadNameSet(command)
 	case agentproto.CommandPromptSend:
 		return t.translatePromptSend(command)
 	case agentproto.CommandReviewStart:

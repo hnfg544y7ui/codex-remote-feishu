@@ -44,6 +44,8 @@ func (a *App) handleDaemonCommandLocked(command control.DaemonCommand) []eventco
 		return a.handleDebugDaemonCommand(command)
 	case control.DaemonCommandCron:
 		return a.handleCronDaemonCommandLocked(command)
+	case control.DaemonCommandSchedule:
+		return a.handleScheduledTasksCommandLocked(command)
 	case control.DaemonCommandMCPOAuthLogin:
 		return a.handleMCPOAuthLoginDaemonCommandLocked(command)
 	case control.DaemonCommandUpgrade:
@@ -163,6 +165,7 @@ func (a *App) startManagedHeadlessLocked(command control.DaemonCommand) []eventc
 		env = append(env, config.ResumeThreadIDEnv+"="+strings.TrimSpace(command.ThreadID))
 	}
 	if backend == agentproto.BackendCodex {
+		env = managedCodexLaunchEnv(env, cfg.CodexRuntime)
 		env = append(env, config.CodexRuntimeProfileIDEnv+"="+state.NormalizeCodexProfileID(command.CodexProfileID))
 	}
 	if backend == agentproto.BackendClaude {

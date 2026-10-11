@@ -92,7 +92,7 @@ type StateMetadataOptions struct {
 	ServiceManager  ServiceManager
 }
 
-var releaseVersionPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:-(?:alpha|beta)\.[0-9]+)?$`)
+var releaseVersionPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-(?:alpha|beta)\.[0-9]+)?$`)
 
 func ApplyStateMetadata(state *InstallState, opts StateMetadataOptions) {
 	if state == nil {

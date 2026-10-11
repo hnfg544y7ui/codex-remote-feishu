@@ -171,6 +171,20 @@ func (s *Service) handleTargetPickerSelectWorkspace(surface *state.SurfaceConsol
 	}
 	resetTargetPickerEditingState(record)
 	s.applyTargetPickerDraftAnswers(record, answers)
+	if projectID, grouped := desktopProjectIDFromValue(workspaceKey); grouped {
+		if !record.ProjectGrouped || record.Page != control.FeishuTargetPickerPageTarget {
+			return notice(surface, "target_picker_invalid_project", "请重新打开项目选择卡。")
+		}
+		record.SelectedProjectID = projectID
+		record.SelectedWorkspaceKey = ""
+		record.SelectedSessionValue = targetPickerAutoSession
+		record.SessionCursor = -1
+		record.WorkspaceCursor = -1
+		return s.rebuildDesktopProjectPicker(surface, record)
+	}
+	if record.ProjectGrouped && record.Page == control.FeishuTargetPickerPageTarget {
+		return notice(surface, "target_picker_invalid_project", "请选择项目后再选择会话。")
+	}
 	lockedWorkspaceKey := normalizeTargetPickerWorkspaceSelection(record.LockedWorkspaceKey)
 	requestedWorkspaceKey := normalizeTargetPickerWorkspaceSelection(workspaceKey)
 	if lockedWorkspaceKey != "" {
@@ -238,6 +252,9 @@ func (s *Service) handleTargetPickerPage(surface *state.SurfaceConsoleRecord, pi
 	}
 	resetTargetPickerEditingState(record)
 	s.applyTargetPickerDraftAnswers(record, answers)
+	if record.ProjectGrouped && record.Page == control.FeishuTargetPickerPageTarget {
+		return s.handleDesktopProjectPickerPage(surface, record, fieldName, cursor)
+	}
 	switch strings.TrimSpace(fieldName) {
 	case frontstagecontract.CardTargetPickerWorkspaceFieldName:
 		if normalizeTargetPickerWorkspaceSelection(record.LockedWorkspaceKey) != "" {
@@ -324,7 +341,22 @@ func (s *Service) handleTargetPickerConfirm(surface *state.SurfaceConsoleRecord,
 		return blocked
 	}
 	s.applyTargetPickerDraftAnswers(record, answers)
+	grouped := record.ProjectGrouped && record.Page == control.FeishuTargetPickerPageTarget
+	previousWorkspace, previousSession := record.SelectedWorkspaceKey, record.SelectedSessionValue
+	requestedProject := record.SelectedProjectID
+	if id, projectValue := desktopProjectIDFromValue(workspaceKey); projectValue {
+		if !grouped {
+			return notice(surface, "target_picker_invalid_project", "请重新打开项目选择卡。")
+		}
+		record.SelectedProjectID, requestedProject = id, id
+		workspaceKey = ""
+	} else if grouped && strings.TrimSpace(workspaceKey) != "" {
+		return notice(surface, "target_picker_invalid_project", "请选择最新卡片中的项目后再确认。")
+	}
 	requestedWorkspaceKey := normalizeTargetPickerWorkspaceSelection(record.SelectedWorkspaceKey)
+	if grouped {
+		requestedWorkspaceKey = ""
+	}
 	requestedSessionValue := strings.TrimSpace(record.SelectedSessionValue)
 	lockedWorkspaceKey := normalizeTargetPickerWorkspaceSelection(record.LockedWorkspaceKey)
 	if key := normalizeTargetPickerWorkspaceSelection(workspaceKey); key != "" {
@@ -354,7 +386,9 @@ func (s *Service) handleTargetPickerConfirm(surface *state.SurfaceConsoleRecord,
 	if err != nil {
 		return notice(surface, "target_picker_unavailable", err.Error())
 	}
-	if (requestedWorkspaceKey != "" && view.SelectedWorkspaceKey != requestedWorkspaceKey) ||
+	if (grouped && view.WorkspaceSelectionValue != desktopProjectValuePrefix+requestedProject) ||
+		(grouped && requestedSessionValue == previousSession && previousWorkspace != "" && previousWorkspace != view.SelectedWorkspaceKey) ||
+		(requestedWorkspaceKey != "" && view.SelectedWorkspaceKey != requestedWorkspaceKey) ||
 		(requestedSessionValue != "" && view.SelectedSessionValue != requestedSessionValue) {
 		setTargetPickerMessages(record, control.FeishuTargetPickerMessage{
 			Level: control.FeishuTargetPickerMessageWarning,
@@ -548,6 +582,11 @@ func (s *Service) buildTargetPickerView(surface *state.SurfaceConsoleRecord, rec
 	}
 	record.Page = page
 	workspaceEntries := s.targetPickerWorkspaceEntriesForRecord(surface, record)
+	if page == control.FeishuTargetPickerPageTarget && stage == control.FeishuTargetPickerStageEditing {
+		if view, enabled, err := s.buildDesktopProjectPickerView(surface, record, workspaceEntries); enabled || err != nil {
+			return view, err
+		}
+	}
 
 	lockedWorkspaceKey := normalizeTargetPickerWorkspaceSelection(record.LockedWorkspaceKey)
 	workspaceSelectionLocked := lockedWorkspaceKey != ""

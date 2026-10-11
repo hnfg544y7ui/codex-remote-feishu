@@ -43,6 +43,7 @@ const (
 	EventThreadLifecycleUpdated          EventKind = "thread.lifecycle.updated"
 	EventThreadGoalUpdated               EventKind = "thread.goal.updated"
 	EventThreadGoalCommandResult         EventKind = "thread.goal.command.result"
+	EventThreadNameCommandResult         EventKind = "thread.name.command.result"
 	EventThreadSettingsUpdated           EventKind = "thread.settings.updated"
 	EventCapabilityStateUpdated          EventKind = "capability.state.updated"
 	EventProcessChildRestartUpdated      EventKind = "process.child.restart.updated"
@@ -216,6 +217,7 @@ const (
 	CommandThreadGoalGet       CommandKind = "thread.goal.get"
 	CommandThreadGoalClear     CommandKind = "thread.goal.clear"
 	CommandThreadRead          CommandKind = "thread.read"
+	CommandThreadNameSet       CommandKind = "thread.name.set"
 )
 
 type InputKind string
@@ -248,6 +250,7 @@ type Command struct {
 	MCP          MCPCommand         `json:"mcp,omitempty"`
 	Review       ReviewRequest      `json:"review,omitempty"`
 	Goal         GoalCommand        `json:"goal,omitempty"`
+	Name         string             `json:"name,omitempty"`
 	ShellCommand ShellCommand       `json:"shellCommand,omitempty"`
 }
 

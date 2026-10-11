@@ -203,16 +203,16 @@ resolve_latest_version_from_release_api() {
 
   case "${track}" in
     production)
-      tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+      tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$'
       expected_prerelease="false"
       ;;
     beta|alpha)
-      tag_pattern="^v[0-9]+\.[0-9]+\.[0-9]+-${track}\\.[0-9]+$"
+      tag_pattern="^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?-${track}\\.[0-9]+$"
       expected_prerelease="true"
       ;;
   esac
 
-  while IFS= read -r release; do
+  while IFS= read -r release || [[ -n "${release}" ]]; do
     [[ -n "${release}" ]] || continue
     tag_name="$(extract_release_string_field "${release}" "tag_name" || true)"
     draft="$(extract_release_boolean_field "${release}" "draft" || true)"

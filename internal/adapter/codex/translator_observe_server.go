@@ -252,24 +252,7 @@ func (t *Translator) ObserveServer(raw []byte) (Result, error) {
 		}
 		if pending, exists := t.pendingThreadNameSet[requestID]; exists {
 			delete(t.pendingThreadNameSet, requestID)
-			if _, hasError := message["error"]; hasError {
-				return Result{}, nil
-			}
-			name := choose(
-				pending.Name,
-				lookupString(message, "result", "thread", "name"),
-				lookupString(message, "result", "name"),
-			)
-			if pending.ThreadID == "" || name == "" {
-				return Result{}, nil
-			}
-			return Result{
-				Events: []agentproto.Event{{
-					Kind:     agentproto.EventThreadDiscovered,
-					ThreadID: pending.ThreadID,
-					Name:     name,
-				}},
-			}, nil
+			return threadNameSetResult(pending, message), nil
 		}
 		var threadListAliasResponses [][]byte
 		if resolution, ok, err := t.threadListBroker.ResolveResponse(message); err != nil {
@@ -463,11 +446,8 @@ func (t *Translator) ObserveServer(raw []byte) (Result, error) {
 	case "thread/name/updated":
 		threadID := lookupString(message, "params", "threadId")
 		threadRecord := parseThreadRecord(lookupAny(message, "params", "thread"))
+		name := choose(lookupString(message, "params", "threadName"), lookupString(message, "params", "name"), lookupString(message, "params", "thread", "name"))
 		if t.internalThreadIDs[threadID] {
-			name := lookupString(message, "params", "name")
-			if name == "" {
-				name = lookupString(message, "params", "thread", "name")
-			}
 			return Result{Events: []agentproto.Event{{
 				Kind:         agentproto.EventThreadDiscovered,
 				ThreadID:     threadID,
@@ -477,10 +457,6 @@ func (t *Translator) ObserveServer(raw []byte) (Result, error) {
 				Initiator:    agentproto.Initiator{Kind: agentproto.InitiatorInternalHelper},
 				Metadata:     map[string]any{"internalHelper": true},
 			}}}, nil
-		}
-		name := lookupString(message, "params", "name")
-		if name == "" {
-			name = lookupString(message, "params", "thread", "name")
 		}
 		return Result{Events: []agentproto.Event{{
 			Kind:     agentproto.EventThreadDiscovered,

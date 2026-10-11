@@ -96,6 +96,8 @@ type activeTargetPickerRecord struct {
 	WorkspaceCursor         int
 	SessionCursor           int
 	SelectedWorkspaceKey    string
+	SelectedProjectID       string
+	ProjectGrouped          bool
 	SelectedSessionValue    string
 	LocalDirectoryPath      string
 	LocalDirectoryName      string

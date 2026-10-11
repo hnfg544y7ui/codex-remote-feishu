@@ -141,10 +141,10 @@ fi
 
 case "${track}" in
   production)
-    version_pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+    version_pattern='^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$'
     ;;
   beta|alpha)
-    version_pattern="^v[0-9]+\\.[0-9]+\\.[0-9]+-${track}\\.[0-9]+$"
+    version_pattern="^v[0-9]+\\.[0-9]+\\.[0-9]+(\\.[0-9]+)?-${track}\\.[0-9]+$"
     ;;
   *)
     die "unsupported release track in tracker issue: ${track}"

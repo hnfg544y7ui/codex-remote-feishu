@@ -63,6 +63,9 @@ func ResolveFeishuFrontstageActionContract(action Action) FeishuFrontstageAction
 	if _, ok := FeishuUIIntentFromAction(action); ok {
 		contract.RejectsUnstampedCallback = true
 	}
+	if action.Kind == ActionRenameCommand {
+		contract.RejectsUnstampedCallback = true
+	}
 
 	switch {
 	case inlineReplaceableFeishuUIIntentAction(action):
@@ -234,6 +237,7 @@ func firstResultCardReplaceableAction(action Action) bool {
 		ActionStatus,
 		ActionCoworkersCommand,
 		ActionStop,
+		ActionRenameCommand,
 		ActionNewThread,
 		ActionFollowLocal,
 		ActionWorkspaceDetach,
@@ -242,6 +246,8 @@ func firstResultCardReplaceableAction(action Action) bool {
 		return true
 	case ActionCronCommand:
 		return !cronCommandRunsImmediately(action.Text)
+	case ActionScheduleCommand:
+		return !scheduleCommandRunsImmediately(action.Text)
 	case ActionAdminCommand:
 		return true
 	case ActionUpgradeCommand:

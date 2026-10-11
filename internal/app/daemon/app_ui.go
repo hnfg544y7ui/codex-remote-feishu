@@ -39,6 +39,20 @@ func (a *App) handleUIEventsLocked(ctx context.Context, events []eventcontract.E
 				event.Command.CommandID = a.nextCommandID()
 			}
 			instanceID := a.service.AttachedInstanceID(event.SurfaceSessionID)
+			if strings.HasPrefix(event.Command.CommandID, "relay-schedule-") {
+				instanceID = a.service.ScheduledCommandInstanceID(event.Command.CommandID)
+				if instanceID == "" {
+					continue
+				}
+			}
+			if event.Command.Kind == agentproto.CommandThreadNameSet {
+				// UI delivery releases the app lock; the surface may switch before dispatch.
+				// Never fall back to its new attachment for a captured metadata request.
+				instanceID = a.service.RenameCommandInstanceID(event.Command.CommandID)
+				if instanceID == "" {
+					continue
+				}
+			}
 			snapshot := a.service.SurfaceSnapshot(event.SurfaceSessionID)
 			a.debugf(
 				"dispatch prepare: surface=%s instance=%s command=%s kind=%s selectedThread=%s route=%s promptThread=%s promptCreate=%t pending=%s active=%s sourceMessage=%s",

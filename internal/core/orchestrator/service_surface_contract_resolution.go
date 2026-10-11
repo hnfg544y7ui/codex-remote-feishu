@@ -240,6 +240,12 @@ func (s *Service) resolveWorkspaceContract(surface *state.SurfaceConsoleRecord, 
 		}
 	}
 	instances := s.workspaceOnlineInstancesForBackend(workspaceKey, backend)
+	return s.resolveWorkspaceContractForInstances(surface, workspaceKey, backend, instances)
+}
+
+// The caller supplies the online, backend-filtered instances for this resolved
+// workspace key and has checked its workspace owner in the same operation.
+func (s *Service) resolveWorkspaceContractForInstances(surface *state.SurfaceConsoleRecord, workspaceKey string, backend agentproto.Backend, instances []*state.InstanceRecord) contractResolution {
 	if len(instances) == 0 {
 		return contractResolution{
 			Mode:       contractResolutionCreateHeadless,

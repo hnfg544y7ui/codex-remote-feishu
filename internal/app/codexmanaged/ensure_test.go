@@ -308,7 +308,7 @@ func TestInstallPrivateUsesOfficialRegistryAndPrivatePrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := "install\n--prefix\n" + staging + "\n--no-audit\n--no-fund\n--registry=https://registry.npmjs.org\n@openai/codex@0.159.3\n"
+	expected := "install\n--prefix\n" + staging + "\n--include=optional\n--no-audit\n--no-fund\n--registry=https://registry.npmjs.org\n@openai/codex@0.159.3\n"
 	if string(raw) != expected {
 		t.Fatalf("wrong npm install args: %q", raw)
 	}

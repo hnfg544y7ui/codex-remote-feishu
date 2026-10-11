@@ -143,7 +143,7 @@ func catalogButtonLabel(def FeishuCommandDefinition) string {
 func feishuCommandDisplayRank(groupID, commandID string) int {
 	switch strings.TrimSpace(groupID) {
 	case FeishuCommandGroupCurrentWork:
-		return commandRank(commandID, FeishuCommandStop, FeishuCommandCompact, FeishuCommandSteerAll, FeishuCommandNew, FeishuCommandStatus)
+		return commandRank(commandID, FeishuCommandStop, FeishuCommandCompact, FeishuCommandRename, FeishuCommandSteerAll, FeishuCommandNew, FeishuCommandStatus)
 	case FeishuCommandGroupSendSettings:
 		return commandRank(commandID, FeishuCommandMode, FeishuCommandReasoning, FeishuCommandModel, FeishuCommandAccess, FeishuCommandPlan, FeishuCommandVerbose, FeishuCommandAutoContinue)
 	case FeishuCommandGroupSwitchTarget:
@@ -163,7 +163,7 @@ func feishuCommandDisplayRank(groupID, commandID string) int {
 			FeishuCommandFollow,
 		)
 	case FeishuCommandGroupCommonTools:
-		return commandRank(commandID, FeishuCommandReview, FeishuCommandPatch, FeishuCommandAutoWhip, FeishuCommandPrimary, FeishuCommandCoworkers, FeishuCommandHistory, FeishuCommandCron, FeishuCommandSendFile)
+		return commandRank(commandID, FeishuCommandReview, FeishuCommandPatch, FeishuCommandAutoWhip, FeishuCommandPrimary, FeishuCommandCoworkers, FeishuCommandHistory, FeishuCommandSchedule, FeishuCommandCron, FeishuCommandSendFile)
 	case FeishuCommandGroupMaintenance:
 		return commandRank(commandID, FeishuCommandAdmin, FeishuCommandUpgrade, FeishuCommandDebug, FeishuCommandHelp, FeishuCommandVSCodeMigrate)
 	default:

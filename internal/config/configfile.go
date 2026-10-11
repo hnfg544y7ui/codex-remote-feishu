@@ -118,9 +118,10 @@ type TryCloudflareSettings struct {
 }
 
 type WrapperSettings struct {
-	CodexRealBinary string `json:"codexRealBinary,omitempty"`
-	NameMode        string `json:"nameMode,omitempty"`
-	IntegrationMode string `json:"integrationMode,omitempty"`
+	CodexRuntime    CodexRuntimeSettings `json:"codexRuntime,omitempty"`
+	CodexRealBinary string               `json:"codexRealBinary,omitempty"`
+	NameMode        string               `json:"nameMode,omitempty"`
+	IntegrationMode string               `json:"integrationMode,omitempty"`
 }
 
 type FeishuSettings struct {
@@ -224,6 +225,9 @@ func WriteAppConfig(path string, cfg AppConfig) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	if err := ValidateCodexRuntimeSettings(cfg.Wrapper.CodexRuntime); err != nil {
+		return err
+	}
 	if err := ValidateCodexAPIProfileRecords(cfg.Codex.Profiles); err != nil {
 		return err
 	}
@@ -285,6 +289,9 @@ func readConfigFile(path string) (AppConfig, error) {
 			return AppConfig{}, unsupportedLegacyConfigPathError(path)
 		}
 		return AppConfig{}, fmt.Errorf("parse json config %s: %w", path, err)
+	}
+	if err := ValidateCodexRuntimeSettings(cfg.Wrapper.CodexRuntime); err != nil {
+		return AppConfig{}, fmt.Errorf("validate codex runtime %s: %w", path, err)
 	}
 	if err := ValidateCodexAPIProfileRecords(cfg.Codex.Profiles); err != nil {
 		return AppConfig{}, fmt.Errorf("validate codex profile catalog %s: %w", path, err)
@@ -364,6 +371,7 @@ func feishuAppEnabled(app FeishuAppConfig) bool {
 
 func (cfg AppConfig) normalized() AppConfig {
 	defaults := DefaultAppConfig()
+	cfg.Wrapper.CodexRuntime = cfg.Wrapper.CodexRuntime.normalized()
 
 	if cfg.Version <= 0 {
 		cfg.Version = defaults.Version

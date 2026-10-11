@@ -14,6 +14,7 @@ const (
 	ActionStatus                      ActionKind = "surface.menu.status"
 	ActionStop                        ActionKind = "surface.menu.stop"
 	ActionCompact                     ActionKind = "surface.menu.compact"
+	ActionRenameCommand               ActionKind = "surface.command.rename"
 	ActionSteerAll                    ActionKind = "surface.menu.steer_all"
 	ActionNewThread                   ActionKind = "surface.menu.new_thread"
 	ActionAdminRoot                   ActionKind = "surface.command.admin"
@@ -33,6 +34,7 @@ const (
 	ActionReviewCommand               ActionKind = "surface.command.review"
 	ActionDebugCommand                ActionKind = "surface.command.debug"
 	ActionCronCommand                 ActionKind = "surface.command.cron"
+	ActionScheduleCommand             ActionKind = "surface.command.schedule"
 	ActionMCPOAuthCommand             ActionKind = "surface.command.mcp_oauth"
 	ActionUpgradeCommand              ActionKind = "surface.command.upgrade"
 	ActionTurnPatchCommand            ActionKind = "surface.command.turn_patch"
@@ -643,6 +645,7 @@ const (
 	DaemonCommandAdmin                      DaemonCommandKind = "admin.command"
 	DaemonCommandDebug                      DaemonCommandKind = "debug.command"
 	DaemonCommandCron                       DaemonCommandKind = "cron.command"
+	DaemonCommandSchedule                   DaemonCommandKind = "schedule.command"
 	DaemonCommandMCPOAuthLogin              DaemonCommandKind = "mcp.oauth.login"
 	DaemonCommandUpgrade                    DaemonCommandKind = "upgrade.command"
 	DaemonCommandUpgradeOwnerFlow           DaemonCommandKind = "upgrade.owner_flow"
@@ -661,6 +664,7 @@ type DaemonCommand struct {
 	GatewayID                 string
 	SurfaceSessionID          string
 	SourceMessageID           string
+	ActorUserID               string
 	FromCardAction            bool
 	PickerID                  string
 	OptionID                  string

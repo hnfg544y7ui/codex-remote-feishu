@@ -2,6 +2,21 @@ package control
 
 import "testing"
 
+func TestRenameOwnerCardRequiresDaemonFreshness(t *testing.T) {
+	action := Action{Kind: ActionRenameCommand, Text: "/rename 中文名称", Inbound: &ActionInboundMeta{CardCallback: true}}
+	contract := ResolveFeishuFrontstageActionContract(action)
+	if contract.LauncherDisposition != FeishuFrontstageLauncherEnterOwner || contract.CurrentCardMode != FeishuFrontstageCurrentCardFirstResultCard {
+		t.Fatalf("rename must enter a command owner: %#v", contract)
+	}
+	if !RejectsUnstampedFeishuCardCallback(action) || AllowsCommandCardResultReplacement(action) {
+		t.Fatal("unstamped rename callback bypassed freshness")
+	}
+	action.Inbound.CardDaemonLifecycleID = "life-1"
+	if RejectsUnstampedFeishuCardCallback(action) || !AllowsCommandCardResultReplacement(action) {
+		t.Fatal("fresh rename callback cannot update its owner card")
+	}
+}
+
 func TestResolveFeishuFrontstageActionContractInlineViewPolicy(t *testing.T) {
 	contract := ResolveFeishuFrontstageActionContract(Action{
 		Kind: ActionShowCommandMenu,
@@ -528,6 +543,7 @@ func TestResolveFeishuFrontstageActionContractLauncherDisposition(t *testing.T) 
 		{name: "status enters terminal", kind: ActionStatus, want: FeishuFrontstageLauncherEnterTerminal},
 		{name: "coworkers enters terminal", kind: ActionCoworkersCommand, want: FeishuFrontstageLauncherEnterTerminal},
 		{name: "stop enters owner", kind: ActionStop, want: FeishuFrontstageLauncherEnterOwner},
+		{name: "rename enters owner", kind: ActionRenameCommand, want: FeishuFrontstageLauncherEnterOwner},
 		{name: "new enters owner", kind: ActionNewThread, want: FeishuFrontstageLauncherEnterOwner},
 		{name: "follow enters owner", kind: ActionFollowLocal, want: FeishuFrontstageLauncherEnterOwner},
 		{name: "detach enters owner", kind: ActionDetach, want: FeishuFrontstageLauncherEnterOwner},
