@@ -91,11 +91,10 @@ func (s *Service) desktopProjectPickerSnapshot(surface *state.SurfaceConsoleReco
 		s.surfaceBackend(surface) != agentproto.BackendCodex || s.catalog == nil {
 		return threadcatalogcontract.DesktopProjectSnapshot{}, false, nil
 	}
-	catalog, ok := s.catalog.persistedThreads.(threadcatalogcontract.DesktopProjectCatalog)
-	if !ok {
+	snapshot, enabled, err := s.catalog.desktopProjects()
+	if !enabled {
 		return threadcatalogcontract.DesktopProjectSnapshot{}, false, nil
 	}
-	snapshot, err := catalog.DesktopProjects()
 	if err != nil {
 		return snapshot, true, fmt.Errorf("读取桌面项目失败，请稍后重新打开选择卡：%w", err)
 	}
