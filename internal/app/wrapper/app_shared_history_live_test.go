@@ -7,6 +7,7 @@ import (
 	"github.com/kxn/codex-remote-feishu/internal/app/appserverendpoint"
 	"github.com/kxn/codex-remote-feishu/internal/core/agentproto"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -110,6 +111,21 @@ func TestSharedHistoryLivePagination(t *testing.T) {
 			found = true
 			if len(turn.Items) < len(selected.Items) {
 				t.Fatal("detail hydration lost summary items")
+			}
+			for _, summaryItem := range selected.Items {
+				if strings.TrimSpace(summaryItem.Text) == "" {
+					continue
+				}
+				preserved := false
+				for _, item := range turn.Items {
+					if item.ItemID == summaryItem.ItemID && strings.TrimSpace(item.Text) != "" {
+						preserved = true
+						break
+					}
+				}
+				if !preserved {
+					t.Fatalf("detail hydration lost visible %s content", summaryItem.Kind)
+				}
 			}
 			t.Logf("selected_turn_items=%d summary_items=%d", len(turn.Items), len(selected.Items))
 		}

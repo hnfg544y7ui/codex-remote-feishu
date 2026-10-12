@@ -1099,6 +1099,7 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
 
 ## 共享 Codex 后端的配置与请求边界
 
+- 连续点击历史详情时，只消费当前 surface 最新查询的结果，迟到的旧轮次结果不会把当前详情还原成摘要；其它 surface 的查询不受影响。正文来自分页 envelope 的 `item` 对象，不将条目数量作为有正文的证据。
 - `/history` 的列表页读取全部轮次摘要，详情回调将所选轮次贯穿到只读查询，按需补齐该轮完整条目；callback schema、owner/lifecycle、页码与原序号不变。查询在派发前登记 pending，快速成功或错误不会丢失；分页错误结束 loading 并显示失败原因，不把连接伪装成断线、不自动重放对话任务。
 - 显式共享端点的 profile 目录只显示 `cp_native`（共享后端，继承配置）。已有 OAuth/API 选择不能启动共享 worker；用户需重新选择 native。端点、凭据和 CLI 版本由外部宿主管理，菜单不提供共享后端的 standalone CLI 升级/回退；“Codex 来源”入口仍可见，但只提示宿主管理，不创建可执行 owner flow。direct command、旧卡 callback 同样不能启动来源事务或版本维护。
 - callback schema、owner/lifecycle/freshness 和 inline replace 规则沿用现有合同，没有新增 callback family。共享错误配置、离线或归属失败给出明确 notice，保留 `/detach` 与重新 `/use` 的退出/恢复入口。

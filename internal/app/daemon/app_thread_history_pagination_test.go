@@ -45,3 +45,21 @@ func TestThreadHistoryFailureWithoutPayloadClearsLoading(t *testing.T) {
 		t.Fatalf("expected an actionable failure instead of disconnected transport: %#v", events)
 	}
 }
+
+func TestNewHistorySelectionIgnoresOlderPartialRead(t *testing.T) {
+	app := New(":0", ":0", &recordingGateway{}, agentproto.ServerIdentity{})
+	app.pendingThreadHistoryReads["older-detail"] = pendingThreadHistoryRead{SurfaceSessionID: "surface-1", InstanceID: "inst-1", ThreadID: "thread-1"}
+	app.pendingThreadHistoryReads["other-surface"] = pendingThreadHistoryRead{SurfaceSessionID: "surface-2", InstanceID: "inst-1", ThreadID: "thread-1"}
+	app.sendAgentCommand = func(string, agentproto.Command) error { return nil }
+	app.handleThreadHistoryDaemonCommand(control.DaemonCommand{Kind: control.DaemonCommandThreadHistoryRead, SurfaceSessionID: "surface-1", InstanceID: "inst-1", ThreadID: "thread-1", HistoryTurnID: "new-detail"})
+	if _, ok := app.pendingThreadHistoryReads["older-detail"]; ok {
+		t.Fatal("older partial read can overwrite the new detail")
+	}
+	if _, ok := app.pendingThreadHistoryReads["other-surface"]; !ok {
+		t.Fatal("another surface's history was discarded")
+	}
+	_, handled := app.handleThreadHistoryEventLocked("inst-1", agentproto.Event{Kind: agentproto.EventThreadHistoryRead, CommandID: "older-detail", ThreadID: "thread-1", ThreadHistory: &agentproto.ThreadHistoryRecord{Thread: agentproto.ThreadSnapshotRecord{ThreadID: "thread-1"}}})
+	if handled {
+		t.Fatal("stale history result was consumed")
+	}
+}

@@ -128,9 +128,9 @@ func (t *Translator) observeHistoryPage(requestID string, message map[string]any
 			job.history.Turns = append(job.history.Turns, turn)
 		}
 	} else {
-		items := parseThreadHistoryItems(data)
-		if len(items) != len(data) {
-			return fail("history page contains invalid items")
+		items, err := parseHistoryPageItems(data, job.detailTurnID)
+		if err != nil {
+			return fail(err.Error())
 		}
 		for _, item := range items {
 			if item.ItemID != "" && job.itemIDs[item.ItemID] {
@@ -159,4 +159,36 @@ func (t *Translator) observeHistoryPage(requestID string, message map[string]any
 		}
 	}
 	return t.finishHistoryRead(job, ""), true
+}
+
+// thread/items/list returns timing/turn envelopes around the native item.
+// Unwrap only this paginated API; private thread/read still uses flat items.
+func parseHistoryPageItems(data []any, turnID string) ([]agentproto.ThreadHistoryItemRecord, error) {
+	nativeItems := make([]any, 0, len(data))
+	for _, value := range data {
+		entry, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("history page contains invalid item entry")
+		}
+		if entryTurnID, exists := entry["turnId"]; exists {
+			entryTurn, ok := entryTurnID.(string)
+			if !ok || entryTurn != turnID {
+				return nil, fmt.Errorf("history item turn id does not match requested turn")
+			}
+		}
+		if wrapped, exists := entry["item"]; exists {
+			item, ok := wrapped.(map[string]any)
+			if !ok || item == nil {
+				return nil, fmt.Errorf("history page contains invalid wrapped item")
+			}
+			nativeItems = append(nativeItems, item)
+		} else {
+			nativeItems = append(nativeItems, entry)
+		}
+	}
+	items := parseThreadHistoryItems(nativeItems)
+	if len(items) != len(data) {
+		return nil, fmt.Errorf("history page contains invalid items")
+	}
+	return items, nil
 }

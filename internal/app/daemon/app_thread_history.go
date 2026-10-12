@@ -51,6 +51,13 @@ func (a *App) handleThreadHistoryDaemonCommandLocked(command control.DaemonComma
 	}
 	// A paged read can finish before sendAgentCommand returns. Register its
 	// correlation first so a fast result cannot be lost or resurrected later.
+	// A newer page/detail selection also supersedes older reads from this
+	// surface; their late partial histories must not overwrite its new detail.
+	for id, pending := range a.pendingThreadHistoryReads {
+		if pending.SurfaceSessionID == surfaceID {
+			delete(a.pendingThreadHistoryReads, id)
+		}
+	}
 	a.pendingThreadHistoryReads[commandID] = pendingThreadHistoryRead{
 		SurfaceSessionID: surfaceID,
 		InstanceID:       instanceID,
