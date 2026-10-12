@@ -168,7 +168,7 @@ func (s *Service) pauseForLocal(instanceID string) []eventcontract.Event {
 	var events []eventcontract.Event
 	for _, surface := range s.findAttachedSurfaces(instanceID) {
 		if s.pauseSurfaceDispatchForLocal(surface, s.now().Add(s.config.LocalPauseMaxWait)) {
-			events = append(events, notice(surface, "local_activity_detected", "检测到本地 VS Code 正在使用，飞书消息将继续排队。")...)
+			events = append(events, notice(surface, "local_activity_detected", "检测到其他客户端正在使用，飞书消息将继续排队。")...)
 		}
 	}
 	return events

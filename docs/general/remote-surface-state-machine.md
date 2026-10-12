@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-12`
-> Summary: 记录 Codex 来源维护与显式共享后端的连接、归属、恢复及配置所有权边界。
+> Summary: 记录 Codex 来源维护与显式共享后端的所有权边界，并澄清本地仲裁事件不携带具体客户端名称。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -417,7 +417,7 @@ thread 自身现在还有一层**authoritative runtime status overlay**，来源
 | `E1 Queued` | `QueuedQueueItemIDs` 非空，`ActiveQueueItemID == ""` | 有待派发远端输入 |
 | `E2 Dispatching` | `ActiveQueueItemID` 指向 `dispatching` | prompt 已发给 wrapper，turn 尚未建立 |
 | `E3 Running` | `ActiveQueueItemID` 指向 `running` | turn 已进入执行 |
-| `E4 PausedForLocal` | `DispatchMode=paused_for_local` | 当前 surface 的远端派发被暂停；现有来源包括本地 VS Code 活动，以及 daemon 显式发起的 standalone Codex 升级或 current-thread patch 事务暂停 |
+| `E4 PausedForLocal` | `DispatchMode=paused_for_local` | 当前 surface 的远端派发被暂停；现有来源包括 App、VS Code 或其他连接产生的本地客户端活动，以及 daemon 显式发起的 standalone Codex 升级或 current-thread patch 事务暂停 |
 | `E5 HandoffWait` | `DispatchMode=handoff_wait` | 本地刚结束，等待短窗口后恢复远端队列 |
 | `E6 Abandoning` | `Abandoning=true` | surface 已放弃接管，等待已有 turn 收尾后最终 detach |
 
@@ -503,7 +503,7 @@ review mode 第一版当前不是新的 route state，而是挂在 surface 上�
    1. 文本 / 图文 reply 恢复为普通 queued item
    2. 独立图片 reply 恢复为 `ImageStaged`
 4. `E4 PausedForLocal` 当前有三条来源分支：
-   1. local-activity 分支由 `pauseForLocal(...)` 写入 `pausedUntil`，因此仍有 watchdog，并且后续可能进入 `E5 HandoffWait`。
+   1. local-activity 分支由 `local.interaction.observed` 或 `InitiatorLocalUI` turn start 触发，再由 `pauseForLocal(...)` 写入 `pausedUntil`；这些事件只表达同一后端有其他本地客户端在活动，可能来自 App、VS Code 或其他连接，不携带可用于通知中识别具体程序的客户端名称。该分支仍有 watchdog，并且后续可能进入 `E5 HandoffWait`。
    2. standalone Codex 升级分支由 daemon 通过 `PauseSurfaceDispatch(...)` 显式写入；这条路径会主动清掉 `pausedUntil/handoffUntil`，因此不会被 `Tick()` watchdog 自动恢复，只会在升级事务显式 `ResumeSurfaceDispatch(...)` 时继续派发。
    3. current-thread patch 事务同样由 daemon 通过 `PauseSurfaceDispatch(...)` 显式写入；它会暂停同一 instance 上所有 attached surface 的 dispatch，直到 patch apply / rollback 成功或失败收口后再显式 `ResumeSurfaceDispatch(...)`。
 
@@ -1528,11 +1528,11 @@ E3 Running
    9. `normal` verbosity 下，review 共享过程现在额外放开 `command_execution`、`dynamic_tool_call` 与 `web_search`，避免 detached review 只显示“开始/结束”而中间看起来像假死
    10. 对于没有显式 thread/turn carrier 的 review surface owner-card / page 事件，delivery fallback 也会按当前 active / ready review session 继承 `临时会话 · 审阅`；这样 auto-continue / compact 这类 review-only surface 卡不会丢失 review 语义
 
-### 5.3 本地 VS Code 仲裁
+### 5.3 本地客户端仲裁
 
 ```text
 E0/E1
-  -- local.interaction.observed 或 local turn.started --> E4 PausedForLocal
+  -- local.interaction.observed 或 InitiatorLocalUI turn.started --> E4 PausedForLocal
 
 E4 PausedForLocal
   -- local turn.completed 且 queue 空 --> E0 Idle
@@ -1545,7 +1545,7 @@ E5 HandoffWait
 
 补充说明：
 
-1. `/new` 本身不会绕过 instance 级本地仲裁。
+1. `/new` 本身不会绕过 instance 级本地客户端仲裁；触发活动可能来自 App、VS Code 或其他连接，同一通知无法识别具体程序。
 2. `R5` 下首条消息如果碰到本地活动，仍可能先在 `PausedForLocal/HandoffWait` 中排队。
 
 ### 5.3.1 standalone Codex 升级事务对 dispatch 的影响
