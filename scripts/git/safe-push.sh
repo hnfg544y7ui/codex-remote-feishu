@@ -8,10 +8,11 @@ TEST_CMD="${SAFE_PUSH_TEST_CMD:-go test ./...}"
 NO_TEST=0
 ALWAYS_TEST=0
 CONFIRM_REBASE_REVIEW=0
+CREATE_BRANCH=0
 
 usage() {
   cat <<'EOF'
-usage: ./safe-push.sh [--remote <name>] [--branch <name>] [--test-cmd <cmd>] [--always-test] [--no-test] [--confirm-rebase-review]
+usage: ./safe-push.sh [--remote <name>] [--branch <name>] [--create-branch] [--test-cmd <cmd>] [--always-test] [--no-test] [--confirm-rebase-review]
 
 Safe happy-path push helper for this repository.
 
@@ -35,6 +36,7 @@ failures into CI.
 options:
   --remote <name>    remote to push/fetch (default: tracking remote, else origin)
   --branch <name>    branch to push/rebase against (default: tracking branch, else current branch)
+  --create-branch    allow first publication of the current untracked branch; require the remote ref to remain absent
   --test-cmd <cmd>   shell command to run after successful rebase (default: `go test ./...`)
   --always-test      run the test command even when no rebase was needed
   --no-test          skip post-rebase tests entirely
@@ -71,6 +73,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --confirm-rebase-review)
       CONFIRM_REBASE_REVIEW=1
+      shift
+      ;;
+    --create-branch)
+      CREATE_BRANCH=1
       shift
       ;;
     -h|--help)
@@ -151,17 +157,39 @@ if [[ -z "${BRANCH}" ]]; then
 fi
 
 remote_ref="refs/remotes/${REMOTE}/${BRANCH}"
+new_remote_branch=0
+git check-ref-format "refs/heads/${BRANCH}"
 
 printf '[4/8] fetch %s %s\n' "${REMOTE}" "${BRANCH}"
-git fetch "${REMOTE}" "${BRANCH}"
-
-if ! git show-ref --verify --quiet "${remote_ref}"; then
-  echo "remote branch not found after fetch: ${remote_ref}" >&2
-  exit 1
+if [[ "${CREATE_BRANCH}" == "1" ]]; then
+  remote_status=0
+  git ls-remote --exit-code --heads "${REMOTE}" "refs/heads/${BRANCH}" >/dev/null || remote_status=$?
+  if [[ "${remote_status}" == "2" ]]; then
+    if [[ "${BRANCH}" != "${current_branch}" || -n "${upstream_ref}" ]]; then
+      echo "first publication requires the current branch without an upstream" >&2
+      exit 1
+    fi
+    new_remote_branch=1
+    printf '[4/8] remote branch absent; prepare guarded first publication\n'
+  elif [[ "${remote_status}" != "0" ]]; then
+    echo "cannot verify remote branch existence; push aborted" >&2
+    exit "${remote_status}"
+  fi
 fi
 
-counts="$(git rev-list --left-right --count "HEAD...${remote_ref}")"
-read -r ahead behind <<< "${counts}"
+if [[ "${new_remote_branch}" == "0" ]]; then
+  git fetch "${REMOTE}" "${BRANCH}"
+  if ! git show-ref --verify --quiet "${remote_ref}"; then
+    echo "remote branch not found after fetch: ${remote_ref}" >&2
+    exit 1
+  fi
+  counts="$(git rev-list --left-right --count "HEAD...${remote_ref}")"
+  read -r ahead behind <<< "${counts}"
+else
+  ahead=0
+  behind=0
+fi
+
 rebase_happened=0
 
 if [[ "${behind}" != "0" ]]; then
@@ -233,4 +261,8 @@ else
 fi
 
 printf '[8/8] push %s HEAD:%s\n' "${REMOTE}" "${BRANCH}"
-git push "${REMOTE}" "HEAD:${BRANCH}"
+if [[ "${new_remote_branch}" == "1" ]]; then
+  git push --set-upstream --force-with-lease="refs/heads/${BRANCH}:" "${REMOTE}" "HEAD:refs/heads/${BRANCH}"
+else
+  git push "${REMOTE}" "HEAD:${BRANCH}"
+fi

@@ -59,6 +59,17 @@ The helper only automates the safe happy path:
 ./safe-push.sh --branch feature-x
 ```
 
+- Publish a new branch for the first time:
+
+```bash
+./safe-push.sh --branch feature-x --create-branch
+```
+
+  The current branch must have no upstream. The remote query must succeed and
+  prove the ref absent; the push uses an empty expected ref lease so a branch
+  created concurrently cannot be overwritten. Existing remote branches retain
+  the normal fetch/rebase/review path.
+
 - Use a narrower post-rebase test command:
 
 ```bash
