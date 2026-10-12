@@ -50,6 +50,9 @@ func RunUpgradeHelper(args []string, _ io.Reader, stdout, _ io.Writer, _ string)
 }
 
 func RunUpgradeHelperWithStatePath(ctx context.Context, statePath string) error {
+	if err := waitForUpgradeHelperLaunch(ctx); err != nil {
+		return err
+	}
 	stateValue, err := LoadState(statePath)
 	if err != nil {
 		return err

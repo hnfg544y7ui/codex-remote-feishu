@@ -36,6 +36,7 @@ type UpgradeHelperLaunchResult struct {
 
 var upgradeHelperStartDetachedCommandFunc = relayruntime.StartDetachedCommand
 var upgradeHelperStartSystemdUserTransientFunc = startSystemdUserTransientCommand
+var upgradeHelperStartWindowsTaskFunc = startWindowsUpgradeHelperTask
 
 func StartUpgradeHelperProcess(ctx context.Context, opts UpgradeHelperLaunchOptions) (UpgradeHelperLaunchResult, error) {
 	helperBinary := normalizeUpgradeHelperLaunchPath(opts.HelperBinary)
@@ -52,6 +53,16 @@ func StartUpgradeHelperProcess(ctx context.Context, opts UpgradeHelperLaunchOpti
 	args := []string{"upgrade-helper", "-state-path", statePath}
 	if opts.DirectExec {
 		args = nil
+	}
+	if serviceRuntimeGOOS == "windows" {
+		return upgradeHelperStartWindowsTaskFunc(ctx, relayruntime.DetachedCommandOptions{
+			BinaryPath: helperBinary,
+			Args:       args,
+			Env:        append([]string(nil), opts.Env...),
+			WorkDir:    workDir,
+			StdoutPath: logPath,
+			StderrPath: logPath,
+		})
 	}
 	if effectiveServiceManager(opts.State) == ServiceManagerSystemdUser && serviceRuntimeGOOS == "linux" {
 		unitName := uniqueUpgradeHelperUnitName()

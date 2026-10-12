@@ -34,6 +34,7 @@ func TestRunLocalBinaryUpgradeWithStatePathImportsBinaryAndStartsHelper(t *testi
 		t.Fatalf("WriteState: %v", err)
 	}
 
+	stubWindowsUpgradeTaskFromDetached(t)
 	originalStart := upgradeHelperStartDetachedCommandFunc
 	var startedBinary string
 	var startedArgs []string
@@ -238,6 +239,7 @@ func TestRunLocalUpgradeStartsLocalUpgradeTransaction(t *testing.T) {
 		t.Fatalf("artifact path = %q, want %q", got, want)
 	}
 
+	stubWindowsUpgradeTaskFromDetached(t)
 	originalStart := upgradeHelperStartDetachedCommandFunc
 	var startedBinary string
 	upgradeHelperStartDetachedCommandFunc = func(opts relayruntime.DetachedCommandOptions) (int, error) {
@@ -301,6 +303,7 @@ func TestRunLocalUpgradeDebugInstanceUsesDebugStatePath(t *testing.T) {
 		t.Fatalf("artifact path = %q, want %q", got, want)
 	}
 
+	stubWindowsUpgradeTaskFromDetached(t)
 	originalStart := upgradeHelperStartDetachedCommandFunc
 	var startedBinary string
 	upgradeHelperStartDetachedCommandFunc = func(opts relayruntime.DetachedCommandOptions) (int, error) {
@@ -364,6 +367,7 @@ func TestRunLocalUpgradeUsesWorkspaceBindingWhenFlagsOmitted(t *testing.T) {
 	}
 	t.Setenv(repoRootEnvVar, repoRoot)
 
+	stubWindowsUpgradeTaskFromDetached(t)
 	originalStart := upgradeHelperStartDetachedCommandFunc
 	var startedBinary string
 	upgradeHelperStartDetachedCommandFunc = func(opts relayruntime.DetachedCommandOptions) (int, error) {

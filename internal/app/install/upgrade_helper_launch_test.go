@@ -50,6 +50,7 @@ func TestStartUpgradeHelperProcessUsesServiceRuntimeGOOSForSystemdEligibility(t 
 }
 
 func TestStartUpgradeHelperProcessUsesDetachedCommandForDetachedService(t *testing.T) {
+	setGenericUpgradeHelperPlatform(t)
 	originalDetached := upgradeHelperStartDetachedCommandFunc
 	originalSystemd := upgradeHelperStartSystemdUserTransientFunc
 	defer func() {
@@ -98,6 +99,7 @@ func TestStartUpgradeHelperProcessUsesDetachedCommandForDetachedService(t *testi
 }
 
 func TestStartUpgradeHelperProcessCanonicalizesExtendedLaunchPaths(t *testing.T) {
+	setGenericUpgradeHelperPlatform(t)
 	originalDetached := upgradeHelperStartDetachedCommandFunc
 	originalSystemd := upgradeHelperStartSystemdUserTransientFunc
 	defer func() {
@@ -195,6 +197,7 @@ func TestStartUpgradeHelperProcessUsesSystemdRunForSystemdUser(t *testing.T) {
 }
 
 func TestStartUpgradeHelperProcessDirectExecUsesNoSubcommandArgs(t *testing.T) {
+	setGenericUpgradeHelperPlatform(t)
 	originalDetached := upgradeHelperStartDetachedCommandFunc
 	originalSystemd := upgradeHelperStartSystemdUserTransientFunc
 	defer func() {
@@ -226,4 +229,11 @@ func TestStartUpgradeHelperProcessDirectExecUsesNoSubcommandArgs(t *testing.T) {
 	if len(detached.Args) != 0 {
 		t.Fatalf("args = %#v, want empty for direct shim", detached.Args)
 	}
+}
+
+func setGenericUpgradeHelperPlatform(t *testing.T) {
+	t.Helper()
+	previous := serviceRuntimeGOOS
+	serviceRuntimeGOOS = "darwin"
+	t.Cleanup(func() { serviceRuntimeGOOS = previous })
 }

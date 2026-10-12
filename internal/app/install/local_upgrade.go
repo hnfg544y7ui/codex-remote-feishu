@@ -112,7 +112,7 @@ func RunLocalBinaryUpgradeWithStatePath(opts LocalBinaryUpgradeOptions) (string,
 		return "", err
 	}
 	logPath := localUpgradeLogPath(stateValue)
-	launchResult, err := StartUpgradeHelperProcess(context.Background(), UpgradeHelperLaunchOptions{
+	_, err = StartUpgradeHelperProcess(context.Background(), UpgradeHelperLaunchOptions{
 		State:        stateValue,
 		HelperBinary: helperPath,
 		StatePath:    statePath,
@@ -126,10 +126,8 @@ func RunLocalBinaryUpgradeWithStatePath(opts LocalBinaryUpgradeOptions) (string,
 		_ = WriteState(statePath, stateValue)
 		return "", err
 	}
-	stateValue.PendingUpgrade.HelperUnitName = strings.TrimSpace(launchResult.UnitName)
-	if err := WriteState(statePath, stateValue); err != nil {
-		return "", err
-	}
+	// The helper owns the journal after launch. Writing this prepared snapshot
+	// could revert its switching/observing/committed state to prepared.
 	return resolvedSlot, nil
 }
 

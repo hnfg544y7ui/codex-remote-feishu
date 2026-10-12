@@ -11,8 +11,8 @@ var embeddedShim_windows_amd64 []byte
 
 func init() {
 	register(Asset{
-		SourceDigest: "3bcf29ceadd326f8c1e45d5c1aa2e2868cece12186399287b9cd5e47dedc1f4e",
-		SHA256:       "b6aea314887af5cd7c4fbab5f5c4bf61a54d0da060bd09890a7ec75a9916868d",
+		SourceDigest: "20408433259af341876771a5771cf4261006f4c652fd51cf1a12aafae85e3b55",
+		SHA256:       "ca70a735f80979a48d1f739cff5c22fe0f8885b94d31d21d703951c16df67d4a",
 		Zstd:         embeddedShim_windows_amd64,
 	})
 }

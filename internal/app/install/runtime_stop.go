@@ -48,6 +48,16 @@ func stopInstallStateProcess(ctx context.Context, stateValue InstallState, paths
 		hooks.Sleep(opts.StopDelay)
 	}
 	if isManagedServiceManager(stateValue) {
+		// Task Scheduler may terminate the daemon and remove its PID file before
+		// returning. Keep its identity so orphaned wrappers can still be stopped.
+		var recordedPID int
+		if effectiveServiceManager(stateValue) == ServiceManagerTaskSchedulerLogon {
+			pid, err := hooks.ReadPID(paths.PIDFile)
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			recordedPID = pid
+		}
 		driver, ok := managedServiceDriverForManager(effectiveServiceManager(stateValue))
 		if !ok {
 			return fmt.Errorf("unsupported managed service manager %q", effectiveServiceManager(stateValue))
@@ -56,7 +66,7 @@ func stopInstallStateProcess(ctx context.Context, stateValue InstallState, paths
 			return err
 		}
 		if effectiveServiceManager(stateValue) == ServiceManagerTaskSchedulerLogon {
-			return terminateInstallStatePID(paths, opts.StopGrace, hooks)
+			return terminateRecordedInstallStatePID(recordedPID, paths, opts.StopGrace, hooks)
 		}
 		return nil
 	}
@@ -72,6 +82,13 @@ func terminateInstallStatePID(paths relayruntime.Paths, grace time.Duration, hoo
 		}
 		return err
 	}
+	if pid <= 0 {
+		return nil
+	}
+	return terminateRecordedInstallStatePID(pid, paths, grace, hooks)
+}
+
+func terminateRecordedInstallStatePID(pid int, paths relayruntime.Paths, grace time.Duration, hooks runtimeControlHooks) error {
 	if pid <= 0 {
 		return nil
 	}

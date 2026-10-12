@@ -52,6 +52,7 @@ func sourceSwitchOptions(state InstallState, raw []byte) CodexSourceSwitchOption
 
 func stubSourceSwitchLaunch(t *testing.T, fail bool) {
 	t.Helper()
+	stubWindowsUpgradeTaskFromDetached(t)
 	original := upgradeHelperStartDetachedCommandFunc
 	upgradeHelperStartDetachedCommandFunc = func(relayruntime.DetachedCommandOptions) (int, error) {
 		if fail {

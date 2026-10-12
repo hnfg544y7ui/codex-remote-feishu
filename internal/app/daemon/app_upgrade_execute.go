@@ -161,7 +161,7 @@ func (a *App) runPendingUpgradeStart(request upgradeStartRequest) {
 	}
 	a.mu.Unlock()
 
-	launchResult, err := install.StartUpgradeHelperProcess(context.Background(), install.UpgradeHelperLaunchOptions{
+	_, err = install.StartUpgradeHelperProcess(context.Background(), install.UpgradeHelperLaunchOptions{
 		State:        stateValue,
 		HelperBinary: helperPath,
 		StatePath:    stateValue.StatePath,
@@ -174,8 +174,8 @@ func (a *App) runPendingUpgradeStart(request upgradeStartRequest) {
 		return
 	}
 	a.mu.Lock()
-	stateValue.PendingUpgrade.HelperUnitName = strings.TrimSpace(launchResult.UnitName)
-	_ = a.writeUpgradeStateLocked(stateValue)
+	// The launched helper now owns the persisted journal. Do not overwrite its
+	// progress with the controller's old prepared snapshot.
 	a.upgradeRuntime.StartCancel = nil
 	a.upgradeRuntime.StartFlowID = ""
 	a.mu.Unlock()

@@ -1,8 +1,8 @@
 # 本地自升级流程
 
 > Type: `general`
-> Updated: `2026-04-27`
-> Summary: 说明 repo 构建产物触发本地自升级时的完整时序、内嵌 upgrade shim 的释放与启动方式、与 `/upgrade dev` 的边界、自动回滚规则，以及 repo install target 与当前 daemon self target 的语义边界。
+> Updated: `2026-10-12`
+> Summary: 说明自升级事务、Windows 独立助手计划任务与启动确认、旧进程退出检查及助手接管后的日志写入边界。
 
 ## 1. 这份文档回答什么问题
 
@@ -114,6 +114,8 @@ helper 真正切换版本时，覆盖的是这条路径。如果该路径位于 
 ```
 
 sidecar 至少绑定当前事务对应的 `install-state.json`。这样即使当前服务被停止，shim 也能继续活着把后续事务跑完。
+
+源码构建修改升级逻辑后，必须先重新生成对应平台的内嵌助手，例如 `bash scripts/shim/prepare-shim-embed.sh windows amd64`，再构建主程序。只重新编译主程序可能仍会携带旧助手；正式构建脚本已为每个平台执行生成步骤。
 
 ### 3.6 rollback bundle
 
@@ -228,7 +230,7 @@ repo 里常用的辅助解析入口是：
 8. 把内嵌 upgrade shim 释放到 state 目录下的 `upgrade-helper/`，并写 sidecar
 9. 以独立进程方式启动：
    - 直接执行 shim，自身通过 sidecar 找到 `install-state.json`
-10. 把 helper 的 transient unit 名称等信息再写回 `PendingUpgrade`
+10. 启动确认后由 helper 独占事务状态写入；控制端不再把旧 `prepared` 快照写回日志，避免覆盖已经推进的阶段。
 
 到这里为止，`local-upgrade` 这条命令就结束了。真正的切换动作在后面那个 helper 里。
 
@@ -258,9 +260,21 @@ systemd-run --user --no-block --collect --quiet --service-type=exec ...
 
 这样即使旧的 daemon service 被 stop，helper 也不会跟着一起被 systemd 收掉。
 
-### 7.3 其他模式
+### 7.3 Windows 独立临时计划任务
 
-非 `systemd_user` 场景下，helper 走 detached process 启动。
+Windows 下所有升级助手都由唯一命名的临时计划任务启动，使用当前用户的 Interactive token 与 Limited 权限。它和旧服务的计划任务属于不同运行边界；普通 detached 子进程仍是旧服务的后代，不能作为这个隔离边界。
+
+任务动作只包含私有 runner 路径。助手环境、参数和工作目录通过标准输入交给启动器，随后存入仅当前用户与 SYSTEM 有权限的临时目录，不写入任务 XML 或进程命令行。runner 分别转发 stdout/stderr 至既有日志路径。
+
+启动器必须收到真实助手 PID 回执并提交启动 gate 后才返回成功。助手在读取升级事务前等待 gate；确认前的失败、超时或取消不进入切换阶段。确认后由助手负责事务，控制端不能回写旧快照。任务权限或启动确认失败时直接报错，不回退普通 detached 子进程。runner 在退出时删除自身任务和私有临时目录。
+
+Windows Job 不一定允许 `CREATE_BREAKAWAY_FROM_JOB`，本机计划任务中的实测是 `Access is denied`；因此不把这个标志作为自动升级的启动方式。
+
+运行账户必须能够创建并启动当前用户的 Interactive/Limited 任务。取消时先通知启动器撤销注册，再执行有独立超时的精确清理，保护旧服务与事务。若操作系统注册 RPC 超出所有终止及清理时间窗口后才提交，仍可能残留休眠任务；未提交的 gate 会阻止它改写事务，这种极端故障需要检查返回的清理错误。
+
+### 7.4 其他模式
+
+非 Windows 且非 Linux `systemd_user` 场景下，helper 走 detached process 启动。
 
 无论哪种方式，stdout/stderr 都会追加写到目标实例的 daemon log 路径，便于排查 upgrade 事务。
 
@@ -284,6 +298,8 @@ helper shim 入口是一个独立 binary，本身不再接受 `upgrade-helper -s
 3. 停掉当前 daemon/service
    - 当前实现不会只看 `stop` 命令是否已发出
    - 只有在 helper 确认旧 daemon/service 已真正退出后，才会继续进入 binary 切换
+   - Windows 在停止计划任务前捕获旧 daemon PID，避免退出时删除 PID 文件后失去工作进程归属；先停止父进程，再清理和复查原子树中的残留或退出过程中新增的工作进程。
+   - 进程树清理保护调用者及其子树，保留进程句柄直到退出确认完成；子进程访问失败或仍未退出均返回错误，不能继续替换程序文件。共享 Codex app-server 由外部宿主持有，不属于旧 Remote 进程树。
 4. 若 `CurrentBinaryPath` 位于 `VersionsRoot` 下（legacy version-scoped 入口），先迁移到 canonical 无版本稳定入口，再把 `PendingUpgrade.TargetBinaryPath` 复制覆盖到迁移后的 `CurrentBinaryPath`
 5. 把 phase 改成 `observing`
 6. 用新的 live binary 重新启动 daemon/service
@@ -325,6 +341,8 @@ helper shim 入口是一个独立 binary，本身不再接受 `upgrade-helper -s
 6. 重新拉起回滚后的 daemon
 
 如果连回滚后的 daemon 都起不来，phase 会进一步进入 `failed`。
+
+Windows 回归验收包含 `internal/runtime` 的真实父子进程退出测试、`CODEX_REMOTE_TEST_WINDOWS_UPGRADE_TASK=1` 下的独立助手任务与取消测试，以及 `scripts/check/smoke-windows-self-upgrade.ps1`。最后一个脚本接受从 `testkit/windowsupgradefixture` 构建的两个不同版本，使用唯一实例、目录和端口，验证真实任务切换、可执行文件占用解除、事务版本一致、回滚及清理；其健康端点是测试替身，不代表生产飞书或模型链路验收。
 
 也就是说，当前实现不是“升级失败后停在那里等人修”，而是“优先尝试自动恢复到升级前可工作的版本”。
 

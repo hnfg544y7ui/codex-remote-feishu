@@ -2,6 +2,7 @@ package install
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -27,8 +28,12 @@ func TestStopInstallStateProcessTaskSchedulerAlsoTerminatesRecordedPID(t *testin
 	}
 
 	var taskCalls []string
+	pidFilePresent := true
 	withMockTaskScheduler(t, func(_ context.Context, args ...string) (string, error) {
 		taskCalls = append(taskCalls, strings.Join(args, " "))
+		if len(args) > 0 && args[0] == "/End" {
+			pidFilePresent = false
+		}
 		if len(args) > 0 && args[0] == "/Query" {
 			return "Status: Ready\r\n", nil
 		}
@@ -43,6 +48,9 @@ func TestStopInstallStateProcessTaskSchedulerAlsoTerminatesRecordedPID(t *testin
 	}, runtimeControlHooks{
 		Sleep: func(time.Duration) {},
 		ReadPID: func(path string) (int, error) {
+			if !pidFilePresent {
+				return 0, os.ErrNotExist
+			}
 			if path != paths.PIDFile {
 				t.Fatalf("ReadPID path = %q, want %q", path, paths.PIDFile)
 			}
@@ -77,6 +85,32 @@ func TestStopInstallStateProcessTaskSchedulerAlsoTerminatesRecordedPID(t *testin
 	}
 	if !reflect.DeepEqual(removed, []string{paths.PIDFile, paths.IdentityFile}) {
 		t.Fatalf("removed = %#v, want pid and identity", removed)
+	}
+}
+
+func TestTaskSchedulerStopFailsBeforeEndOnUnreadablePID(t *testing.T) {
+	withWindowsGOOS(t)
+	withMockTaskScheduler(t, func(context.Context, ...string) (string, error) {
+		t.Fatal("must not stop task before capturing its daemon identity")
+		return "", nil
+	})
+	sentinel := errors.New("PID unreadable")
+	err := stopInstallStateProcess(context.Background(), InstallState{ServiceManager: ServiceManagerTaskSchedulerLogon}, relayruntime.Paths{}, stopInstallStateOptions{}, runtimeControlHooks{
+		ReadPID: func(string) (int, error) { return 0, sentinel },
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("stop = %v", err)
+	}
+}
+
+func TestRecordedDaemonStopRetainsIdentityOnWorkerFailure(t *testing.T) {
+	sentinel := errors.New("worker still alive")
+	err := terminateRecordedInstallStatePID(123, relayruntime.Paths{}, time.Second, runtimeControlHooks{
+		TerminateProcess: func(int, time.Duration) error { return sentinel },
+		RemoveFile:       func(string) error { t.Fatal("must preserve failed stop identity"); return nil },
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("stop = %v", err)
 	}
 }
 

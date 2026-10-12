@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-12`
-> Summary: 补充私有 Codex 稳定更新的内核互锁与旧客户端 PID 锁兼容边界。
+> Summary: 补充 Windows 自升级助手的独立生命周期和事务所有权，并保留私有 Codex 更新互锁边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -1571,6 +1571,14 @@ E0/E1(other standalone-codex-backed surface)
    1. `process.child.restart` 的 bare `ack` 只代表新 child 已接管。
    2. 只有匹配的 restore outcome `process.child.restart.updated(status=succeeded)` 到达后，upgrade transaction 才会真正结束并恢复 `paused_for_local` surface。
    3. 若 restore outcome 失败或 daemon 等待超时，upgrade 也会以失败事务收口，不会再出现“child 其实还在恢复，但 surface 先被误判成升级失败/成功”的半死状态。
+
+### 5.3.2 Remote 自升级的助手所有权
+
+Remote release/local/dev 自升级沿用 `prepared -> switching -> observing -> committed` 事务链。Windows 助手由独立临时计划任务启动，与旧 Remote 的任务和进程树隔离；它在读取事务前等待启动 gate，未确认的取消或启动失败不会进入版本切换。
+
+启动确认后只有助手推进持久化事务，发起控制端不再回写 `prepared` 快照。Windows 停服务前记录旧 daemon PID，即使任务停止时 PID 文件消失，也继续清理该 PID 对应的工作进程树。清理保护调用者子树，先停父进程，再复查残留或退出期间新增的工作进程；任何仍存活进程的访问或退出错误均阻止替换程序文件。
+
+该修复不改变 surface 的会话/队列归属，也不停止外部宿主管理的共享 Codex 后端。完成确认仍以新服务健康和 gateway 恢复为准；详细流程和 Windows 启动边界见 [本地自升级流程](local-self-upgrade-flow.md)。
 
 ### 5.4 daemon 重启恢复与 headless 生命周期
 

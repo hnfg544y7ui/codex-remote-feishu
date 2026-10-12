@@ -3,7 +3,6 @@
 package relayruntime
 
 import (
-	"fmt"
 	"os/exec"
 	"syscall"
 	"time"
@@ -56,83 +55,6 @@ func processAlive(pid int) bool {
 	return exitCode == windowsStillActive
 }
 
-func terminateProcess(pid int, grace time.Duration) error {
-	if pid <= 0 {
-		return nil
-	}
-	pids, err := processTreePostOrder(pid)
-	if err != nil {
-		pids = []int{pid}
-	}
-	type openedHandle struct {
-		pid    int
-		handle windows.Handle
-		root   bool
-	}
-	handles := make([]openedHandle, 0, len(pids))
-	for _, currentPID := range pids {
-		if currentPID <= 0 {
-			continue
-		}
-		handle, err := windows.OpenProcess(windows.PROCESS_TERMINATE|windows.SYNCHRONIZE|windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(currentPID))
-		if err != nil {
-			if currentPID == pid && processAlive(currentPID) {
-				return err
-			}
-			continue
-		}
-		if !processAlive(currentPID) {
-			windows.CloseHandle(handle)
-			continue
-		}
-		if err := windows.TerminateProcess(handle, 1); err != nil {
-			windows.CloseHandle(handle)
-			if currentPID == pid && processAlive(currentPID) {
-				return err
-			}
-			continue
-		}
-		handles = append(handles, openedHandle{pid: currentPID, handle: handle, root: currentPID == pid})
-	}
-	defer func() {
-		for _, item := range handles {
-			windows.CloseHandle(item.handle)
-		}
-	}()
-	for _, item := range handles {
-		timeout := uint32(200)
-		if item.root {
-			timeout = waitTimeoutMillis(grace)
-		}
-		waitResult, err := windows.WaitForSingleObject(item.handle, timeout)
-		if err != nil {
-			if item.root {
-				return err
-			}
-			continue
-		}
-		switch waitResult {
-		case uint32(windows.WAIT_OBJECT_0):
-			continue
-		case uint32(windows.WAIT_TIMEOUT):
-			if !processAlive(item.pid) {
-				continue
-			}
-			if item.root {
-				return fmt.Errorf("process %d still alive after terminate timeout", item.pid)
-			}
-		default:
-			if item.root {
-				return fmt.Errorf("wait for process %d exit returned %d", item.pid, waitResult)
-			}
-		}
-	}
-	if processAlive(pid) {
-		return fmt.Errorf("process %d still alive after terminate", pid)
-	}
-	return nil
-}
-
 func prepareDetachedProcess(cmd *exec.Cmd) {
 	if cmd == nil {
 		return
@@ -157,31 +79,6 @@ func waitTimeoutMillis(grace time.Duration) uint32 {
 		return ^uint32(0) >> 1
 	}
 	return uint32(ms)
-}
-
-func processTreePostOrder(rootPID int) ([]int, error) {
-	if rootPID <= 0 {
-		return nil, nil
-	}
-	relations, err := snapshotProcessParents()
-	if err != nil {
-		return nil, err
-	}
-	ordered := make([]int, 0, 8)
-	seen := map[int]bool{}
-	var visit func(int)
-	visit = func(pid int) {
-		if pid <= 0 || seen[pid] {
-			return
-		}
-		seen[pid] = true
-		for _, child := range relations[pid] {
-			visit(child)
-		}
-		ordered = append(ordered, pid)
-	}
-	visit(rootPID)
-	return ordered, nil
 }
 
 func snapshotProcessParents() (map[int][]int, error) {
