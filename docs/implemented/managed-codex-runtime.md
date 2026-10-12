@@ -2,13 +2,13 @@
 
 > Type: `implemented`
 > Updated: `2026-10-12`
-> Summary: 增加飞书 Codex 来源选择、全服务空闲守卫及配置切换失败恢复边界。
+> Summary: 记录 v1.3.0.0 的 Codex 来源入口与私有稳定更新的跨进程内核互锁。
 
 ## 当前事实与规范来源
 
 本功能保持官方 Codex CLI 原样，由 Remote 管理私有安装和版本选择。CLI 程序与账号、会话数据分开管理，不依赖 ChatGPT App 或 VS Code 扩展路径才能启动。
 
-本文描述当前托管运行时实现及 NanoPi 的历史部署验证；新增来源选择功能位于 `feat/codex-runtime-source-picker` 分支，部署与真实飞书点击验收需以该轮证据单独确认。路由、队列和恢复的 canonical source 是 [远程面状态机](../general/remote-surface-state-machine.md)，卡片和 callback 的 canonical source 是 [飞书 UI 状态机](../general/feishu-card-ui-state-machine.md)。
+本文描述当前托管运行时实现及 NanoPi 的历史部署验证；来源选择已合入 `develop`，纳入 `v1.3.0.0` 发布范围。本轮发布不自动部署服务，真实飞书点击验收仍以对应部署轮次的证据为准。路由、队列和恢复的 canonical source 是 [远程面状态机](../general/remote-surface-state-machine.md)，卡片和 callback 的 canonical source 是 [飞书 UI 状态机](../general/feishu-card-ui-state-machine.md)。
 
 ## 配置与兼容边界
 
@@ -40,6 +40,8 @@
 daemon 把已经解析的 source/channel/version/autoUpdate 通过环境传给它启动的 wrapper，冻结同一份启动策略。运行中改 JSON 不会让新 pool worker 使用另一来源，而 daemon 仍按旧来源升级；真实 CLI 凭据环境不因此改变。
 
 新模式不会移动或重写用户的 `CODEX_HOME`、CLI 账号和历史会话。托管 CLI 也不会自动获得桌面 App 专有工具回调能力。源码中的 `Managed` 实例标记仍表示 daemon 对工作进程的所有权，不等同于 `codexRuntime.source`。
+
+旧私有稳定更新路径的 `Ensure` 先持有 `private-update.guard` 内核文件锁，再持有原 `update.lock` PID/JSON 锁。新进程之间不再同时读取初始化中的 PID 记录，旧客户端仍由原 PID 锁协调。退出顺序为先释放 PID 锁、再释放内核互锁；取消、失败和进程退出均结束内核持锁。guard 文件保留以保持同一文件锁身份，已有 PID 记录损坏仍报错，不据此擅自清理或绕过锁。
 
 ## 安装与持久版本选择
 

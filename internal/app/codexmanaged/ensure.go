@@ -72,6 +72,13 @@ func ensure(ctx context.Context, configuredBinary, root string, ops operations) 
 	if err != nil {
 		return "", fmt.Errorf("resolve private Codex install root: %w", err)
 	}
+	// Serialize new clients before the legacy PID lock's create/write window.
+	// Keep update.lock for older clients, and release it before this guard.
+	guard, err := lockManagedFile(ctx, root, "private-update.guard")
+	if err != nil {
+		return "", fmt.Errorf("guard private Codex update: %w", err)
+	}
+	defer guard.release()
 	lock, err := relayruntime.AcquireLock(ctx, filepath.Join(root, "update.lock"), true)
 	if err != nil {
 		return "", fmt.Errorf("lock private Codex update: %w", err)

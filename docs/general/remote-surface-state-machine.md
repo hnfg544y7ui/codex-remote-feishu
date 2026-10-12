@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-12`
-> Summary: 记录自然语言 Goal 的可信入口、精确会话与卡片上下文绑定，以及用户修改时的互锁恢复授权边界。
+> Summary: 补充私有 Codex 稳定更新的内核互锁与旧客户端 PID 锁兼容边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2107,6 +2107,7 @@ retained-offline overlay 额外规则：
 ## 10.2 独立托管 Codex CLI
 
 - `wrapper.codexRuntime.source=managed` 将官方 CLI 程序所有权交给 Remote；`external` 使用用户指定的外部 CLI，不运行私有自动安装；source 缺省/空/`legacy` 保持既有行为。`Managed` instance 标记与 CLI source 是两个不同的所有权概念。
+- 旧私有稳定更新 `Ensure` 按 `private-update.guard` 内核锁 → 原 `update.lock` PID 锁的顺序进入，按相反顺序退出。新更新进程由内核锁串行化，旧客户端保留 PID 锁协调；等待可由 context 取消，失败不会遗留内核持锁。guard 文件不删除，损坏 PID 记录保持报错，不自动猜测或清理所有权。
 - `managed.json` 持有 `active/previous/candidate/failed`；wrapper 只解析 active，不扫描最高目录或在启动 child 时下载。无 active 的首次安装由 daemon 完成；失效 active 明确报错，不 silent fallback 到 App。
 - daemon 将解析后的 runtime source/channel/version/autoUpdate 环境传给新 wrapper，保持启动策略一致；运行中 JSON 变化不能把同一 daemon 的新 worker silent 切到另一 CLI 来源。
 - 自动更新默认关闭。显式 `autoUpdate=true` 且无 version pin 时，每 15 分钟准备、组件验证与隔离能力探测，每 30 秒检查能否在受影响窗口空闲后激活 candidate。busy 时等待，不抢占正在运行的任务；failed 版本需显式重试。
