@@ -671,6 +671,7 @@ type DaemonCommand struct {
 	OptionID                  string
 	InstanceID                string
 	ThreadID                  string
+	HistoryTurnID             string
 	ThreadTitle               string
 	ThreadCWD                 string
 	Backend                   agentproto.Backend

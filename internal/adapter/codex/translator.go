@@ -40,6 +40,7 @@ type Translator struct {
 	threadListBroker          *threadListBroker
 	threadListRefresh         *threadListRefreshSession
 	pendingThreadHistoryReads map[string]pendingThreadHistoryRead
+	pendingHistoryPages       map[string]pendingHistoryPage
 	pendingSuppressedResponse map[string]suppressedResponseContext
 	pendingRequestTypes       map[string]agentproto.RequestType
 	pendingMCPOAuthLogins     map[string]pendingMCPOAuthLogin
@@ -165,6 +166,7 @@ func NewTranslator(instanceID string) *Translator {
 		turnStartByThread:          map[string]map[string]any{},
 		threadListBroker:           newThreadListBroker(),
 		pendingThreadHistoryReads:  map[string]pendingThreadHistoryRead{},
+		pendingHistoryPages:        map[string]pendingHistoryPage{},
 		pendingSuppressedResponse:  map[string]suppressedResponseContext{},
 		pendingRequestTypes:        map[string]agentproto.RequestType{},
 		pendingMCPOAuthLogins:      map[string]pendingMCPOAuthLogin{},

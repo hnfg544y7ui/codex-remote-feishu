@@ -120,6 +120,7 @@ func (s *Service) startThreadHistoryQuery(surface *state.SurfaceConsoleRecord, i
 			SourceMessageID:  sourceMessageID,
 			InstanceID:       inst.InstanceID,
 			ThreadID:         record.ThreadID,
+			HistoryTurnID:    record.TurnID,
 		},
 	})
 	return events

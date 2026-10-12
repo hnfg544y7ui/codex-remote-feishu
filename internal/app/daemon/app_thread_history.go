@@ -46,12 +46,21 @@ func (a *App) handleThreadHistoryDaemonCommandLocked(command control.DaemonComma
 		},
 		Target: agentproto.Target{
 			ThreadID: threadID,
+			TurnID:   strings.TrimSpace(command.HistoryTurnID),
 		},
+	}
+	// A paged read can finish before sendAgentCommand returns. Register its
+	// correlation first so a fast result cannot be lost or resurrected later.
+	a.pendingThreadHistoryReads[commandID] = pendingThreadHistoryRead{
+		SurfaceSessionID: surfaceID,
+		InstanceID:       instanceID,
+		ThreadID:         threadID,
 	}
 	a.mu.Unlock()
 	err := a.sendAgentCommand(instanceID, agentCommand)
 	a.mu.Lock()
 	if err != nil {
+		delete(a.pendingThreadHistoryReads, commandID)
 		if events := a.service.HandleSurfaceThreadHistoryFailure(surfaceID, "history_query_dispatch_failed", "history 查询未成功发送到本地 Codex。"); len(events) != 0 {
 			return events
 		}
@@ -63,11 +72,6 @@ func (a *App) handleThreadHistoryDaemonCommandLocked(command control.DaemonComma
 				Text: "history 查询未成功发送到本地 Codex。",
 			},
 		}}
-	}
-	a.pendingThreadHistoryReads[commandID] = pendingThreadHistoryRead{
-		SurfaceSessionID: surfaceID,
-		InstanceID:       instanceID,
-		ThreadID:         threadID,
 	}
 	return nil
 }
@@ -96,7 +100,7 @@ func (a *App) handleThreadHistoryCommandAckLocked(instanceID string, ack agentpr
 }
 
 func (a *App) handleThreadHistoryEventLocked(instanceID string, event agentproto.Event) ([]eventcontract.Event, bool) {
-	if event.Kind != agentproto.EventThreadHistoryRead || strings.TrimSpace(event.CommandID) == "" || event.ThreadHistory == nil {
+	if event.Kind != agentproto.EventThreadHistoryRead || strings.TrimSpace(event.CommandID) == "" || (event.ThreadHistory == nil && strings.TrimSpace(event.ErrorMessage) == "") {
 		return nil, false
 	}
 	pending, ok := a.pendingThreadHistoryReads[strings.TrimSpace(event.CommandID)]
@@ -106,6 +110,9 @@ func (a *App) handleThreadHistoryEventLocked(instanceID string, event agentproto
 	delete(a.pendingThreadHistoryReads, strings.TrimSpace(event.CommandID))
 	if pending.InstanceID != "" && pending.InstanceID != strings.TrimSpace(instanceID) {
 		return nil, true
+	}
+	if strings.TrimSpace(event.ErrorMessage) != "" {
+		return a.service.HandleSurfaceThreadHistoryFailure(pending.SurfaceSessionID, "history_query_failed", "历史读取失败："+strings.TrimSpace(event.ErrorMessage)), true
 	}
 	if pending.ThreadID != "" && pending.ThreadID != strings.TrimSpace(event.ThreadID) && pending.ThreadID != strings.TrimSpace(event.ThreadHistory.Thread.ThreadID) {
 		if events := a.service.HandleSurfaceThreadHistoryFailure(pending.SurfaceSessionID, "history_query_stale", "history 查询结果已过期。"); len(events) != 0 {

@@ -2140,6 +2140,7 @@ retained-offline overlay 额外规则：
 
 ## 10.4 显式共享 Codex 后端
 
+- 共享 `/history` 使用 `thread/read(includeTurns=false)` 元数据与 `thread/turns/list` 分页轮次摘要；列表保留全部轮次和原序号，详情通过既有 `Target.TurnID` 对指定轮次使用 `thread/items/list` 分页获取完整条目。每页按本连接 request ID 关联，不改变 selected thread、订阅或 turn owner，不执行 `thread/resume` / `turn/start`。分页失败、接口不支持或游标无进展时结束对应查询并将 loading 卡变为失败态，连接仍可继续查询；不退回全量历史。私有 stdio 保留原完整读取。
 - `wrapper.codexAppServerURL` 或 `CODEX_REMOTE_CODEX_APP_SERVER_URL` 在 daemon 启动时冻结。仅允许显式端口的 loopback WebSocket；URL 无效或后端离线时 fail closed，不回退私有 CLI。默认仍为私有 stdio。共享路径只用于 Codex headless/cron，非 headless wrapper 拒绝启用；Claude/OpenCode 不继承该连接。
 - 共享后端由外部宿主管理版本、凭据与进程。Remote 只关闭自己的连接；worker 退出、detach、超时清理和 `process.child.restart` 均不结束外部后端。managed 安装、预热、自动升级、激活、回退和来源切换全部停用；`/upgrade codex-source` 显式提示宿主管理，不建立 owner gate。
 - Profile 目录仅提供 `cp_native`（共享后端，继承配置），API/OAuth 拒绝。`initialize/initialized/config/read` 直接从共享端点获得 native evidence；探测失败不把私有 CLI 或旧缓存当作可用证据，后台按已有探测重试周期恢复。projection 使用 `codex-shared-native-v1`，精确校验 native revision/generation 与 context preference；不生成 child 环境凭据、CLI override 或 managed file。

@@ -26,6 +26,7 @@ func TestThreadHistoryDaemonCommandDispatchesAgentCommandAndStoresPending(t *tes
 		SurfaceSessionID: "surface-1",
 		InstanceID:       "inst-1",
 		ThreadID:         "thread-1",
+		HistoryTurnID:    "turn-detail-1",
 		SourceMessageID:  "msg-1",
 	})
 	if len(events) != 0 {
@@ -33,6 +34,9 @@ func TestThreadHistoryDaemonCommandDispatchesAgentCommandAndStoresPending(t *tes
 	}
 	if len(sent) != 1 || sent[0].Kind != agentproto.CommandThreadHistoryRead || sent[0].Target.ThreadID != "thread-1" {
 		t.Fatalf("unexpected history command dispatch: %#v", sent)
+	}
+	if sent[0].Target.TurnID != "turn-detail-1" {
+		t.Fatalf("selected detail turn was lost: %#v", sent[0].Target)
 	}
 	if pending, ok := app.pendingThreadHistoryReads[sent[0].CommandID]; !ok || pending.SurfaceSessionID != "surface-1" || pending.ThreadID != "thread-1" {
 		t.Fatalf("expected pending history request to be recorded, got %#v", app.pendingThreadHistoryReads)
