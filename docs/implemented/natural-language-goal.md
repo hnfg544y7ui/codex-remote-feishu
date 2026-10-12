@@ -2,7 +2,7 @@
 
 > Type: `implemented`
 > Updated: `2026-10-12`
-> Summary: 记录明确自然语言 Goal 控制、当前会话约束、确认卡绑定与隔离协议验收边界。
+> Summary: 将自然语言 Goal 纳入 v1.3.0.0 发布范围，保留配置前提与隔离协议验收边界。
 
 ## 使用前提
 
@@ -74,7 +74,7 @@ RPC 结果还会核对原 instance/thread。操作后切换会话，迟到的原
 
 另使用官方 Codex CLI `0.162.0-alpha.17.2`，在隔离 `CODEX_HOME`、两个客户端及本地 mock model endpoint 下验证了实际 `thread/goal/set|get|clear`：创建 active Goal 后出现两轮自主 turn，两个客户端观察到相同 turn；暂停后不再产生新轮次，清除后查询返回无 Goal。该检查未复制生产账号、未请求真实模型、未修改生产 Goal。
 
-这证明了该版本 CLI 的隔离协议行为与本地 mock 续跑，不代表已经完成真实模型、桌面 UI 或生产飞书全链路验收。本分支尚未部署、创建 Release 或版本标签；Changelog 中的未发布版本规划保持不变。
+这证明了该版本 CLI 的隔离协议行为与本地 mock 续跑，不代表已经完成真实模型、桌面 UI 或生产飞书全链路验收。本功能纳入 `v1.3.0.0` 发布范围，发行包是否可下载以 GitHub Releases 为准；仓库合并或发布不会自动更改正在运行的服务和后端 Goal 配置。
 
 禁用 Goal 的隔离检查也验证了上述原生拒绝行为，未发送任何本地模拟或真实模型请求。
 
