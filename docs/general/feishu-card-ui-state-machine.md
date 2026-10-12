@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-12`
-> Summary: 记录 Codex 来源 owner flow，以及共享后端的 profile、请求归属与断线边界。
+> Summary: 记录自然语言 Goal 复用命令卡，以及清除确认和创建/编辑表单的单次上下文绑定。
 
 ## 1. 文档定位
 
@@ -19,6 +19,10 @@
 2026-08-15 #896 补充：`/goal` 是新增 config-flow slash command，完全复用现有命令卡体系：bare `/goal` 经现有命令解析与 freshness 校验，通过 `pageEvent` inline replace 回显 Goal 状态页；`/goal clear` 的确认/取消通过 `CommandText` 命令重放（`/goal clear --confirm`、`/goal`），不引入新 callback payload、不新增 owner 分类、不改 `daemon_lifecycle_id` stamping。状态页按钮均声明在 `FeishuCommandBinding` 上（`CommandID=goal`），走 `CommandCatalogButtonCallbackAction`，与 `/codexprofile` 等配置命令同一条路由，Goal 控制面不产生第二套卡片 carrier 或 freshness 规则。
 
 2026-08-15 #896 review 修复补充：确认卡/编辑表单打开时服务端暂存 Goal fingerprint，命令重放执行前比对、漂移 fail closed；goal 命令发送失败会清理 pending 并回错误卡；卡片入口触发的 loading 与结果卡通过 `MessageID + Patchable` 在同一 message 上 patch；错误页复用 config 命令 builder（非 sealed），失败原因不伪装成 no-goal 状态。
+
+2026-10-12 自然语言 Goal 首版：可信用户的明确纯文本指令先转换为 typed `GoalIntent`，复用 `/goal` 的状态、错误、清除确认及 RPC loading/result 卡，不增加 MCP Goal 工具或卡片 owner 类型。清除仍须点击确认；打开确认或表单、查看 Goal 不改变队列互锁的自动恢复权限，真正发出用户修改命令才撤销该权限。暂停只控制 Goal 续跑，卡片不能声称已中断当前 turn。
+
+清除确认按钮及创建/编辑表单的 `CommandText` 携带 opaque context；上下文保存在服务器，绑定原 surface、actor、instance、thread、操作及 Goal 存在状态/createdAt/objective/token budget，10 分钟内单次有效。上下文校验消费先于目标与指纹比对，失败后也不能重放。切换会话、预算变化、错误 actor、重放或过期提交拒绝执行并提示重新打开当前 Goal 页面；不能把旧卡的确认重新解释为当前会话的清除。内部上下文不作为用户可输入的使用方式公开，不更改既有 callback payload、`daemon_lifecycle_id` 或 freshness 路径。结果先校验原 instance/thread；切换后迟到结果只提示刷新当前状态，不将原会话的 Goal 显示在新会话卡片中。详见 [自然语言 Goal](../implemented/natural-language-goal.md)。
 
 它关注的是：
 

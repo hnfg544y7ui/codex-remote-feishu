@@ -185,7 +185,7 @@ func stripLeadingFeishuMentionKeys(text string, keys []string) (string, bool) {
 			break
 		}
 	}
-	if stripped && strings.HasPrefix(rest, "/") {
+	if stripped {
 		return rest, true
 	}
 	return "", false

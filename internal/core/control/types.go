@@ -152,6 +152,7 @@ type Action struct {
 	CatalogVariantID    string
 	CatalogBackend      agentproto.Backend
 	CommandID           string
+	NaturalGoal         *GoalIntent `json:"natural_goal,omitempty"`
 	ParentCommandText   string
 	InstanceID          string
 	WorkspaceKey        string

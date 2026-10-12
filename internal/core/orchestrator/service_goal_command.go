@@ -13,15 +13,22 @@ import (
 )
 
 type goalUserCommand struct {
-	SurfaceID string
-	ThreadID  string
-	Action    string
-	MessageID string
+	SurfaceID  string
+	InstanceID string
+	ThreadID   string
+	Action     string
+	MessageID  string
 }
 
 type pendingGoalFingerprint struct {
-	Fingerprint goalFingerprint
-	CapturedAt  time.Time
+	Fingerprint  goalFingerprint
+	CapturedAt   time.Time
+	ContextNonce string
+	SurfaceID    string
+	InstanceID   string
+	ThreadID     string
+	ActorUserID  string
+	Sub          string
 }
 
 type goalFingerprint struct {
@@ -60,11 +67,25 @@ func (s *Service) handleGoalCommand(surface *state.SurfaceConsoleRecord, action 
 			StatusText: "当前会话是审阅/辅助会话，不支持 Goal。",
 		})
 	}
+	if inst.Threads[threadID] == nil || !s.surfaceOwnsThread(surface, threadID) {
+		return s.inlineCommandCardEvents(surface, action, control.FeishuCatalogConfigView{
+			StatusKind: "error",
+			StatusText: "当前会话不存在或已由其他飞书会话接管，请重新 `/use` 选择会话。",
+		})
+	}
+	if action.NaturalGoal != nil {
+		return s.handleNaturalGoalCommand(surface, action, threadID)
+	}
 
 	parts := strings.Fields(strings.TrimSpace(action.Text))
 	sub := ""
 	if len(parts) > 1 {
 		sub = strings.ToLower(parts[1])
+	}
+	var contextOK bool
+	parts, contextOK = s.validateGoalContext(surface, action, parts, sub)
+	if !contextOK {
+		return []eventcontract.Event{s.pageEvent(surface, s.goalStalePage(surface))}
 	}
 	switch sub {
 	case "new", "edit":
@@ -77,7 +98,8 @@ func (s *Service) handleGoalCommand(surface *state.SurfaceConsoleRecord, action 
 		}
 		if objective == "" {
 			s.captureGoalFingerprint(surface, threadID, sub)
-			return []eventcontract.Event{s.pageEvent(surface, s.goalCommandFormPage(surface, sub))}
+			page := s.goalCommandFormPage(surface, sub)
+			return []eventcontract.Event{s.pageEvent(surface, s.boundGoalPage(surface, action.ActorUserID, threadID, sub, page))}
 		}
 		if !s.goalFingerprintAllows(surface, threadID, sub) {
 			return []eventcontract.Event{s.pageEvent(surface, s.goalStalePage(surface))}
@@ -96,7 +118,8 @@ func (s *Service) handleGoalCommand(surface *state.SurfaceConsoleRecord, action 
 		}
 		if !confirm {
 			s.captureGoalFingerprint(surface, threadID, "clear")
-			return []eventcontract.Event{s.pageEvent(surface, s.goalClearConfirmPage(surface))}
+			page := s.goalClearConfirmPage(surface)
+			return []eventcontract.Event{s.pageEvent(surface, s.boundGoalPage(surface, action.ActorUserID, threadID, "clear", page))}
 		}
 		if !s.goalFingerprintAllows(surface, threadID, "clear") {
 			return []eventcontract.Event{s.pageEvent(surface, s.goalStalePage(surface))}
@@ -181,16 +204,20 @@ func goalGetCommand(threadID, purpose string) *agentproto.Command {
 }
 
 func (s *Service) issueGoalCommand(surface *state.SurfaceConsoleRecord, threadID, actionName string, command *agentproto.Command, sourceMessageID string) []eventcontract.Event {
+	if actionName != "get" && command.Goal.Purpose == "user_control" {
+		s.revokeGoalAutoResumeForUserMutation(surface.AttachedInstanceID, threadID)
+	}
 	commandID := s.nextAgentCommandID()
 	command.CommandID = commandID
 	if s.goalUserCommands == nil {
 		s.goalUserCommands = map[string]goalUserCommand{}
 	}
 	s.goalUserCommands[commandID] = goalUserCommand{
-		SurfaceID: surface.SurfaceSessionID,
-		ThreadID:  threadID,
-		Action:    actionName,
-		MessageID: sourceMessageID,
+		SurfaceID:  surface.SurfaceSessionID,
+		InstanceID: surface.AttachedInstanceID,
+		ThreadID:   threadID,
+		Action:     actionName,
+		MessageID:  sourceMessageID,
 	}
 	events := []eventcontract.Event{{
 		Kind:             eventcontract.KindAgentCommand,
@@ -241,13 +268,27 @@ func (s *Service) applyGoalUserCommandResult(instanceID string, event agentproto
 	if !ok {
 		return nil
 	}
+	if !goalUserResultMatches(userCommand, instanceID, event) {
+		return nil
+	}
 	delete(s.goalUserCommands, event.CommandID)
 	surface := s.root.Surfaces[userCommand.SurfaceID]
 	if surface == nil {
 		return nil
 	}
 	var page control.FeishuPageView
-	if event.ErrorMessage != "" {
+	if surface.AttachedInstanceID != userCommand.InstanceID || surface.SelectedThreadID != userCommand.ThreadID {
+		page = control.FeishuPageView{
+			PageID: control.FeishuCommandGoal, CommandID: control.FeishuCommandGoal,
+			Title: "原会话 Goal 操作已返回", StatusKind: "info", Interactive: true,
+			StatusText:     "操作针对原先选中的会话。当前已切换会话，请刷新查看当前会话的 Goal。",
+			RelatedButtons: []control.CommandCatalogButton{goalCommandButton("查看当前 Goal", "/goal")},
+		}
+		if event.ErrorMessage != "" {
+			page.StatusKind = "error"
+			page.StatusText = "原会话 Goal 操作失败：" + event.ErrorMessage
+		}
+	} else if event.ErrorMessage != "" {
 		page = s.goalErrorPage(surface, "Goal 操作失败", event.ErrorMessage)
 	} else if userCommand.Action == "clear" {
 		page = s.goalClearedPage(surface)
@@ -261,6 +302,12 @@ func (s *Service) applyGoalUserCommandResult(instanceID string, event agentproto
 		page.Patchable = true
 	}
 	return []eventcontract.Event{s.pageEvent(surface, page)}
+}
+
+func goalUserResultMatches(command goalUserCommand, instanceID string, event agentproto.Event) bool {
+	return instanceID == command.InstanceID &&
+		(event.ThreadID == "" || event.ThreadID == command.ThreadID) &&
+		(event.ThreadGoal == nil || event.ThreadGoal.ThreadID == "" || event.ThreadGoal.ThreadID == command.ThreadID)
 }
 
 func goalLoadingPage(surface *state.SurfaceConsoleRecord) control.FeishuPageView {

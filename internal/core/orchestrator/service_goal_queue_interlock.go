@@ -101,6 +101,12 @@ func (s *Service) ReconcileGoalInterlocks() []eventcontract.Event {
 		}
 		switch lease.Phase {
 		case GoalInterlockPausePending:
+			if lease.ExternalMutationSeen {
+				// A user now owns this Goal. Recover the queue's idle barrier
+				// without replaying a pause against the user's changed goal.
+				events = append(events, s.probeGoalThreadIdle(lease)...)
+				continue
+			}
 			thread := inst.Threads[lease.ThreadID]
 			if thread != nil && thread.ThreadGoal != nil && thread.ThreadGoal.Status == "paused" {
 				lease.Phase = GoalInterlockQuiescing
@@ -326,6 +332,9 @@ func itoa(value int) string {
 }
 
 func (s *Service) applyGoalCommandResult(instanceID string, event agentproto.Event) []eventcontract.Event {
+	if pending, ok := s.goalUserCommands[event.CommandID]; ok && !goalUserResultMatches(pending, instanceID, event) {
+		return nil
+	}
 	if s.goalCommandResultKnown(event.CommandID) {
 		if inst := s.root.Instances[instanceID]; inst != nil {
 			switch {
@@ -474,6 +483,9 @@ func (s *Service) applyGoalProbeResult(key string, event agentproto.Event) []eve
 	switch event.RuntimeStatus.Type {
 	case agentproto.ThreadRuntimeStatusTypeIdle:
 		lease.Phase = GoalInterlockDraining
+		if lease.ExternalMutationSeen {
+			return s.pumpAndResumeGoalInterlock(lease.InstanceID, lease.ThreadID)
+		}
 		return s.pumpGoalInterlockWaiter(lease)
 	case agentproto.ThreadRuntimeStatusTypeActive:
 		return nil
@@ -506,7 +518,7 @@ func (s *Service) pumpAndResumeGoalInterlock(instanceID, threadID string) []even
 
 func (s *Service) maybeResumeGoalInterlock(instanceID, threadID string) []eventcontract.Event {
 	lease := s.goalInterlockLease(instanceID, threadID)
-	if lease == nil || lease.Phase != GoalInterlockDraining || lease.ExternalMutationSeen {
+	if lease == nil || lease.Phase != GoalInterlockDraining {
 		return nil
 	}
 	surface := s.root.Surfaces[lease.TriggerSurfaceID]
@@ -515,6 +527,12 @@ func (s *Service) maybeResumeGoalInterlock(instanceID, threadID string) []eventc
 		return nil
 	}
 	if surface.ActiveQueueItemID != "" || len(surface.QueuedQueueItemIDs) != 0 || s.surfaceHasLiveRemoteWork(surface) {
+		return nil
+	}
+	if lease.ExternalMutationSeen {
+		// Retire only after the existing queue and delivery barrier has drained.
+		// No query or active-status command may recreate resume authorization.
+		s.clearGoalInterlockLease(instanceID, threadID)
 		return nil
 	}
 	lease.Phase = GoalInterlockResumePending
@@ -539,6 +557,18 @@ func (s *Service) applyGoalGetResult(key string, event agentproto.Event) []event
 	lease := s.goalInterlocks[key]
 	if lease == nil || lease.Phase != GoalInterlockResumePending {
 		return nil
+	}
+	if lease.ExternalMutationSeen {
+		if lease.ResumeCommandID != "" {
+			// An already-issued resume cannot be unsent. Preserve its own
+			// acknowledgement instead of issuing another mutation.
+			return nil
+		}
+		if s.goalGetByCommand != nil {
+			delete(s.goalGetByCommand, lease.GetCommandID)
+		}
+		lease.GetCommandID = ""
+		return s.probeGoalThreadIdle(lease)
 	}
 	if event.ErrorMessage != "" || event.GoalMissing || event.ThreadGoal == nil {
 		events := goalInterlockDiagnosticNotice(lease.TriggerSurfaceID, "goal_resume_failed", "Goal 恢复失败", "无法确认 Goal 状态，已放弃自动恢复。请稍后重试或检查 Codex 状态。")
@@ -594,8 +624,9 @@ func (s *Service) revokeGoalInterlockOnExternalMutation(instanceID, threadID str
 	if lease == nil {
 		return
 	}
+	wasRevoked := lease.ExternalMutationSeen
 	lease.ExternalMutationSeen = true
-	if lease.Phase == GoalInterlockDraining {
+	if wasRevoked || lease.Phase == GoalInterlockDraining {
 		return
 	}
 	s.clearGoalInterlockLease(instanceID, threadID)

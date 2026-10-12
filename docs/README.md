@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-12`
-> Summary: 增加共享 Codex 后端的显式配置、Windows 接入与验收边界索引。
+> Summary: 增加自然语言 Goal 的用法、卡片上下文与互锁恢复权限说明索引。
 
 ## 1. 适用范围
 
@@ -159,6 +159,7 @@
 
 ### 6.2 `implemented`
 
+- [natural-language-goal.md](./implemented/natural-language-goal.md)
 - [desktop-project-picker.md](./implemented/desktop-project-picker.md)
 - [cron-bitable-scheduler-design.md](./implemented/cron-bitable-scheduler-design.md)
 - [local-scheduled-tasks.md](./implemented/local-scheduled-tasks.md)

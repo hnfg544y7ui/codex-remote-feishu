@@ -87,7 +87,7 @@ func TestGoalCommandNewWithoutObjectiveOpensOwnerForm(t *testing.T) {
 		t.Fatalf("expected create goal form page, got %#v", events)
 	}
 	form := findCommandForm(page)
-	if form == nil || form.CommandText != "/goal new" || form.Field.Name != "command_args" {
+	if form == nil || !strings.HasPrefix(form.CommandText, "/goal new "+goalContextFlagPrefix) || form.Field.Name != "command_args" {
 		t.Fatalf("expected reusable command_args form on /goal new, got %#v", page.Sections)
 	}
 	if form.Field.Kind != control.CommandCatalogFormFieldText {
@@ -100,7 +100,7 @@ func TestGoalCommandNewWithoutObjectiveOpensOwnerForm(t *testing.T) {
 		ChatID:           "chat-1",
 		ActorUserID:      "user-1",
 		MessageID:        "om-goal-form-2",
-		Text:             "/goal new 完成登录流程重构 --budget 800",
+		Text:             form.CommandText + " 完成登录流程重构 --budget 800",
 	})
 	set := findAgentCommand(submitted, agentproto.CommandThreadGoalSet)
 	if set == nil || set.Goal.Objective != "完成登录流程重构" || set.Goal.Purpose != "user_control" {
@@ -133,7 +133,7 @@ func TestGoalCommandEditWithoutObjectivePrefillsCurrentGoal(t *testing.T) {
 		t.Fatalf("expected edit goal form page, got %#v", events)
 	}
 	form := findCommandForm(page)
-	if form == nil || form.CommandText != "/goal edit" {
+	if form == nil || !strings.HasPrefix(form.CommandText, "/goal edit "+goalContextFlagPrefix) {
 		t.Fatalf("expected reusable command_args form on /goal edit, got %#v", page.Sections)
 	}
 	if got := strings.TrimSpace(form.Field.DefaultValue); got != "当前目标 --budget 500" {
@@ -200,6 +200,7 @@ func TestGoalCommandClearRequiresConfirm(t *testing.T) {
 	if page == nil || page.Title != "清除 Goal" {
 		t.Fatalf("expected clear confirmation page, got %#v", confirmEvents)
 	}
+	confirmCommand := goalClearConfirmCommandForTest(t, page)
 
 	confirmed := svc.ApplySurfaceAction(control.Action{
 		Kind:             control.ActionGoalCommand,
@@ -207,7 +208,7 @@ func TestGoalCommandClearRequiresConfirm(t *testing.T) {
 		ChatID:           "chat-1",
 		ActorUserID:      "user-1",
 		MessageID:        "om-goal-4",
-		Text:             "/goal clear --confirm",
+		Text:             confirmCommand,
 	})
 	if findAgentCommand(confirmed, agentproto.CommandThreadGoalClear) == nil {
 		t.Fatalf("expected clear command after confirmation, got %#v", confirmed)
@@ -230,6 +231,19 @@ func findCommandForm(page *control.FeishuPageView) *control.CommandCatalogForm {
 		}
 	}
 	return nil
+}
+
+func goalClearConfirmCommandForTest(t *testing.T, page *control.FeishuPageView) string {
+	t.Helper()
+	if page != nil {
+		for _, button := range page.RelatedButtons {
+			if strings.Contains(button.CommandText, "--confirm") {
+				return button.CommandText
+			}
+		}
+	}
+	t.Fatalf("clear confirmation command missing from %#v", page)
+	return ""
 }
 
 func TestGoalCommandRejectsNonCodexOrMissingThread(t *testing.T) {
@@ -262,7 +276,7 @@ func TestGoalCommandRejectsNonCodexOrMissingThread(t *testing.T) {
 
 func TestGoalCommandClearFingerprintDriftFailsClosed(t *testing.T) {
 	svc, surfaceID, _ := goalInterlockTestSetup(t)
-	svc.ApplySurfaceAction(control.Action{
+	confirmEvents := svc.ApplySurfaceAction(control.Action{
 		Kind:             control.ActionGoalCommand,
 		SurfaceSessionID: surfaceID,
 		ChatID:           "chat-1",
@@ -270,6 +284,7 @@ func TestGoalCommandClearFingerprintDriftFailsClosed(t *testing.T) {
 		MessageID:        "om-goal-stale-1",
 		Text:             "/goal clear",
 	})
+	confirmCommand := goalClearConfirmCommandForTest(t, findPageEvent(confirmEvents))
 	inst := svc.root.Instances["inst-1"]
 	inst.Threads["thread-1"].ThreadGoal = &agentproto.ThreadGoalUpdate{
 		ThreadID:  "thread-1",
@@ -283,7 +298,7 @@ func TestGoalCommandClearFingerprintDriftFailsClosed(t *testing.T) {
 		ChatID:           "chat-1",
 		ActorUserID:      "user-1",
 		MessageID:        "om-goal-stale-2",
-		Text:             "/goal clear --confirm",
+		Text:             confirmCommand,
 	})
 	if findAgentCommand(confirmed, agentproto.CommandThreadGoalClear) != nil {
 		t.Fatalf("stale clear confirmation must fail closed, got %#v", confirmed)
@@ -302,7 +317,7 @@ func TestGoalCommandClearFingerprintDriftFailsClosed(t *testing.T) {
 
 func TestGoalCommandEditFingerprintDriftFailsClosed(t *testing.T) {
 	svc, surfaceID, _ := goalInterlockTestSetup(t)
-	svc.ApplySurfaceAction(control.Action{
+	formEvents := svc.ApplySurfaceAction(control.Action{
 		Kind:             control.ActionGoalCommand,
 		SurfaceSessionID: surfaceID,
 		ChatID:           "chat-1",
@@ -310,6 +325,10 @@ func TestGoalCommandEditFingerprintDriftFailsClosed(t *testing.T) {
 		MessageID:        "om-goal-edit-stale-1",
 		Text:             "/goal edit",
 	})
+	form := findCommandForm(findPageEvent(formEvents))
+	if form == nil {
+		t.Fatalf("expected edit form, got %#v", formEvents)
+	}
 	inst := svc.root.Instances["inst-1"]
 	inst.Threads["thread-1"].ThreadGoal = &agentproto.ThreadGoalUpdate{
 		ThreadID:  "thread-1",
@@ -323,7 +342,7 @@ func TestGoalCommandEditFingerprintDriftFailsClosed(t *testing.T) {
 		ChatID:           "chat-1",
 		ActorUserID:      "user-1",
 		MessageID:        "om-goal-edit-stale-2",
-		Text:             "/goal edit 新目标",
+		Text:             form.CommandText + " 新目标",
 	})
 	if findAgentCommand(submitted, agentproto.CommandThreadGoalSet) != nil {
 		t.Fatalf("stale edit submit must fail closed, got %#v", submitted)
@@ -419,13 +438,14 @@ func TestGoalCommandClearSuccessUsesInfoStyle(t *testing.T) {
 	if findAgentCommand(confirm, agentproto.CommandThreadGoalClear) != nil {
 		t.Fatalf("clear must require confirm, got %#v", confirm)
 	}
+	confirmCommand := goalClearConfirmCommandForTest(t, findPageEvent(confirm))
 	confirmed := svc.ApplySurfaceAction(control.Action{
 		Kind:             control.ActionGoalCommand,
 		SurfaceSessionID: surfaceID,
 		ChatID:           "chat-1",
 		ActorUserID:      "user-1",
 		MessageID:        "om-goal-cleared-2",
-		Text:             "/goal clear --confirm",
+		Text:             confirmCommand,
 	})
 	clear := findAgentCommand(confirmed, agentproto.CommandThreadGoalClear)
 	if clear == nil {

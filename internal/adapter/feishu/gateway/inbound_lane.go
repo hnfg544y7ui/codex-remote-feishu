@@ -506,6 +506,9 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 			commandAction.Inbound = cloneInboundMeta(inbound)
 			return PlannedInboundMessage{Action: &commandAction}, true, nil
 		}
+		if goalAction, handled := parseNaturalGoalInboundAction(commandText, baseAction); handled {
+			return PlannedInboundMessage{Action: &goalAction}, true, nil
+		}
 		env.RecordSurfaceMessage(messageID, surfaceSessionID)
 		return PlannedInboundMessage{
 			Queue: &QueuedMessageWork{

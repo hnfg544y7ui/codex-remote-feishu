@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-12`
-> Summary: 记录 Codex 来源维护与显式共享后端的所有权边界，并澄清本地仲裁事件不携带具体客户端名称。
+> Summary: 记录自然语言 Goal 的可信入口、精确会话与卡片上下文绑定，以及用户修改时的互锁恢复授权边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2086,6 +2086,14 @@ retained-offline overlay 额外规则：
 2026-08-15 #896 补充：Codex Goal 用户控制面已接入现有命令卡体系。`/goal` 是 config-flow slash command（复用 `FeishuCatalogConfigView` / `FeishuPageView` / 菜单三态 / owner card 状态机）：bare `/goal` 发 `thread/goal/get`（`user_control` provenance）并回显 Goal 状态页；`/goal new|edit <目标> [--budget N]` 创建/编辑，`/goal pause|resume` 动态生效，`/goal clear` 先出确认卡、`--confirm` 后清除；无精确 selected thread / 非 Codex / Review/helper 会话 fail closed。用户动作携带 `user_control`，会撤销 queue interlock 的自动恢复所有权；状态页通过现有 `pageEvent` inline replace 刷新，不新建第二套卡片 carrier。
 
 2026-08-15 #896 review 修复补充：确认卡/编辑表单打开时在服务端暂存当前 thread 的 Goal fingerprint（createdAt/objective/budget），执行 `clear --confirm` / `new|edit` 前先与最新 thread Goal 比对，漂移则取消操作并出错误卡，避免外部 mutation 窗口内的误清/误改；goal 命令 dispatch 失败会清理 pending `goalUserCommands` 并回错误卡，不再静默丢弃；卡片入口触发的 loading 与结果卡通过 `MessageID + Patchable` 在同一 message 上 patch，不残留无按钮死卡；错误卡复用 config 命令 builder（非 sealed），失败原因不伪装成 no-goal 状态。
+
+2026-10-12 自然语言 Goal 首版：飞书可信用户的纯 `text` 消息中，完整而明确的创建、修改、查看、暂停、恢复、清除 Goal 指令转换为 typed `GoalIntent`，进入与 `/goal` 相同的 `user_control` RPC 控制面，不作为普通 prompt 入队。入口保留 surface/actor/message 身份，orchestrator 再验证文字与 intent 一致；只允许在线 Codex headless 实例中当前精确选中、存在且由此 surface 持有 claim 的 thread，Review/helper thread 拒绝。中英文明确句式可用；模糊表达、否定、条件或引用句、代码块、富文本 `post` 不被转换为自然语言 Goal 控制。没有新增 MCP Goal 工具，也不因共享 app-server 而继承桌面 App 或其他客户端的私有工具。
+
+2026-10-12 Goal 卡片上下文：清除确认与创建/编辑表单继续通过既有 `CommandText` 命令重放；服务器生成 opaque context，绑定 surface、actor、instance、thread、操作类型以及 Goal 的存在状态、createdAt/objective/token budget 快照。上下文有效期为 10 分钟且只能消费一次，验证失败也不能重放；切换实例/会话、预算或目标漂移、错误用户以及过期提交均拒绝，要求重新打开当前会话的 Goal 页面。内部上下文不是用户命令语法，也不建立第二套 callback carrier。用户命令结果在写回 snapshot 前验证原 instance/thread；切换后迟到的结果不展示为新会话的 Goal，只提示刷新当前状态。
+
+2026-10-12 Goal 队列互锁权限：只有真正发出的用户 set/pause/resume/clear 才撤销匹配 instance+thread lease 的自动恢复权限；get 查询、打开表单及尚未确认的清除不撤销。撤销单向保存在 `ExternalMutationSeen`，不删除 `pause_pending`、`quiescing`、`draining` 屏障或其 pending command 关联；用户 RPC/交付失败不会重新赋予自动恢复权限。迟到的恢复 get 不再发送 active；尚未发出 resume 时重新检查 idle 屏障，已发出的 resume RPC 无法撤回，只等待原 ack，不发第二次恢复。撤销后的 draining 仅在队列与 live remote work 排空后退休；恢复过程不重发旧 pause 去暂停用户的新 Goal。已发 resume 的 ack 丢失时保持 fail-closed，不用指纹或 Goal 查询结果猜测其交付状态；用户可通过 detach/use 重新接管精确会话，既有移除实例路径也会清理 lease。`pause` 控制 Goal 后续续跑，不保证中断当前已开始的 turn。
+
+自然语言用法、共享后端配置前提及验收范围见 [自然语言 Goal](../implemented/natural-language-goal.md)。上游 CLI 必须支持 `thread/goal/set|get|clear`；共享模式继续要求显式 loopback WebSocket 配置，不能自动发现或热接管桌面 App 的私有 stdio 后端。
 
 ## 10.1 本机聊天定时任务
 
