@@ -1,7 +1,7 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-12`
+> Updated: `2026-10-13`
 > Summary: 补充 Windows 自升级助手的独立生命周期和事务所有权，并保留私有 Codex 更新互锁边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
@@ -2139,6 +2139,8 @@ retained-offline overlay 额外规则：
 - 此流程是 daemon 来源配置事务，与 G10 的同来源 CLI 版本升级/回退不同；不能沿用 G10 对 VS Code/非 Codex backend 的排除或 initiator busy 例外。
 
 ## 10.4 显式共享 Codex 后端
+
+- 共享 `thread/resume` 是精确会话订阅/接续，不承载历史正文；prompt、compact prepare、startup subscription 和 reconnect restore 都传 `excludeTurns=true`。响应仍按原 request ID 推进原 continuation，不能在断线后自动重发原 prompt，也不能以提高帧上限替代分页历史。私有 stdio 的 resume 参数保持原行为。
 
 - 同一 surface 新的历史页/详情选择会替换旧查询的 daemon pending 关联；迟到的旧轮次详情不能覆盖新选择的历史缓存。其它 surface 的查询仍独立。分页详情解包 `item` 前校验条目所属 `turnId`，不把外层计时 envelope 当正文。
 

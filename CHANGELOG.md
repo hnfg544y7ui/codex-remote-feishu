@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.1.3
+
+未发布；不创建 tag 或 GitHub Release，收到明确发布指令后再发布。
+
+- 共享后端发送消息、压缩前接入、启动订阅和重连恢复统一使用 `thread/resume(excludeTurns=true)`，避免较长会话在开始执行前返回全量历史并超过 WebSocket 帧上限。会话历史继续使用分页接口，私有 stdio 的恢复行为保持不变。
+
 ## v1.3.1.2
 
 未发布；不创建 tag 或 GitHub Release，收到明确发布指令后再发布。

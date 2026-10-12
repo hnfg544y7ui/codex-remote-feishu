@@ -20,7 +20,7 @@ func TestSharedBackendStartupResumeSelectsOnlyAfterExactResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	params := message["params"].(map[string]any)
-	if len(params) != 1 || params["threadId"] != "thread" || tr.currentThreadID != "" {
+	if len(params) != 2 || params["threadId"] != "thread" || params["excludeTurns"] != true || tr.currentThreadID != "" {
 		t.Fatalf("startup resume changed launch settings or premature focus: %s", frame)
 	}
 	result := sharedObserve(t, tr, fmt.Sprintf(`{"id":%q,"result":{"thread":{"id":"thread"}}}`, requestID))

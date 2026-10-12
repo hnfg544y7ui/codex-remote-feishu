@@ -1,7 +1,7 @@
 # 共享 Codex app-server 后端
 
 > Type: `implemented`
-> Updated: `2026-10-12`
+> Updated: `2026-10-13`
 > Summary: 增加显式 loopback WebSocket 接入、native 配置继承、连接归属与断线边界。
 
 ## 当前事实与规范来源
@@ -13,6 +13,8 @@ Remote 可以通过显式配置连接已经运行的 Codex app-server WebSocket 
 共享接入没有默认开启。未配置共享 URL 时，原有私有 stdio 子进程路径保持不变。当前共享路径用于 Remote 管理的 headless/cron Codex 工作进程；桌面 App 直接连接后端，不通过这个 headless wrapper 启动。
 
 ## 会话历史
+
+共享 `thread/resume` 用于订阅或接续会话，不获取历史正文。发送消息、压缩前接入、启动订阅和重连恢复都明确传入 `excludeTurns=true`，保留精确 thread ID 和既有请求关联；元数据响应仍推进原来的 prompt/compact continuation，不重复发送任务。私有 stdio 不增加此参数。
 
 共享后端的 `/history` 不再一次请求完整会话。列表先读取线程元数据，再每页 50 轮读取全部轮次摘要；进入详情时每页 50 项读取所选轮次的完整条目。详情条目先校验 envelope 的 `turnId`，再解包 `item` 对象取得原生条目 ID、正文和命令字段。列表页码、轮次序号和详情导航不变，历史查询不会获取会话写权限或改变桌面任务归属。共享后端需要支持 `thread/turns/list` 和 `thread/items/list`；接口不支持或分页失败会显示历史查询失败，保留连接并允许重试，不回退可能超出传输上限的全量请求。私有 stdio 保留既有历史读取方式。
 
@@ -91,6 +93,8 @@ Start-Process -FilePath $appPath
 WebSocket 断开不等于后端 turn 已经结束。Remote 明确报告共享连接断开以及后端任务状态未知，不伪造成功、不杀后端、不把旧请求自动重放到另一条连接。恢复后应先核对线程实际状态，再决定继续、重新发送或取消，避免重复工具操作。
 
 ## 本机验证证据与验收边界
+
+2026-10-13，本机故障会话的真实 `thread/resume` 全量响应为 20,616,222 字节（97 轮），超过共享连接 16 MiB 上限；同一会话带 `excludeTurns=true` 的响应为 3,894 字节。新增 opt-in 原生接入测试在相同 16 MiB 上限下验证 metadata-only resume、正确的后续 turn/start 生成及连接仍可查询；测试不发送生成的 turn/start，不执行提示、工具或审批。该证据验证接入路径，不代替飞书实际发送后的验收。
 
 当前定向测试已经覆盖配置加载/保存和凭据保留、环境覆盖不持久化、非法 URL 拒绝、共享配置只读探测、取消/超时关闭连接、帧上限，以及 native projection 与私有 capability 合同的区分。fake WebSocket 测试验证了探测结束后外部后端仍可接受新连接。
 

@@ -65,6 +65,7 @@ func (t *Translator) translateCommand(command agentproto.Command) ([][]byte, err
 				"cwd":      pathcanon.Native(choose(command.Target.CWD, t.knownThreadCWD[threadID])),
 			}
 			applyCodexResumePolicyToThreadParams(params, command.CodexResume)
+			t.applySharedResumeHistoryPolicy(params)
 			t.recordCodexPolicyForThread(threadID, command.CodexResume)
 			payload := map[string]any{
 				"id":     requestID,
@@ -423,6 +424,7 @@ func (t *Translator) translatePromptSendResumeOrDirect(command agentproto.Comman
 			"cwd":      pathcanon.Native(choose(command.Target.CWD, t.knownThreadCWD[command.Target.ThreadID])),
 		}
 		applyCodexResumePolicyToThreadParams(params, command.CodexResume)
+		t.applySharedResumeHistoryPolicy(params)
 		t.recordCodexPolicyForThread(command.Target.ThreadID, command.CodexResume)
 		payload := map[string]any{
 			"id":     requestID,

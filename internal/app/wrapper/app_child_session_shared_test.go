@@ -318,7 +318,7 @@ func TestSharedCodexSessionRestartReconnectsAndRestoresExactThread(t *testing.T)
 	}
 	select {
 	case frame := <-resumes:
-		if frame["method"] != "thread/resume" || frame["params"].(map[string]any)["threadId"] != "exact-thread" {
+		if frame["method"] != "thread/resume" || frame["params"].(map[string]any)["threadId"] != "exact-thread" || frame["params"].(map[string]any)["excludeTurns"] != true {
 			t.Fatalf("reconnect replayed wrong operation: %#v", frame)
 		}
 	case <-time.After(time.Second):

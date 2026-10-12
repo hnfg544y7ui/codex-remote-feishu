@@ -24,6 +24,7 @@ func (t *Translator) BuildChildRestartRestoreFrame(commandID string) ([]byte, st
 		"cwd":      cwd,
 	}
 	applyCodexResumePolicyToThreadParams(params, t.childRestartRestorePolicy)
+	t.applySharedResumeHistoryPolicy(params)
 	payload := map[string]any{
 		"id":     requestID,
 		"method": "thread/resume",

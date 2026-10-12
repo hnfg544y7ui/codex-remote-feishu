@@ -66,7 +66,7 @@ func TestSharedCodexStartupSubscribesExactThreadWithoutStartingTurn(t *testing.T
 		}
 	}
 	params := frames[2]["params"].(map[string]any)
-	if len(params) != 1 || params["threadId"] != "desktop-current-thread" {
+	if len(params) != 2 || params["threadId"] != "desktop-current-thread" || params["excludeTurns"] != true {
 		t.Fatalf("startup resume changed backend config: %#v", params)
 	}
 	reader := bufio.NewReader(session.stdout)
