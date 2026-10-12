@@ -30,16 +30,30 @@ func TestBuildUpgradeStatusCatalogHidesShippingOnlyOptions(t *testing.T) {
 	}, false, "", "", "")
 	assertCatalogUsesPlainTextContracts(t, &catalog)
 	summary := catalogSummaryText(&catalog)
-	if got := len(catalog.Sections[0].Entries[0].Buttons); got != 2 {
-		t.Fatalf("shipping quick buttons = %d, want 2", got)
-	}
-	for _, button := range catalog.Sections[0].Entries[0].Buttons {
-		if button.CommandText == "/upgrade dev" {
+	buttons := catalog.Sections[0].Entries[0].Buttons
+	foundLatest := false
+	foundTrackMenu := false
+	foundCodexSource := false
+	for _, button := range buttons {
+		switch button.CommandText {
+		case "/upgrade latest":
+			foundLatest = true
+		case "/upgrade track":
+			foundTrackMenu = true
+		case "/upgrade codex-source":
+			foundCodexSource = true
+			assertCodexSourceUpgradeButton(t, button)
+		case "/upgrade dev":
 			t.Fatalf("shipping root catalog should hide dev upgrade, got %#v", catalog.Sections[0].Entries[0].Buttons)
+		case "/upgrade local":
+			t.Fatalf("shipping root catalog should hide local upgrade, got %#v", buttons)
 		}
 		if strings.HasPrefix(button.CommandText, "/upgrade track ") {
 			t.Fatalf("shipping root catalog should keep track switching inside the track submenu, got %#v", catalog.Sections[0].Entries[0].Buttons)
 		}
+	}
+	if !foundLatest || !foundTrackMenu || !foundCodexSource {
+		t.Fatalf("shipping root catalog missing expected safe actions, got %#v", buttons)
 	}
 	if strings.Contains(summary, "/upgrade dev") || strings.Contains(summary, "本地升级产物：") || strings.Contains(summary, "/upgrade local") {
 		t.Fatalf("shipping upgrade root page should hide local upgrade details, got %#v", summary)
@@ -104,23 +118,40 @@ func TestBuildUpgradeStatusCatalogExposesAlphaPolicyOptions(t *testing.T) {
 	}, false, "", "", "")
 	assertCatalogUsesPlainTextContracts(t, &catalog)
 	buttons := catalog.Sections[0].Entries[0].Buttons
-	if got := len(buttons); got != 3 {
-		t.Fatalf("alpha quick buttons = %d, want 3", got)
-	}
 	foundLatest := false
 	foundDev := false
+	foundTrackMenu := false
+	foundCodexSource := false
 	for _, button := range buttons {
 		switch button.CommandText {
 		case "/upgrade latest":
 			foundLatest = true
 		case "/upgrade dev":
 			foundDev = true
+		case "/upgrade track":
+			foundTrackMenu = true
+		case "/upgrade codex-source":
+			foundCodexSource = true
+			assertCodexSourceUpgradeButton(t, button)
 		case "/upgrade local":
 			t.Fatalf("alpha root catalog should hide local upgrade, got %#v", buttons)
 		}
+		if strings.HasPrefix(button.CommandText, "/upgrade track ") {
+			t.Fatalf("alpha root catalog should keep track switching inside the track submenu, got %#v", buttons)
+		}
 	}
-	if !foundLatest || !foundDev {
+	if !foundLatest || !foundDev || !foundTrackMenu || !foundCodexSource {
 		t.Fatalf("alpha root catalog missing expected buttons, got %#v", buttons)
+	}
+}
+
+func assertCodexSourceUpgradeButton(t *testing.T, button control.CommandCatalogButton) {
+	t.Helper()
+	if button.Label != "Codex 来源" {
+		t.Fatalf("Codex source button label = %q, want %q", button.Label, "Codex 来源")
+	}
+	if button.Kind != control.CommandCatalogButtonCallbackAction || len(button.CallbackValue) == 0 {
+		t.Fatalf("Codex source button must be a valid local callback action, got %#v", button)
 	}
 }
 
