@@ -292,6 +292,8 @@ func (s *Service) applyGoalUserCommandResult(instanceID string, event agentproto
 		page = s.goalErrorPage(surface, "Goal 操作失败", event.ErrorMessage)
 	} else if userCommand.Action == "clear" {
 		page = s.goalClearedPage(surface)
+	} else if userCommand.Action == "get" && event.GoalMissing {
+		page = goalStatusPage(surface, nil)
 	} else if event.ThreadGoal == nil {
 		page = s.goalSyncPendingPage(surface)
 	} else {

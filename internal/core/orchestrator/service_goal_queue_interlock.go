@@ -344,8 +344,14 @@ func (s *Service) applyGoalCommandResult(instanceID string, event agentproto.Eve
 					thread.ThreadGoal = agentproto.CloneThreadGoalUpdate(update)
 					s.touchThread(thread)
 				}
-			case event.GoalCleared:
-				if thread := inst.Threads[event.ThreadID]; thread != nil {
+			case event.GoalCleared || (event.GoalMissing && event.ErrorMessage == ""):
+				threadID := event.ThreadID
+				if threadID == "" {
+					if pending, ok := s.goalUserCommands[event.CommandID]; ok {
+						threadID = pending.ThreadID
+					}
+				}
+				if thread := inst.Threads[threadID]; thread != nil {
 					thread.ThreadGoal = nil
 					s.touchThread(thread)
 				}

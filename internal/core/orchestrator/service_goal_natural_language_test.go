@@ -183,3 +183,16 @@ func TestGoalUserLateResultDoesNotShowOriginalGoalAsSelected(t *testing.T) {
 		}
 	}
 }
+
+func TestNaturalGoalQueryMissingGoalClearsStaleCacheAndShowsCreation(t *testing.T) {
+	svc, surfaceID, instanceID := goalInterlockTestSetup(t)
+	cmd := findAgentCommand(svc.ApplySurfaceAction(naturalGoalTestAction(t, surfaceID, "查看当前Goal状态")), agentproto.CommandThreadGoalGet)
+	events := svc.ApplyAgentEvent(instanceID, agentproto.Event{Kind: agentproto.EventThreadGoalCommandResult, CommandID: cmd.CommandID, ThreadID: "thread-1", GoalMissing: true})
+	page := findPageEvent(events)
+	if page == nil || !containsSectionLine(page, "当前会话没有 Goal") {
+		t.Fatalf("authoritative no-goal response shown as pending: %#v", page)
+	}
+	if svc.root.Instances[instanceID].Threads["thread-1"].ThreadGoal != nil {
+		t.Fatal("authoritative absent goal retained stale cache")
+	}
+}

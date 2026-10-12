@@ -10,6 +10,15 @@
 
 上游 Codex CLI 必须支持 `thread/goal/set`、`thread/goal/get` 和 `thread/goal/clear`。Goal 状态及续跑由 Codex 后端管理，Remote 调用已有 RPC；它不是 Remote 的 `/cron` 定时任务。
 
+验收所用 CLI 还要求在后端读取的 `CODEX_HOME/config.toml` 中开启 Goal：
+
+```toml
+[features]
+goals = true
+```
+
+该版本在 `goals=false` 时明确返回 `goals feature is disabled`；Remote 的 `experimentalApi=true` 不会代替这一配置。共享模式使用外部后端的配置文件，修改 Remote 自己的配置不会改变它，配置变更应由宿主管理生效。本分支未自动修改任何运行中的后端配置。
+
 共享后端继续使用已有显式 WebSocket 配置：Remote 的 `wrapper.codexAppServerURL` 或 `CODEX_REMOTE_CODEX_APP_SERVER_URL`，以及桌面 App 的 `CODEX_APP_SERVER_WS_URL`。不会自动探测已有桌面后端，也不能热接管其私有 stdio 实例。地址、账号和生命周期约束见 [共享 Codex 后端](shared-codex-backend.md)。本功能未新增 MCP Goal 工具；共享连接也不会继承其他客户端的私有工具能力。
 
 ## 六种操作
@@ -66,5 +75,7 @@ RPC 结果还会核对原 instance/thread。操作后切换会话，迟到的原
 另使用官方 Codex CLI `0.162.0-alpha.17.2`，在隔离 `CODEX_HOME`、两个客户端及本地 mock model endpoint 下验证了实际 `thread/goal/set|get|clear`：创建 active Goal 后出现两轮自主 turn，两个客户端观察到相同 turn；暂停后不再产生新轮次，清除后查询返回无 Goal。该检查未复制生产账号、未请求真实模型、未修改生产 Goal。
 
 这证明了该版本 CLI 的隔离协议行为与本地 mock 续跑，不代表已经完成真实模型、桌面 UI 或生产飞书全链路验收。本分支尚未部署、创建 Release 或版本标签；Changelog 中的未发布版本规划保持不变。
+
+禁用 Goal 的隔离检查也验证了上述原生拒绝行为，未发送任何本地模拟或真实模型请求。
 
 卡片与状态机规范分别见 [飞书卡片 UI 状态机](../general/feishu-card-ui-state-machine.md) 和 [Remote Surface 状态机](../general/remote-surface-state-machine.md)。
