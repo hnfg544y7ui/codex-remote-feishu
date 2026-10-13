@@ -332,8 +332,8 @@ func TestHandleGatewayActionReplacesMenuCardForRootNavigation(t *testing.T) {
 	}
 	rootContent, _ := result.ReplaceCurrentCard.CardElements[0]["content"].(string)
 	if !strings.Contains(rootContent, "Codex Remote Feishu · dev") ||
-		!strings.Contains(rootContent, "GitHub: [kxn/codex-remote-feishu](https://github.com/kxn/codex-remote-feishu)") ||
-		!strings.Contains(rootContent, "使用说明：[查看文档](https://my.feishu.cn/docx/PTncdNBf1oS9N5xBikBcGi2enzc)") {
+		!strings.Contains(rootContent, "GitHub: [hnfg544y7ui/codex-remote-feishu](https://github.com/hnfg544y7ui/codex-remote-feishu)") ||
+		!strings.Contains(rootContent, "使用说明：[查看文档](https://github.com/hnfg544y7ui/codex-remote-feishu/blob/develop/docs/general/user-guide.md)") {
 		t.Fatalf("expected bare /menu replacement card to render menu home 3-line header, got %#v", result.ReplaceCurrentCard.CardElements[0])
 	}
 	for _, button := range operationCardButtons(*result.ReplaceCurrentCard) {

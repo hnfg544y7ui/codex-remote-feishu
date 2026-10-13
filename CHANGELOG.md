@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.1.4
+
+未发布；不创建 tag 或 GitHub Release，收到明确发布指令后再发布。
+
+- 飞书菜单首页的 GitHub 链接改为维护中的 fork，使用说明改为 develop 分支的仓库内用户指南；版本号继续显示运行服务的实际版本。
+
 ## v1.3.1.3
 
 未发布；不创建 tag 或 GitHub Release，收到明确发布指令后再发布。

@@ -14,9 +14,9 @@ import (
 const (
 	commandCatalogRootLabel               = "菜单首页"
 	menuHomeProductName                   = "Codex Remote Feishu"
-	menuHomeGitHubLabel                   = "kxn/codex-remote-feishu"
-	menuHomeGitHubURL                     = "https://github.com/kxn/codex-remote-feishu"
-	menuHomeUsageGuideURL                 = "https://my.feishu.cn/docx/PTncdNBf1oS9N5xBikBcGi2enzc"
+	menuHomeGitHubLabel                   = "hnfg544y7ui/codex-remote-feishu"
+	menuHomeGitHubURL                     = "https://github.com/hnfg544y7ui/codex-remote-feishu"
+	menuHomeUsageGuideURL                 = "https://github.com/hnfg544y7ui/codex-remote-feishu/blob/develop/docs/general/user-guide.md"
 	menuHomeVersionFallback               = "dev"
 	commandCatalogPaginatedSelectPageSize = 10
 )

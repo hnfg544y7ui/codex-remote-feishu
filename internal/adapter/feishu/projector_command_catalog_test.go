@@ -301,7 +301,7 @@ func TestProjectMenuHomeRendersRootBreadcrumbAndNamedGroupButtons(t *testing.T) 
 	if len(ops[0].CardElements) != 1+len(groups) {
 		t.Fatalf("expected root breadcrumb plus one button row per group, got %#v", ops[0].CardElements)
 	}
-	wantHeader := "Codex Remote Feishu · v9.9.9\nGitHub: [kxn/codex-remote-feishu](https://github.com/kxn/codex-remote-feishu)\n使用说明：[查看文档](https://my.feishu.cn/docx/PTncdNBf1oS9N5xBikBcGi2enzc)"
+	wantHeader := "Codex Remote Feishu · v9.9.9\nGitHub: [hnfg544y7ui/codex-remote-feishu](https://github.com/hnfg544y7ui/codex-remote-feishu)\n使用说明：[查看文档](https://github.com/hnfg544y7ui/codex-remote-feishu/blob/develop/docs/general/user-guide.md)"
 	if ops[0].CardElements[0]["content"] != wantHeader {
 		t.Fatalf("expected menu home header, got %#v", ops[0].CardElements[0])
 	}
