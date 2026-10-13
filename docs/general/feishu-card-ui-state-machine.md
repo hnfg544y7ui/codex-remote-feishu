@@ -644,6 +644,7 @@ MCP request 卡片当前新增的可视语义：
   - 文本触发 `/history` 的首张 patchable history card 仍保持顶层 append；它属于 owner-card / history 混合路径，也不跟随 turn reply anchor
   - final reply（含 overflow continuation）继续 reply 到 turn anchor；later replay 若命中已记录的 reply anchor，也会优先回到原回复链
   - 非 final 的 assistant 普通文本（当前只限 `render.BlockAssistantMarkdown` / `render.BlockAssistantCode`）现在也会沿用当前 turn reply anchor；是否真正可见仍由 surface verbosity 过滤决定，quiet 下不会因为 reply thread 改动而强行变可见
+  - `delivery=async` 且携带非空 `questions` 的 App 异步提问立即作为非 final assistant 文本展示，独立标记 always-visible，quiet 也不隐藏；保留原话题及 turn reply anchor。正文提示发送回答后对该回答添加 👍，复用单条 queued steer，不伪造同步 request 卡或提前完成当前轮。
   - detour 临时会话当前不再额外派生“进入临时会话”确认卡；而是直接把临时语义挂回原卡/原消息：
     - request prompt、提案计划卡、`turn_failed` notice、plan update、共享 progress card 与主 final reply card，会把 `临时会话 · 分支` / `临时会话 · 空白` 提升为卡片 header subtitle，并以 `lark_md` 加粗显示
     - 非 final assistant 普通文本不会为了 detour 再硬插前缀，继续保持原正文

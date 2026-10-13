@@ -908,6 +908,10 @@ func (s *Service) completeItem(instanceID string, event agentproto.Event) []even
 			buf.ItemKind = "agent_message"
 		}
 	}
+	if isAsyncQuestionMessage(event, buf.ItemKind) {
+		s.discardItemBuffer(instanceID, event.ThreadID, event.TurnID, event.ItemID)
+		return s.renderAsyncQuestionMessage(instanceID, event, bufferText)
+	}
 	s.maybeCaptureReviewSessionResultCandidate(instanceID, event, buf.ItemKind, bufferText)
 	s.discardItemBuffer(instanceID, event.ThreadID, event.TurnID, event.ItemID)
 	if !rendersTextItem(buf.ItemKind) || strings.TrimSpace(bufferText) == "" {

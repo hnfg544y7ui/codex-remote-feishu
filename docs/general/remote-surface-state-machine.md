@@ -2153,6 +2153,7 @@ retained-offline overlay 额外规则：
 - 进入已有 thread 时，在报告 worker 已接管之前完成有界 startup initialize 和仅携带 `threadId` 的 `thread/resume`，成功响应必须精确匹配目标；新 thread 由本连接成功的 `thread/start` 响应建立 scope。外部 thread 广播不能改变 selected thread。重连只恢复连接和订阅，不自动重放旧 prompt。
 - turn 归属由本连接的请求 ID 与成功响应内 turn ID 建立；通知先于响应时有界缓存（128 帧/1 MiB、15 秒），竞态、超限或归属无法证明均明确失败并关闭连接。其他客户端在已订阅 thread 上运行的 turn 投影为 `local_ui`，不消费 Remote pending owner；不同 thread 的通知不投影。
 - native 工具/审批只有已证明属于本连接 Remote turn 的请求才能进入飞书；外部请求和对应 resolved 广播不进入可回答 gate。已处理或已 resolved 的请求不能重复回答。已有同 thread writer 仲裁仍成立：两端交替运行，不支持同 thread 同时运行两个 turn。
+- App 的 `agentMessage(delivery=async, questions 非空)` 是异步提问通知，不是 native RPC request。Remote 在 item 完成时立即展示正文和回答指引，不等下一段文本或 turn 结束、不标记最终回复、不创建 request gate；quiet 模式仍展示提问。用户可发送回答并对该回答添加 `ThumbsUp`，复用当前话题/会话的单条 queued steer；普通输入继续排队，`/steerall` 仍只在用户明确调用时合并当前 surface 全部可插入输入。App 面板的选择控件不在飞书伪造，外部审批归属规则不变。
 - 共享 WebSocket 断开不等价于后端 turn 完成。wrapper 不合成 `TurnCompleted`，发送明确的连接故障及后端状态未知；用户可 `/detach`、重选 `/use` 恢复订阅并核对实际状态，不能盲目自动继续旧请求。Remote 连接恢复受既有 pending timeout/manual escape 约束，不留下只能等待外部通知的永久 gate。
 - 该实现不支持热接入当前桌面 App 的私有 stdio 后端。App 必须从 `CODEX_APP_SERVER_WS_URL` 环境重新启动；同一端点先按一个 Remote daemon 管理，跨独立 daemon 的同 thread claim 不协调。配置示例及本机隔离证据见 [共享 Codex 后端](../implemented/shared-codex-backend.md)。
 

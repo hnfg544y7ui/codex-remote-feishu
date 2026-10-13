@@ -117,6 +117,13 @@ func extractItemMetadata(itemKind string, item map[string]any) map[string]any {
 		metadata["text"] = text
 	}
 	switch itemKind {
+	case "agent_message":
+		if delivery := xutil.LookupStringFromAny(item["delivery"]); delivery != "" {
+			metadata["messageDelivery"] = delivery
+		}
+		if questions, ok := item["questions"].([]any); ok && len(questions) > 0 {
+			metadata["hasAsyncQuestions"] = true
+		}
 	case "entered_review_mode", "exited_review_mode":
 		if review := xutil.FirstNonEmpty(
 			xutil.LookupStringFromAny(item["review"]),
