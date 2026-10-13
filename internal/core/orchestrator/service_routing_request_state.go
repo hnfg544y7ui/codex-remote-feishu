@@ -167,11 +167,23 @@ func (s *Service) surfaceForInitiator(instanceID string, event agentproto.Event)
 func (s *Service) pauseForLocal(instanceID string) []eventcontract.Event {
 	var events []eventcontract.Event
 	for _, surface := range s.findAttachedSurfaces(instanceID) {
-		if s.pauseSurfaceDispatchForLocal(surface, s.now().Add(s.config.LocalPauseMaxWait)) {
+		if s.pauseSurfaceDispatchForLocal(surface, s.now().Add(s.config.LocalPauseMaxWait)) && surfaceHasWaitingQueueInput(surface) {
 			events = append(events, notice(surface, "local_activity_detected", "检测到其他客户端正在使用，飞书消息将继续排队。")...)
 		}
 	}
 	return events
+}
+
+func surfaceHasWaitingQueueInput(surface *state.SurfaceConsoleRecord) bool {
+	if surface == nil {
+		return false
+	}
+	for _, id := range surface.QueuedQueueItemIDs {
+		if item := surface.QueueItems[id]; item != nil && item.Status == state.QueueItemQueued {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) enterHandoff(instanceID string) []eventcontract.Event {

@@ -1003,11 +1003,13 @@ Codex headless 的 `/workspace list`、`/list`、`/use`、`/useall` 在接入 de
 
 ### 4.9 local-activity `PausedForLocal` 和 `Abandoning` 都有 watchdog
 
+本地或共享后端其他客户端的活动仍进入 `paused_for_local`，避免 Remote 抢占执行；只有当前 surface 的队列引用了状态为 `queued` 的实际输入记录时，才发送 `local_activity_detected` 排队提示。空队列、失效引用和已完成记录不触发提示；仅在 App 中对话时不主动向飞书发送这张卡片。随后收到的飞书输入仍正常排队，在本地结束或 watchdog 恢复后继续派发。
+
 当前 `Tick()` 已经提供两类 watchdog 恢复：
 
 1. local-activity 来源的 `paused_for_local` 超时后：
    1. 自动回到 `normal`
-   2. 发 `local_activity_watchdog_resumed`
+   2. 队列非空时发 `local_activity_watchdog_resumed`；空队列静默恢复
    3. 继续 `dispatchNext`
 2. `abandoning` 超时后：
    1. 强制 `finalizeDetachedSurface`

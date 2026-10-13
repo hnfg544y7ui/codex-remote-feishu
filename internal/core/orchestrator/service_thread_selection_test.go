@@ -37,8 +37,8 @@ func TestLocalPauseWithoutQueuedMessagesDoesNotEmitResumeNotice(t *testing.T) {
 		ThreadID: "thread-1",
 		Action:   "turn_start",
 	})
-	if len(first) != 1 || first[0].Notice == nil || first[0].Notice.Code != "local_activity_detected" {
-		t.Fatalf("expected only local pause notice, got %#v", first)
+	if len(first) != 0 {
+		t.Fatalf("expected silent local pause without queued input, got %#v", first)
 	}
 
 	second := svc.ApplyAgentEvent("inst-1", agentproto.Event{
@@ -743,7 +743,7 @@ func TestLocalPlaceholderInteractionDoesNotStealSelectionFromRunningThread(t *te
 		TurnID:    "turn-1",
 		Initiator: agentproto.Initiator{Kind: agentproto.InitiatorLocalUI},
 	})
-	if len(started) != 2 || started[1].ThreadSelection == nil || started[1].ThreadSelection.ThreadID != "thread-6d13" {
+	if len(started) != 1 || started[0].ThreadSelection == nil || started[0].ThreadSelection.ThreadID != "thread-6d13" {
 		t.Fatalf("expected selection to switch to executing thread, got %#v", started)
 	}
 

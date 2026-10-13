@@ -695,6 +695,7 @@ MCP request 卡片当前新增的可视语义：
   - 当前这条车道覆盖真正脱离当前 owner-card / guidance-card 上下文的：surface resume failure、无 active guidance card 可复用的 VS Code resume failure / `open VS Code` prompt、`attached_instance_transport_degraded`、`daemon_shutting_down`、`gateway_apply_failed`
   - 若 `VS Code` 兼容修复、`open VS Code` prompt、恢复成功/失败或 `not_attached_vscode` guidance 已经拥有当前 surface 的 active `vscode guidance card`，daemon 会先把 notice 改写成 patchable direct-command card 并回写同一张 guidance card；只有没有可复用 guidance card 的后台 runtime 路径才会落到这条独立车道
 - 这些真正的 global runtime 系统提示不会借用 final-card anchor 或 turn reply-chain；它们仍作为独立系统提示出现在主时间线
+- `local_activity_detected` 排队提示只在对应 surface 确有 `queued` 输入记录时生成。空闲 Remote 观察到 App 或其他客户端活动时保持派发保护，不追加“飞书消息将继续排队”系统卡；已有排队输入的提示及恢复通知沿用原流程。
 - `/cron`、`/upgrade`、`/debug` 的 stamped 菜单入口与 stamped page callback，当前都会直接把下一张 page 或结果卡同位替回当前卡，不再先外跳 append 一张独立状态/输入卡。
 - “命令已提交”锚点卡当前只剩少量命令继续使用（主要是 `/use`、`/useall`）；这批锚点卡会在短延时后尝试 best-effort 自动撤回，撤回失败时仅静默降级，不影响主流程。
 - 这条路径不会改变产品动作 owner；参数卡 apply、VS Code 菜单 handoff 与迁移卡收口都不复用“命令已提交”锚点，而是由产品 handler 直接返回可 replace / patch 的结果卡。

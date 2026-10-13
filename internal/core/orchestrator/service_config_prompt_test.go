@@ -841,7 +841,7 @@ func TestLocalInteractionPausesRemoteQueueAndHandoffResumes(t *testing.T) {
 		ThreadID: "thread-1",
 		Action:   "turn_start",
 	})
-	if len(localEvents) != 1 || localEvents[0].Notice == nil || localEvents[0].Notice.Code != "local_activity_detected" {
+	if len(localEvents) != 0 {
 		t.Fatalf("unexpected local pause events: %#v", localEvents)
 	}
 
@@ -893,6 +893,10 @@ func TestLocalPauseNoticeIsNotRepeatedWhenTurnStartedArrives(t *testing.T) {
 		},
 	})
 	svc.ApplySurfaceAction(control.Action{Kind: control.ActionAttachInstance, SurfaceSessionID: "surface-1", ChatID: "chat-1", ActorUserID: "user-1", InstanceID: "inst-1"})
+
+	surface := svc.root.Surfaces["surface-1"]
+	surface.QueuedQueueItemIDs = []string{"waiting"}
+	surface.QueueItems["waiting"] = &state.QueueItemRecord{ID: "waiting", Status: state.QueueItemQueued}
 
 	first := svc.ApplyAgentEvent("inst-1", agentproto.Event{
 		Kind:     agentproto.EventLocalInteractionObserved,
@@ -1934,7 +1938,7 @@ func TestLocalInteractionUpdatesObservedFocusButDoesNotSwitchSurface(t *testing.
 	if surface.SelectedThreadID != "" || surface.RouteMode != state.RouteModeUnbound {
 		t.Fatalf("expected surface selection to stay unchanged before actual turn starts, got selected=%q route=%q", surface.SelectedThreadID, surface.RouteMode)
 	}
-	if len(events) != 1 || events[0].Notice == nil || events[0].Notice.Code != "local_activity_detected" {
-		t.Fatalf("expected only local pause notice, got %#v", events)
+	if len(events) != 0 {
+		t.Fatalf("expected silent local pause without queued input, got %#v", events)
 	}
 }

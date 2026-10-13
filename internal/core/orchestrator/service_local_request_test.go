@@ -40,8 +40,8 @@ func TestLocalTurnStartedDoesNotBindUnboundAttachedSurfaceToDetectedThread(t *te
 	if surface.SelectedThreadID != "" || surface.RouteMode != state.RouteModeUnbound {
 		t.Fatalf("expected unbound surface to remain unchanged, got selected=%q route=%q", surface.SelectedThreadID, surface.RouteMode)
 	}
-	if len(events) != 1 || events[0].Notice == nil || events[0].Notice.Code != "local_activity_detected" {
-		t.Fatalf("expected only local pause notice, got %#v", events)
+	if len(events) != 0 {
+		t.Fatalf("expected silent local pause without queued input, got %#v", events)
 	}
 }
 
@@ -74,8 +74,8 @@ func TestLocalInteractionDoesNotSwitchPinnedSurfaceBeforeTurnStarts(t *testing.T
 	if surface.SelectedThreadID != "thread-1" || surface.RouteMode != state.RouteModePinned {
 		t.Fatalf("expected pinned surface to stay on prior thread until actual turn starts, got selected=%q route=%q", surface.SelectedThreadID, surface.RouteMode)
 	}
-	if len(events) != 1 || events[0].Notice == nil || events[0].Notice.Code != "local_activity_detected" {
-		t.Fatalf("expected only local pause notice, got %#v", events)
+	if len(events) != 0 {
+		t.Fatalf("expected silent local pause without queued input, got %#v", events)
 	}
 }
 
@@ -108,8 +108,8 @@ func TestFollowLocalSurfaceBindsOnLocalTurnStart(t *testing.T) {
 	if surface.SelectedThreadID != "thread-3" || surface.RouteMode != state.RouteModeFollowLocal {
 		t.Fatalf("expected follow-local surface to bind to local-ui turn thread, got selected=%q route=%q", surface.SelectedThreadID, surface.RouteMode)
 	}
-	if len(events) != 2 || events[1].ThreadSelection == nil || events[1].ThreadSelection.ThreadID != "thread-3" {
-		t.Fatalf("expected local pause notice plus follow selection update, got %#v", events)
+	if len(events) != 1 || events[0].ThreadSelection == nil || events[0].ThreadSelection.ThreadID != "thread-3" {
+		t.Fatalf("expected only follow selection update without queued input, got %#v", events)
 	}
 }
 
@@ -142,8 +142,8 @@ func TestLocalTurnStartedDoesNotSwitchPinnedSurfaceToDetectedThread(t *testing.T
 	if surface.SelectedThreadID != "thread-1" || surface.RouteMode != state.RouteModePinned {
 		t.Fatalf("expected pinned surface to remain on prior thread, got selected=%q route=%q", surface.SelectedThreadID, surface.RouteMode)
 	}
-	if len(events) != 1 || events[0].Notice == nil || events[0].Notice.Code != "local_activity_detected" {
-		t.Fatalf("expected only local pause notice, got %#v", events)
+	if len(events) != 0 {
+		t.Fatalf("expected silent local pause without queued input, got %#v", events)
 	}
 }
 
