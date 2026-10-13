@@ -66,6 +66,27 @@ func (a *App) seedSurfaceSessionSettingsFromBotRecordsLocked(entry *surfaceresum
 }
 
 func (a *App) materializeSurfaceResumeEntryLocked(entry surfaceresume.Entry) {
+	var valid bool
+	entry, valid = surfaceresume.NormalizeEntry(entry)
+	if !valid {
+		return
+	}
+	if surface := a.service.Surface(entry.SurfaceSessionID); surface != nil {
+		// Restart materialization cannot replace a live topic's immutable owner or target.
+		if surface.FeishuTopicBoundThreadID != "" && surface.FeishuTopicBoundThreadID != entry.FeishuTopicBoundThreadID {
+			return
+		}
+		if surface.FeishuTopicOwnerID != "" && surface.FeishuTopicOwnerID != entry.FeishuTopicOwnerID {
+			return
+		}
+		if surface.FeishuTopicID != "" && surface.FeishuTopicID != entry.FeishuTopicID {
+			return
+		}
+		if surface.FeishuTopicClosed && !entry.FeishuTopicClosed {
+			return
+		}
+	}
+
 	if a.seedSurfaceSessionSettingsFromBotRecordsLocked(&entry) {
 		a.putSurfaceResumeEntryLocked(entry, time.Now())
 	}
@@ -85,6 +106,16 @@ func (a *App) materializeSurfaceResumeEntryLocked(entry surfaceresume.Entry) {
 		state.SurfaceVerbosity(entry.Verbosity),
 		state.PlanModeSettingOff,
 	)
+	if surface := a.service.Surface(entry.SurfaceSessionID); surface != nil {
+		surface.FeishuTopicID = entry.FeishuTopicID
+		surface.FeishuTopicRootMessageID = entry.FeishuTopicRootMessageID
+		surface.FeishuTopicTitle = entry.FeishuTopicTitle
+		surface.FeishuTopicOwnerID = entry.FeishuTopicOwnerID
+		surface.FeishuTopicBoundThreadID = entry.FeishuTopicBoundThreadID
+		surface.FeishuTopicMessageURL = entry.FeishuTopicMessageURL
+		surface.FeishuTopicMessageIDs = append([]string(nil), entry.FeishuTopicMessageIDs...)
+		surface.FeishuTopicClosed = entry.FeishuTopicClosed
+	}
 	a.service.RestoreSurfaceSessionSettings(
 		entry.SurfaceSessionID,
 		entry.AccessMode,

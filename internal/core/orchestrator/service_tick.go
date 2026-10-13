@@ -128,6 +128,9 @@ func (s *Service) Tick(now time.Time) []eventcontract.Event {
 		events = append(events, s.maybeDispatchPendingAutoWhip(surface, now)...)
 		events = append(events, s.maybeDispatchPendingAutoContinue(surface, now)...)
 		events = append(events, s.tickExecCommandProgressReasoning(surface, now)...)
+		if surfaceIsFeishuTopic(surface) && !surface.FeishuTopicClosed && len(surface.QueuedQueueItemIDs) != 0 {
+			events = append(events, s.dispatchNext(surface)...)
+		}
 	}
 	return s.filterEventsForSurfaceVisibility(events)
 }

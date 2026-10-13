@@ -13,6 +13,7 @@ import (
 	"github.com/kxn/codex-remote-feishu/internal/core/orchestrator"
 	"github.com/kxn/codex-remote-feishu/internal/core/state"
 	"github.com/kxn/codex-remote-feishu/internal/core/threadtitle"
+	"github.com/kxn/codex-remote-feishu/internal/feishuidentity"
 )
 
 type surfaceResumeTarget struct {
@@ -37,6 +38,7 @@ func (a *App) configureSurfaceResumeStateLocked(stateDir string) {
 	a.reconcileFeishuRoomWorkspaceStateLocked(store.Entries())
 	a.materializeFeishuRoomStateLocked()
 	a.materializeSurfaceResumeStateLocked()
+	a.refreshTopicRoutingIndexLocked()
 	a.syncSurfaceResumeRecoveryStateLocked()
 	a.surfaceResumeRuntime.vscodeStartupCheckDue = storedVSCodeResumeExists(store)
 	a.markVSCodeDetachedPromptScanDueLocked()
@@ -245,6 +247,7 @@ func (a *App) currentSurfaceResumeEntryLocked(surface *state.SurfaceConsoleRecor
 		PlanMode:             string(state.NormalizePlanModeSetting(surface.PlanMode)),
 		PlanModeOverrideSet:  surface.PlanModeOverrideSet,
 	}
+	copySurfaceTopicResumeMetadata(surface, &entry)
 	if entry.SurfaceSessionID == "" {
 		return surfaceresume.Entry{}, false
 	}
@@ -344,10 +347,7 @@ func (a *App) currentSurfaceResumeTargetAndWorkspaceLocked(surface *state.Surfac
 		return surfaceResumeTarget{}, "", false
 	}
 	snapshot := a.service.SurfaceSnapshot(surface.SurfaceSessionID)
-	workspaceKey := ""
-	if snapshot != nil {
-		workspaceKey = state.ResolveWorkspaceClaimKey(snapshot.WorkspaceKey)
-	}
+	workspaceKey := a.currentSurfaceResumeWorkspaceKeyLocked(surface, snapshot)
 	if strings.TrimSpace(surface.AttachedInstanceID) != "" {
 		target := surfaceResumeTarget{
 			ResumeInstanceID:   strings.TrimSpace(surface.AttachedInstanceID),
@@ -457,6 +457,10 @@ func (a *App) surfaceResumeClearTargetsForActionLocked(action control.Action, be
 	case control.ActionDetach:
 		add(action.SurfaceSessionID)
 	case control.ActionWorkspaceDetach:
+		if ref, ok := feishuidentity.ParseSurfaceRef(action.SurfaceSessionID); ok && ref.IsTopic() {
+			add(action.SurfaceSessionID)
+			break
+		}
 		if surfaceIsFeishuGroup(strings.TrimSpace(action.SurfaceSessionID)) {
 			if eventsContainNoticeCode(events, "room_workspace_detached") || eventsContainNoticeCode(events, "room_workspace_not_attached") {
 				for _, surfaceID := range a.feishuRoomSurfaceIDsForActionLocked(action) {
@@ -520,7 +524,7 @@ func (a *App) feishuRoomSurfaceIDsForActionLocked(action control.Action) []strin
 			continue
 		}
 		surfaceID := strings.TrimSpace(surface.SurfaceSessionID)
-		if surfaceID == "" || !surfaceIsFeishuGroup(surfaceID) {
+		if surfaceID == "" || !surfaceIsFeishuRoom(surfaceID) {
 			continue
 		}
 		if chatID != "" && strings.TrimSpace(surface.ChatID) != chatID {

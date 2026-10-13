@@ -1,8 +1,8 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-10-12`
-> Summary: 记录自然语言 Goal 复用命令卡，以及清除确认和创建/编辑表单的单次上下文绑定。
+> Updated: `2026-10-13`
+> Summary: 补充群话题卡片的固定回复根、回执绑定及跨群和旧卡拒绝规则；记录自然语言 Goal 复用命令卡，以及清除确认和创建/编辑表单的单次上下文绑定。
 
 ## 1. 文档定位
 
@@ -1105,6 +1105,16 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
 - callback schema、owner/lifecycle/freshness 和 inline replace 规则沿用现有合同，没有新增 callback family。共享错误配置、离线或归属失败给出明确 notice，保留 `/detach` 与重新 `/use` 的退出/恢复入口。
 - 来自其他客户端的 native 工具/审批不会生成飞书可回答卡；仅本连接 Remote turn 上已登记的 request/resolved 进入产品投影，resolved 立即撤销回答资格。共享断线不会把正在运行的后端任务投影成完成，也不会自动重发 prompt。
 - 协议与状态审计覆盖 startup resume、两端交替、不同 thread 过滤、审批归属、连接重启及断线。验证范围和使用步骤见 [共享 Codex 后端](../implemented/shared-codex-backend.md)；隔离真实 App 握手与协议控制器交替的验证不替代手机飞书 UI 或真实模型网络验收。
+
+## 群话题会话卡片
+
+- `/topic` 是独立 terminal page family，菜单提供“话题会话”查询，不暴露可从 callback 创建话题的入口。`/topic new 名称` 必须是群主聊天的一条新文本；欢迎卡发往新 topic surface，与触发命令所在 room 的 launcher 分离。
+- 同一话题的选择器、历史、请求确认、进度和答复使用相同 immutable reply root，并设置线程回复。文件、图片与视频的直接发送路径同样携带 topic surface，不能绕过线程定位。线程回复失败不转为普通群 `create message`。
+- 首次发送成功回执须验证 chat/root/native topic 的一致性，补全 topic native ID 及已知输出 message ID 后保存关联；失败或未知结果不把卡片发布状态虚构成可执行。网络发送释放锁期间目标可能变化，迟到回执须重新验证固定 root 与 surface 后才写回。
+- callback 以真实群和登记的消息归属为依据；payload 中 surface 字段不能独立恢复一个未知话题路由。不同话题/转发群的卡不能操纵原会话。所有旧卡仍受 daemon lifecycle、owner 和 freshness gate 约束，持久化话题关联不延长旧卡执行资格。
+- 选择器仅在未绑定话题中完成首次会话选择。固定绑定后改变 target 的 callback 和文本命令均拒绝；保留当前会话与队列并提示在群主聊天新建话题。关闭只对空闲话题生效，关闭通知不取消正在运行的任务。
+- 回归覆盖命令目录、创建/绑定/关闭、真实 chat/root/native mismatch、线程回复失败不得群发、持久化恢复和晚到回执。群内实际验证仍需检查两个话题的回复、审批、附件和历史是否相互隔离，不能仅以服务 connected 代替验收。
+- 操作步骤及恢复限制见 [飞书群话题多会话](../implemented/feishu-topic-sessions.md)。
 
 ## 待讨论取舍
 

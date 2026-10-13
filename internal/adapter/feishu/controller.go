@@ -32,19 +32,21 @@ type PermissionBlockController interface {
 }
 
 type GatewayAppConfig struct {
-	GatewayID             string
-	Name                  string
-	AppID                 string
-	AppSecret             string
-	BotOpenID             string
-	Domain                string
-	Enabled               bool
-	UseSystemProxy        bool
-	ImageTempDir          string
-	PreviewStatePath      string
-	PreviewCacheDir       string
-	PreviewRootFolderName string
-	PrimaryGatewayForChat func(chatID string) string
+	GatewayID                 string
+	Name                      string
+	AppID                     string
+	AppSecret                 string
+	BotOpenID                 string
+	Domain                    string
+	Enabled                   bool
+	UseSystemProxy            bool
+	ImageTempDir              string
+	PreviewStatePath          string
+	PreviewCacheDir           string
+	PreviewRootFolderName     string
+	PrimaryGatewayForChat     func(chatID string) string
+	ResolveTopicSurface       func(chatID, nativeTopicID, rootMessageID string) string
+	LookupTopicMessageSurface func(messageID, chatID string) string
 }
 
 type GatewayStatus struct {
@@ -155,14 +157,16 @@ func NewMultiGatewayController() *MultiGatewayController {
 	}
 	controller.newGateway = func(cfg GatewayAppConfig) gatewayRuntime {
 		return NewLiveGateway(LiveGatewayConfig{
-			GatewayID:             cfg.GatewayID,
-			AppID:                 cfg.AppID,
-			AppSecret:             cfg.AppSecret,
-			BotOpenID:             cfg.BotOpenID,
-			Domain:                cfg.Domain,
-			TempDir:               cfg.ImageTempDir,
-			UseSystemProxy:        cfg.UseSystemProxy,
-			PrimaryGatewayForChat: cfg.PrimaryGatewayForChat,
+			GatewayID:                 cfg.GatewayID,
+			AppID:                     cfg.AppID,
+			AppSecret:                 cfg.AppSecret,
+			BotOpenID:                 cfg.BotOpenID,
+			Domain:                    cfg.Domain,
+			TempDir:                   cfg.ImageTempDir,
+			UseSystemProxy:            cfg.UseSystemProxy,
+			PrimaryGatewayForChat:     cfg.PrimaryGatewayForChat,
+			ResolveTopicSurface:       cfg.ResolveTopicSurface,
+			LookupTopicMessageSurface: cfg.LookupTopicMessageSurface,
 		})
 	}
 	controller.newPreviewer = func(runtime gatewayRuntime, cfg GatewayAppConfig) gatewayPreviewRuntime {

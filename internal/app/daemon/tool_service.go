@@ -247,6 +247,9 @@ func (a *App) sendIMFileTool(ctx context.Context, arguments map[string]any) (map
 			Retryable: true,
 		}
 	}
+	if err := a.recordTopicMediaDelivery(resolved.SurfaceSessionID, result.MessageID); err != nil {
+		return nil, &toolError{Code: "topic_receipt_persist_failed", Message: err.Error()}
+	}
 	log.Printf("tool call: tool=%s surface=%s path=%s status=ok message=%s", feishuSendIMFileToolName, resolved.SurfaceSessionID, path, result.MessageID)
 	return map[string]any{
 		"surface_session_id": result.SurfaceSessionID,
@@ -382,6 +385,9 @@ func (a *App) sendIMMediaTool(ctx context.Context, arguments map[string]any, spe
 	})
 	if toolErr != nil {
 		return imMediaSendResult{}, toolErr
+	}
+	if err := a.recordTopicMediaDelivery(resolved.SurfaceSessionID, result.MessageID); err != nil {
+		return imMediaSendResult{}, &toolError{Code: "topic_receipt_persist_failed", Message: err.Error()}
 	}
 	log.Printf("tool call: tool=%s surface=%s path=%s status=ok message=%s", spec.toolName, resolved.SurfaceSessionID, path, result.MessageID)
 	return result, nil

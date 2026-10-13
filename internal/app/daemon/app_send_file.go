@@ -99,6 +99,9 @@ func (a *App) runPreparedSendIMFileLocked(command control.DaemonCommand, prepare
 		_ = a.observeFeishuPermissionError(prepared.request.GatewayID, err)
 		return sendFileFailureEvents(command.SurfaceSessionID, err)
 	}
+	if err := a.recordTopicMediaDeliveryLocked(prepared.request.SurfaceSessionID, result.MessageID); err != nil {
+		return sendFileFailureEvents(command.SurfaceSessionID, err)
+	}
 	fileName := strings.TrimSpace(result.FileName)
 	if fileName == "" {
 		fileName = strings.TrimSpace(prepared.fileName)
@@ -124,6 +127,10 @@ func (a *App) startSendIMFileBackground(command control.DaemonCommand, prepared 
 		}
 		if err != nil {
 			_ = a.observeFeishuPermissionError(prepared.request.GatewayID, err)
+			a.handleUIEventsLocked(context.Background(), sendFileFailureEvents(command.SurfaceSessionID, err))
+			return
+		}
+		if err := a.recordTopicMediaDeliveryLocked(prepared.request.SurfaceSessionID, result.MessageID); err != nil {
 			a.handleUIEventsLocked(context.Background(), sendFileFailureEvents(command.SurfaceSessionID, err))
 			return
 		}

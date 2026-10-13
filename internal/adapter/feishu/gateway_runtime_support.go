@@ -34,6 +34,7 @@ func (g *LiveGateway) inboundEnv() gatewaypkg.InboundEnv {
 		GatewayID:                     g.config.GatewayID,
 		BotOpenID:                     g.currentBotOpenID(),
 		LookupSurfaceMessage:          g.lookupSurfaceMessage,
+		ResolveTopicSurface:           g.config.ResolveTopicSurface,
 		ParseTextActionWithoutCatalog: control.ParseFeishuTextActionWithoutCatalog,
 		QuotedInputs:                  g.quotedInputs,
 		QuotedMessageInputs:           g.quotedMessageInputs,
@@ -97,7 +98,18 @@ func (g *LiveGateway) surfaceForCardAction(lookup gatewaypkg.CardActionSurfaceLo
 		return ""
 	}
 	if surfaceID := g.lookupSurfaceMessage(lookup.MessageID); surfaceID != "" {
+		if ref, ok := feishuidentity.ParseSurfaceRef(surfaceID); ok && ref.IsTopic() {
+			if ref.GatewayID != g.config.GatewayID || ref.TopicChatID() != strings.TrimSpace(lookup.ChatID) {
+				return ""
+			}
+		}
 		return surfaceID
+	}
+	if g.config.LookupTopicMessageSurface != nil {
+		surfaceID := g.config.LookupTopicMessageSurface(strings.TrimSpace(lookup.MessageID), strings.TrimSpace(lookup.ChatID))
+		if ref, ok := feishuidentity.ParseSurfaceRef(surfaceID); ok && ref.IsTopic() && ref.GatewayID == g.config.GatewayID && ref.TopicChatID() == strings.TrimSpace(lookup.ChatID) {
+			return ref.SurfaceID()
+		}
 	}
 	return trustedPayloadSurfaceForCardAction(
 		g.config.GatewayID,

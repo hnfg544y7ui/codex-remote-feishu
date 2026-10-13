@@ -96,7 +96,7 @@ func (g *LiveGateway) SendIMImage(ctx context.Context, req IMImageSendRequest) (
 	}
 
 	body, _ := json.Marshal(map[string]string{"image_key": imageKey})
-	resp, err := g.createMessageFn(ctx, receiveIDType, receiveID, "image", string(body))
+	resp, err := g.sendSurfaceMedia(ctx, req.SurfaceSessionID, req.ChatID, receiveIDType, receiveID, "image", string(body))
 	if err != nil {
 		return result, &IMImageSendError{
 			Code: IMImageSendErrorSendFailed,

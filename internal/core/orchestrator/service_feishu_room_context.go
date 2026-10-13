@@ -25,7 +25,7 @@ func feishuRoomContextID(chatID string) string {
 }
 
 func surfaceFeishuRoomID(surface *state.SurfaceConsoleRecord) string {
-	if surface == nil || !surfaceIsFeishuChat(surface) {
+	if surface == nil || (!surfaceIsFeishuChat(surface) && !surfaceIsFeishuTopic(surface)) {
 		return ""
 	}
 	return feishuRoomContextID(surface.ChatID)
@@ -105,6 +105,9 @@ func (s *Service) preflightFeishuRoomWorkspaceChange(surface *state.SurfaceConso
 }
 
 func (s *Service) checkFeishuRoomWorkspaceChange(surface *state.SurfaceConsoleRecord, workspaceKey string, mutate bool) []eventcontract.Event {
+	if surfaceIsFeishuTopic(surface) {
+		return nil
+	}
 	room := s.ensureFeishuRoomContextForSurface(surface)
 	if room == nil {
 		return nil
@@ -130,6 +133,9 @@ func (s *Service) checkFeishuRoomWorkspaceChange(surface *state.SurfaceConsoleRe
 }
 
 func (s *Service) detachWorkspace(surface *state.SurfaceConsoleRecord) []eventcontract.Event {
+	if surfaceIsFeishuTopic(surface) {
+		return s.detach(surface)
+	}
 	room := s.ensureFeishuRoomContextForSurface(surface)
 	if room == nil {
 		return s.detach(surface)
@@ -153,6 +159,9 @@ func (s *Service) detachWorkspace(surface *state.SurfaceConsoleRecord) []eventco
 }
 
 func (s *Service) syncFeishuRoomWorkspaceBinding(surface *state.SurfaceConsoleRecord, workspaceKey string) {
+	if surfaceIsFeishuTopic(surface) {
+		return
+	}
 	room := s.ensureFeishuRoomContextForSurface(surface)
 	if room == nil {
 		return
@@ -170,6 +179,9 @@ func (s *Service) syncFeishuRoomWorkspaceBinding(surface *state.SurfaceConsoleRe
 }
 
 func (s *Service) blockFeishuRoomNoWorkspaceDataPlane(surface *state.SurfaceConsoleRecord, action control.Action) []eventcontract.Event {
+	if surfaceIsFeishuTopic(surface) {
+		return nil
+	}
 	room := s.ensureFeishuRoomContextForSurface(surface)
 	if room == nil {
 		return nil
@@ -222,6 +234,9 @@ func feishuRoomActionRequiresWorkspace(action control.Action) bool {
 }
 
 func (s *Service) blockFeishuRoomNoWorkspaceAutoDispatch(surface *state.SurfaceConsoleRecord) []eventcontract.Event {
+	if surfaceIsFeishuTopic(surface) {
+		return nil
+	}
 	room := s.ensureFeishuRoomContextForSurface(surface)
 	if room == nil {
 		return nil
@@ -238,7 +253,7 @@ func roomWorkspaceRequiredNotice(surface *state.SurfaceConsoleRecord) []eventcon
 
 func (s *Service) blockUnsafeFeishuRoomWorkspaceReset(room *state.FeishuRoomContextRecord) string {
 	for _, surface := range s.feishuRoomSurfaces(room.RoomID) {
-		if surface == nil {
+		if surface == nil || surfaceIsFeishuTopic(surface) {
 			continue
 		}
 		if surface.PendingHeadless != nil {
@@ -266,6 +281,9 @@ func (s *Service) blockUnsafeFeishuRoomWorkspaceReset(room *state.FeishuRoomCont
 }
 
 func (s *Service) blockFeishuRoomActiveDispatch(surface *state.SurfaceConsoleRecord) []eventcontract.Event {
+	if surfaceIsFeishuTopic(surface) {
+		return nil
+	}
 	room := s.ensureFeishuRoomContextForSurface(surface)
 	if room == nil {
 		return nil
@@ -285,6 +303,9 @@ func (s *Service) sameRoomWorkspaceIndependentContextAllowed(surface *state.Surf
 		return false
 	}
 	workspaceKey = normalizeWorkspaceClaimKey(workspaceKey)
+	if surfaceIsFeishuTopic(surface) {
+		return workspaceKey != "" && !surface.FeishuTopicClosed
+	}
 	if workspaceKey == "" || normalizeWorkspaceClaimKey(room.WorkspaceKey) != workspaceKey {
 		return false
 	}
@@ -624,6 +645,9 @@ func (s *Service) ReleaseFeishuRoomGroupOnDemandReservation(surfaceID string) {
 }
 
 func (s *Service) reserveFeishuRoomGroupOnDemandSlot(surface *state.SurfaceConsoleRecord) (bool, []eventcontract.Event) {
+	if surfaceIsFeishuTopic(surface) {
+		return true, nil
+	}
 	if surface == nil || !surfaceIsFeishuChat(surface) {
 		return true, nil
 	}
@@ -648,10 +672,14 @@ func activeQueueItem(surface *state.SurfaceConsoleRecord) *state.QueueItemRecord
 
 func (s *Service) resetFeishuRoomWorkspaceSurfaces(room *state.FeishuRoomContextRecord, keep *state.SurfaceConsoleRecord) {
 	if room != nil {
-		room.ActiveReservations = map[string]*state.FeishuRoomActiveReservationRecord{}
+		for id, reservation := range room.ActiveReservations {
+			if reservation == nil || !surfaceIsFeishuTopic(s.root.Surfaces[reservation.SurfaceSessionID]) {
+				delete(room.ActiveReservations, id)
+			}
+		}
 	}
 	for _, surface := range s.feishuRoomSurfaces(room.RoomID) {
-		if surface == nil || surface == keep {
+		if surface == nil || surface == keep || surfaceIsFeishuTopic(surface) {
 			continue
 		}
 		_ = s.finalizeDetachedSurface(surface)

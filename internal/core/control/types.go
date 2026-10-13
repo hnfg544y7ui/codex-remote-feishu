@@ -31,6 +31,7 @@ const (
 	ActionShowHistory                 ActionKind = "surface.command.history"
 	ActionPrimaryCommand              ActionKind = "surface.command.primary"
 	ActionCoworkersCommand            ActionKind = "surface.command.coworkers"
+	ActionTopicCommand                ActionKind = "surface.command.topic"
 	ActionReviewCommand               ActionKind = "surface.command.review"
 	ActionDebugCommand                ActionKind = "surface.command.debug"
 	ActionCronCommand                 ActionKind = "surface.command.cron"
@@ -132,47 +133,50 @@ type ActionFileAttachment struct {
 }
 
 type Action struct {
-	Kind                ActionKind
-	GatewayID           string
-	SurfaceSessionID    string
-	ChatID              string
-	ActorUserID         string
-	MessageID           string
-	Text                string
-	Inputs              []agentproto.Input
-	SteerInputs         []agentproto.Input
-	Files               []ActionFileAttachment
-	RequestAnswers      map[string][]string
-	OptionID            string
-	Request             *ActionRequestResponse
-	RequestControl      *ActionRequestControl
-	OwnerFlow           *ActionOwnerCardFlow
-	LocalPageAction     bool
-	CatalogFamilyID     string
-	CatalogVariantID    string
-	CatalogBackend      agentproto.Backend
-	CommandID           string
-	NaturalGoal         *GoalIntent `json:"natural_goal,omitempty"`
-	ParentCommandText   string
-	InstanceID          string
-	WorkspaceKey        string
-	ThreadID            string
-	TurnID              string
-	ViewMode            string
-	Page                int
-	ReturnPage          int
-	Cursor              int
-	PickerID            string
-	FieldName           string
-	PickerEntry         string
-	TargetPickerValue   string
-	AllowCrossWorkspace bool
-	LocalPath           string
-	FileName            string
-	MIMEType            string
-	ReactionType        string
-	TargetMessageID     string
-	Inbound             *ActionInboundMeta
+	Kind                     ActionKind
+	GatewayID                string
+	SurfaceSessionID         string
+	ChatID                   string
+	ActorUserID              string
+	MessageID                string
+	Text                     string
+	Value                    string
+	Inputs                   []agentproto.Input
+	SteerInputs              []agentproto.Input
+	Files                    []ActionFileAttachment
+	RequestAnswers           map[string][]string
+	OptionID                 string
+	Request                  *ActionRequestResponse
+	RequestControl           *ActionRequestControl
+	OwnerFlow                *ActionOwnerCardFlow
+	LocalPageAction          bool
+	CatalogFamilyID          string
+	CatalogVariantID         string
+	CatalogBackend           agentproto.Backend
+	CommandID                string
+	NaturalGoal              *GoalIntent `json:"natural_goal,omitempty"`
+	ParentCommandText        string
+	InstanceID               string
+	WorkspaceKey             string
+	ThreadID                 string
+	TurnID                   string
+	ViewMode                 string
+	Page                     int
+	ReturnPage               int
+	Cursor                   int
+	PickerID                 string
+	FieldName                string
+	PickerEntry              string
+	TargetPickerValue        string
+	AllowCrossWorkspace      bool
+	LocalPath                string
+	FileName                 string
+	MIMEType                 string
+	ReactionType             string
+	TargetMessageID          string
+	FeishuTopicID            string
+	FeishuTopicRootMessageID string
+	Inbound                  *ActionInboundMeta
 }
 
 type SelectionPromptKind string

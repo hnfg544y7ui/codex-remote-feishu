@@ -21,6 +21,9 @@ func (s *Service) useThreadPreservingTargetPicker(surface *state.SurfaceConsoleR
 
 func (s *Service) useThreadWithOverlayCleanup(surface *state.SurfaceConsoleRecord, threadID string, allowCrossWorkspace bool, cleanup surfaceOverlayRouteCleanupOptions) []eventcontract.Event {
 	threadID = strings.TrimSpace(threadID)
+	if surfaceIsFeishuTopic(surface) && surface.FeishuTopicBoundThreadID != "" && surface.FeishuTopicBoundThreadID != threadID {
+		return topicPinnedNotice(surface)
+	}
 	target := s.resolveThreadTargetWithScope(surface, threadID, allowCrossWorkspace)
 	return s.executeResolvedThreadTargetWithOverlayCleanup(surface, threadID, target, cleanup)
 }

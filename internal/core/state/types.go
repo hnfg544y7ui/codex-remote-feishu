@@ -310,11 +310,19 @@ type ThreadReplayRecord struct {
 }
 
 type SurfaceConsoleRecord struct {
-	SurfaceSessionID string
-	Platform         string
-	GatewayID        string
-	ChatID           string
-	ActorUserID      string
+	SurfaceSessionID         string
+	Platform                 string
+	GatewayID                string
+	ChatID                   string
+	ActorUserID              string
+	FeishuTopicID            string
+	FeishuTopicRootMessageID string
+	FeishuTopicTitle         string
+	FeishuTopicOwnerID       string
+	FeishuTopicBoundThreadID string
+	FeishuTopicMessageURL    string
+	FeishuTopicMessageIDs    []string
+	FeishuTopicClosed        bool
 	// ProductMode carries the outer runtime shape: headless vs vscode.
 	// Backend carries the inner provider choice inside that shape.
 	ProductMode             ProductMode

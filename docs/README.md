@@ -1,8 +1,8 @@
 # Documentation Index
 
 > Type: `general`
-> Updated: `2026-10-12`
-> Summary: 增加自然语言 Goal 的用法、卡片上下文与互锁恢复权限说明索引。
+> Updated: `2026-10-13`
+> Summary: 增加飞书群话题多会话用法，以及固定绑定、并发和恢复边界索引。
 
 ## 1. 适用范围
 
@@ -159,6 +159,7 @@
 
 ### 6.2 `implemented`
 
+- [feishu-topic-sessions.md](./implemented/feishu-topic-sessions.md)
 - [natural-language-goal.md](./implemented/natural-language-goal.md)
 - [desktop-project-picker.md](./implemented/desktop-project-picker.md)
 - [cron-bitable-scheduler-design.md](./implemented/cron-bitable-scheduler-design.md)

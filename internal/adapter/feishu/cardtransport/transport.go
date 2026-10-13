@@ -37,6 +37,7 @@ func InteractiveMessageContentSize(content string) (int, error) {
 			Content(content).
 			Build(),
 		larkim.NewReplyMessageReqBodyBuilder().
+			ReplyInThread(true).
 			MsgType("interactive").
 			Content(content).
 			Build(),

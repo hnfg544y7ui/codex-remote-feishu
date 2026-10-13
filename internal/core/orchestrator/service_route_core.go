@@ -51,6 +51,9 @@ func (s *Service) surfaceCurrentWorkspaceKeyRaw(surface *state.SurfaceConsoleRec
 }
 
 func (s *Service) transitionSurfaceRouteCore(surface *state.SurfaceConsoleRecord, inst *state.InstanceRecord, next surfaceRouteCoreState) bool {
+	if surfaceIsFeishuTopic(surface) && surface.FeishuTopicBoundThreadID != "" && (next.SelectedThreadID != "" && next.SelectedThreadID != surface.FeishuTopicBoundThreadID || next.RouteMode == state.RouteModeNewThreadReady) {
+		return false
+	}
 	next, inst, ok := s.normalizeSurfaceRouteCoreState(surface, inst, next)
 	if !ok || !s.canTransitionSurfaceRouteCore(surface, inst, next) {
 		return false

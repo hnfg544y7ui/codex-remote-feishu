@@ -468,7 +468,7 @@ func (s *Service) stageFile(surface *state.SurfaceConsoleRecord, action control.
 }
 
 func (s *Service) prepareFeishuRoomWorkspaceForDetachedInput(surface *state.SurfaceConsoleRecord) ([]eventcontract.Event, *state.InstanceRecord, bool) {
-	if surface == nil || !s.surfaceIsHeadless(surface) || surfaceFeishuRoomID(surface) == "" {
+	if surface == nil || surfaceIsFeishuTopic(surface) || !s.surfaceIsHeadless(surface) || surfaceFeishuRoomID(surface) == "" {
 		return nil, nil, false
 	}
 	if blocked := s.blockFeishuRoomActiveDispatch(surface); blocked != nil {

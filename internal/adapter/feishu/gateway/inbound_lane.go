@@ -46,6 +46,7 @@ type QueuedMessageWork struct {
 	content         string
 	parentMessageID string
 	rootMessageID   string
+	feishuTopicID   string
 	inbound         *control.ActionInboundMeta
 	text            string
 	imageKey        string
@@ -263,12 +264,14 @@ func (w *QueuedMessageWork) parseAction(ctx context.Context, env InboundEnv) (co
 	}
 	message := w.eventMessage()
 	action := control.Action{
-		GatewayID:        w.gatewayID,
-		SurfaceSessionID: w.surfaceID,
-		ChatID:           w.chatID,
-		ActorUserID:      w.actorUserID,
-		MessageID:        w.messageID,
-		Inbound:          cloneInboundMeta(w.inbound),
+		GatewayID:                w.gatewayID,
+		SurfaceSessionID:         w.surfaceID,
+		FeishuTopicID:            w.feishuTopicID,
+		FeishuTopicRootMessageID: w.rootMessageID,
+		ChatID:                   w.chatID,
+		ActorUserID:              w.actorUserID,
+		MessageID:                w.messageID,
+		Inbound:                  cloneInboundMeta(w.inbound),
 	}
 	replyTargetMessageID := ReferencedMessageID(message)
 	if replyTargetMessageID != "" {
@@ -357,6 +360,9 @@ func (w *QueuedMessageWork) eventMessage() *larkim.EventMessage {
 	}
 	if w.rootMessageID != "" {
 		message.RootId = stringValueRef(w.rootMessageID)
+	}
+	if w.feishuTopicID != "" {
+		message.ThreadId = stringValueRef(w.feishuTopicID)
 	}
 	if w.chatID != "" {
 		message.ChatId = stringValueRef(w.chatID)
@@ -449,7 +455,11 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 	chatType := xutil.StringValue(message.ChatType)
 	senderUserID := userIDFromMessage(event.Event.Sender)
 	gatewayID := strings.TrimSpace(env.GatewayID)
-	surfaceSessionID := SurfaceIDForInbound(gatewayID, chatID, chatType, senderUserID)
+	surfaceSessionID, nativeTopicID, topicRootID, routeErr := resolveInboundTopicSurface(env, message, senderUserID)
+	if routeErr != nil {
+		return PlannedInboundMessage{}, false, routeErr
+	}
+
 	inbound := InboundMetaFromMessageEvent(event)
 	if reason := groupMessageMentionGateReason(env, message, senderTypeFromMessageSender(event.Event.Sender)); reason != "" {
 		logInboundMessageIgnored(gatewayID, surfaceSessionID, inbound, message, reason)
@@ -460,12 +470,14 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 	content := xutil.StringValue(message.Content)
 
 	baseAction := control.Action{
-		GatewayID:        gatewayID,
-		SurfaceSessionID: surfaceSessionID,
-		ChatID:           chatID,
-		ActorUserID:      senderUserID,
-		MessageID:        messageID,
-		Inbound:          cloneInboundMeta(inbound),
+		GatewayID:                gatewayID,
+		SurfaceSessionID:         surfaceSessionID,
+		ChatID:                   chatID,
+		ActorUserID:              senderUserID,
+		MessageID:                messageID,
+		Inbound:                  cloneInboundMeta(inbound),
+		FeishuTopicID:            nativeTopicID,
+		FeishuTopicRootMessageID: topicRootID,
 	}
 	if replyTargetMessageID := ReferencedMessageID(message); replyTargetMessageID != "" {
 		baseAction.TargetMessageID = replyTargetMessageID
@@ -492,6 +504,8 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 				commandAction.MessageID = baseAction.MessageID
 				commandAction.TargetMessageID = baseAction.TargetMessageID
 				commandAction.Inbound = cloneInboundMeta(inbound)
+				commandAction.FeishuTopicID = baseAction.FeishuTopicID
+				commandAction.FeishuTopicRootMessageID = baseAction.FeishuTopicRootMessageID
 				return PlannedInboundMessage{Action: &commandAction}, true, nil
 			}
 		}
@@ -504,6 +518,8 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 			commandAction.MessageID = baseAction.MessageID
 			commandAction.TargetMessageID = baseAction.TargetMessageID
 			commandAction.Inbound = cloneInboundMeta(inbound)
+			commandAction.FeishuTopicID = baseAction.FeishuTopicID
+			commandAction.FeishuTopicRootMessageID = baseAction.FeishuTopicRootMessageID
 			return PlannedInboundMessage{Action: &commandAction}, true, nil
 		}
 		if goalAction, handled := parseNaturalGoalInboundAction(commandText, baseAction); handled {
@@ -520,7 +536,8 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 				messageType:     messageType,
 				content:         content,
 				parentMessageID: strings.TrimSpace(xutil.StringValue(message.ParentId)),
-				rootMessageID:   strings.TrimSpace(xutil.StringValue(message.RootId)),
+				rootMessageID:   topicRootID,
+				feishuTopicID:   nativeTopicID,
 				inbound:         cloneInboundMeta(inbound),
 				text:            text,
 			},
@@ -542,7 +559,8 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 				messageType:     messageType,
 				content:         content,
 				parentMessageID: strings.TrimSpace(xutil.StringValue(message.ParentId)),
-				rootMessageID:   strings.TrimSpace(xutil.StringValue(message.RootId)),
+				rootMessageID:   topicRootID,
+				feishuTopicID:   nativeTopicID,
 				inbound:         cloneInboundMeta(inbound),
 			},
 		}, true, nil
@@ -563,7 +581,8 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 				messageType:     messageType,
 				content:         content,
 				parentMessageID: strings.TrimSpace(xutil.StringValue(message.ParentId)),
-				rootMessageID:   strings.TrimSpace(xutil.StringValue(message.RootId)),
+				rootMessageID:   topicRootID,
+				feishuTopicID:   nativeTopicID,
 				inbound:         cloneInboundMeta(inbound),
 				imageKey:        imageKey,
 			},
@@ -585,7 +604,8 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 				messageType:     messageType,
 				content:         content,
 				parentMessageID: strings.TrimSpace(xutil.StringValue(message.ParentId)),
-				rootMessageID:   strings.TrimSpace(xutil.StringValue(message.RootId)),
+				rootMessageID:   topicRootID,
+				feishuTopicID:   nativeTopicID,
 				inbound:         cloneInboundMeta(inbound),
 				fileKey:         fileKey,
 				fileName:        fileName,
@@ -603,7 +623,8 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 				messageType:     messageType,
 				content:         content,
 				parentMessageID: strings.TrimSpace(xutil.StringValue(message.ParentId)),
-				rootMessageID:   strings.TrimSpace(xutil.StringValue(message.RootId)),
+				rootMessageID:   topicRootID,
+				feishuTopicID:   nativeTopicID,
 				inbound:         cloneInboundMeta(inbound),
 			},
 		}, true, nil

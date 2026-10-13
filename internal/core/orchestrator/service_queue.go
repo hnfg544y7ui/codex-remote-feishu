@@ -327,6 +327,9 @@ func (s *Service) dispatchNext(surface *state.SurfaceConsoleRecord) []eventcontr
 }
 
 func (s *Service) dispatchNextWithOptions(surface *state.SurfaceConsoleRecord, opts dispatchNextOptions) []eventcontract.Event {
+	if surfaceIsFeishuTopic(surface) && surface.FeishuTopicClosed {
+		return nil
+	}
 	if blocked, ok := s.invalidBotCapabilitySettingsDispatchGate(surface); ok {
 		return blocked
 	}
@@ -348,6 +351,32 @@ func (s *Service) dispatchNextWithOptions(surface *state.SurfaceConsoleRecord, o
 	if item == nil || item.Status != state.QueueItemQueued {
 		surface.QueuedQueueItemIDs = surface.QueuedQueueItemIDs[1:]
 		return nil
+	}
+	if surfaceIsFeishuTopic(surface) && strings.TrimSpace(surface.FeishuTopicBoundThreadID) != "" {
+		bound := strings.TrimSpace(surface.FeishuTopicBoundThreadID)
+		plan := queuedItemPromptDispatchPlan(item)
+		helperNeedsNewTarget := (plan.InternalHelper || plan.Purpose == agentproto.PromptPurposeReview) &&
+			(plan.ExecutionMode != agentproto.PromptExecutionModeResumeExisting || plan.ExecutionThreadID == "")
+		scheduledNeedsNewTarget := item.ScheduledRunID != "" && plan.ExecutionMode == agentproto.PromptExecutionModeStartNew
+		if (plan.ExecutionThreadID != "" && plan.ExecutionThreadID != bound) ||
+			(plan.SourceThreadID != "" && plan.SourceThreadID != bound) || helperNeedsNewTarget || scheduledNeedsNewTarget ||
+			plan.ExecutionMode == agentproto.PromptExecutionModeStartEphemeral || plan.ExecutionMode == agentproto.PromptExecutionModeForkEphemeral {
+			// Never silently retarget an explicitly frozen conversation.
+			surface.QueuedQueueItemIDs = surface.QueuedQueueItemIDs[1:]
+			item.Status, item.TerminalCause = state.QueueItemFailed, "dispatch_failed"
+			item.ResultError = "topic_bound_thread_mismatch"
+			item.ResultThreadID = queuedItemExecutionThreadID(item)
+			return notice(surface, "topic_queue_target_mismatch", "这条排队消息的目标与话题固定会话不一致，未发送。请重新确认话题后发送。")
+		}
+		if plan.ExecutionMode == agentproto.PromptExecutionModeStartNew ||
+			(plan.ExecutionMode == agentproto.PromptExecutionModeResumeExisting && plan.ExecutionThreadID == "") {
+			// Multiple messages can have been frozen before the initial native
+			// thread was committed. Later messages must continue that first thread.
+			plan.ExecutionMode = agentproto.PromptExecutionModeResumeExisting
+			plan.ExecutionThreadID = bound
+			item.FrozenDispatchPlan = agentproto.NormalizePromptDispatchPlan(plan)
+			item.RouteModeAtEnqueue = state.RouteModePinned
+		}
 	}
 	if reason := s.scheduledQueueDispatchWaitReason(surface, inst, item); reason != "" {
 		if reason == "scheduled_instance_changed" || reason == "scheduled_workspace_changed" {
@@ -376,6 +405,9 @@ func (s *Service) dispatchNextWithOptions(surface *state.SurfaceConsoleRecord, o
 		return nil
 	}
 	if !s.reserveFeishuRoomActiveSlotForQueueItem(surface, item, "headless_prompt_dispatch") {
+		if surfaceIsFeishuTopic(surface) {
+			return nil
+		}
 		return notice(surface, "room_workspace_active", "当前群内已有机器人正在处理这个 workspace，请等待完成后再发送。")
 	}
 	if events, restarting := s.maybeRestartClaudeHeadlessForPrompt(surface, inst, item.FrozenOverride, queueItemFrozenCWD(item)); restarting {

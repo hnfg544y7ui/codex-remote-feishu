@@ -22,6 +22,14 @@ type Entry struct {
 	GatewayID                   string                      `json:"gatewayID,omitempty"`
 	ChatID                      string                      `json:"chatID,omitempty"`
 	ActorUserID                 string                      `json:"actorUserID,omitempty"`
+	FeishuTopicID               string                      `json:"feishuTopicID,omitempty"`
+	FeishuTopicRootMessageID    string                      `json:"feishuTopicRootMessageID,omitempty"`
+	FeishuTopicTitle            string                      `json:"feishuTopicTitle,omitempty"`
+	FeishuTopicOwnerID          string                      `json:"feishuTopicOwnerID,omitempty"`
+	FeishuTopicBoundThreadID    string                      `json:"feishuTopicBoundThreadID,omitempty"`
+	FeishuTopicMessageURL       string                      `json:"feishuTopicMessageURL,omitempty"`
+	FeishuTopicMessageIDs       []string                    `json:"feishuTopicMessageIDs,omitempty"`
+	FeishuTopicClosed           bool                        `json:"feishuTopicClosed,omitempty"`
 	ProductMode                 string                      `json:"productMode,omitempty"`
 	Backend                     string                      `json:"backend,omitempty"`
 	LegacyCodexProviderID       string                      `json:"codexProviderID,omitempty"`
@@ -54,6 +62,7 @@ func NewStore(path string) *Store {
 		Version:       StateVersion,
 		Name:          "surface resume state",
 		Equal:         sameEntryContentIncludingUpdatedAt,
+		Clone:         cloneEntry,
 		LoadNormalize: func(entry Entry) (Entry, bool) { return NormalizeEntry(entry) },
 		LoadKey:       func(entry Entry) string { return entry.SurfaceSessionID },
 		LoadEqual:     SameEntryContent,
@@ -66,6 +75,7 @@ func LoadStore(path string) (*Store, error) {
 		Version:       StateVersion,
 		Name:          "surface resume state",
 		Equal:         sameEntryContentIncludingUpdatedAt,
+		Clone:         cloneEntry,
 		LoadNormalize: func(entry Entry) (Entry, bool) { return NormalizeEntry(entry) },
 		LoadKey:       func(entry Entry) string { return entry.SurfaceSessionID },
 		LoadEqual:     SameEntryContent,
@@ -94,6 +104,9 @@ func (s *Store) Put(entry Entry) error {
 		return fmt.Errorf("surface resume entry requires surface id")
 	}
 	entries := s.Entries()
+	if previous, exists := entries[normalized.SurfaceSessionID]; exists && !sameTopicBinding(previous, normalized) {
+		return fmt.Errorf("topic identity or established binding cannot change")
+	}
 	entries[normalized.SurfaceSessionID] = normalized
 	if canonical, changed := CanonicalizeEntries(entries); changed {
 		entries = canonical
@@ -119,6 +132,9 @@ func (s *Store) ReplaceAll(entries map[string]Entry) error {
 		normalized, ok := NormalizeEntry(entry)
 		if !ok {
 			return fmt.Errorf("surface resume entry requires surface id")
+		}
+		if previous, exists := s.Get(normalized.SurfaceSessionID); exists && !sameTopicBinding(previous, normalized) {
+			return fmt.Errorf("topic identity or established binding cannot change")
 		}
 		normalizedEntries[normalized.SurfaceSessionID] = normalized
 	}
@@ -172,6 +188,11 @@ func NormalizeEntry(entry Entry) (Entry, bool) {
 	}
 	entry.ResumeInstanceID = strings.TrimSpace(entry.ResumeInstanceID)
 	entry.ResumeThreadID = strings.TrimSpace(entry.ResumeThreadID)
+	var validTopic bool
+	entry, validTopic = normalizeTopicEntry(entry)
+	if !validTopic {
+		return Entry{}, false
+	}
 	entry.ResumeThreadCWD = state.ResolveWorkspaceClaimKey(entry.ResumeThreadCWD)
 	entry.ResumeWorkspaceKey = state.ResolveWorkspaceClaimKey(entry.ResumeWorkspaceKey)
 	entry.ResumeThreadTitle = threadtitle.NormalizeStoredInput(entry.ResumeThreadTitle, threadtitle.Context{
@@ -199,7 +220,7 @@ func NormalizeEntry(entry Entry) (Entry, bool) {
 }
 
 func SameEntryContent(left, right Entry) bool {
-	return strings.TrimSpace(left.SurfaceSessionID) == strings.TrimSpace(right.SurfaceSessionID) &&
+	return sameTopicEntry(left, right) && strings.TrimSpace(left.SurfaceSessionID) == strings.TrimSpace(right.SurfaceSessionID) &&
 		strings.TrimSpace(left.GatewayID) == strings.TrimSpace(right.GatewayID) &&
 		strings.TrimSpace(left.ChatID) == strings.TrimSpace(right.ChatID) &&
 		strings.TrimSpace(left.ActorUserID) == strings.TrimSpace(right.ActorUserID) &&

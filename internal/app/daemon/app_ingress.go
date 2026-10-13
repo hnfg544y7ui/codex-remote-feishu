@@ -299,6 +299,23 @@ func (a *App) handleActionLocked(ctx context.Context, action control.Action, opt
 		previousCoworkersLimit = a.service.FeishuRoomConcurrencyLimit(action.SurfaceSessionID)
 	}
 	events := a.applyIngressActionLocked(action)
+	topicTargets := map[string]bool{action.SurfaceSessionID: true}
+	for _, event := range events {
+		topicTargets[event.SurfaceSessionID] = true
+	}
+	for surfaceID := range topicTargets {
+		surface := a.topicSurfaceLocked(surfaceID)
+		if surface == nil || surface.FeishuTopicOwnerID == "" {
+			continue
+		}
+		if err := a.persistTopicSurfaceLocked(surface); err != nil {
+			surface.FeishuTopicClosed = true
+			a.service.RejectTopicUnsentDispatch(surfaceID)
+			log.Printf("topic persistence refused dispatch: %v", err)
+			return nil
+		}
+	}
+
 	clearTargets := a.surfaceResumeClearTargetsForActionLocked(action, before, events)
 	// Persist detach clearing before dispatching events: daemon/agent dispatch can
 	// release the app lock and allow a recovery tick to run concurrently.

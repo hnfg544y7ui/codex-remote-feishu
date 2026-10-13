@@ -10,7 +10,7 @@ import (
 )
 
 func surfaceResumeEntryAllowsBackgroundRecovery(entry surfaceresume.Entry) bool {
-	return !surfaceResumeEntryIsFeishuGroup(entry)
+	return !entry.FeishuTopicClosed && !surfaceResumeEntryIsFeishuGroup(entry)
 }
 
 func surfaceAllowsDaemonLifecycleNotice(surface *state.SurfaceConsoleRecord) bool {
@@ -18,7 +18,7 @@ func surfaceAllowsDaemonLifecycleNotice(surface *state.SurfaceConsoleRecord) boo
 }
 
 func surfaceResumeEntryAllowsOnDemandRecovery(entry surfaceresume.Entry, action control.Action) bool {
-	return surfaceResumeEntryIsFeishuGroup(entry) &&
+	return !entry.FeishuTopicClosed && surfaceResumeEntryIsFeishuGroup(entry) &&
 		action.Kind == control.ActionTextMessage &&
 		strings.TrimSpace(action.SurfaceSessionID) == strings.TrimSpace(entry.SurfaceSessionID)
 }
@@ -35,6 +35,11 @@ func surfaceIDFromSurface(surface *state.SurfaceConsoleRecord) string {
 }
 
 func surfaceIsFeishuGroup(surfaceID string) bool {
+	ref, ok := feishuidentity.ParseSurfaceRef(surfaceID)
+	return ok && ref.IsGroup()
+}
+
+func surfaceIsFeishuRoom(surfaceID string) bool {
 	ref, ok := feishuidentity.ParseSurfaceRef(surfaceID)
 	return ok && ref.IsChat()
 }

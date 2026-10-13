@@ -115,5 +115,8 @@ func NormalizeFeishuMenuEventKey(value string) string {
 
 func parsedFeishuCommandAction(spec feishuCommandSpec, action Action) Action {
 	action.CommandID = strings.TrimSpace(spec.definition.ID)
+	if action.CommandID == FeishuCommandTopic {
+		action.Value = normalizeTopicCommandArgument(strings.TrimSpace(action.Text))
+	}
 	return action
 }

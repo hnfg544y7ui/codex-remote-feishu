@@ -95,7 +95,7 @@ func (g *LiveGateway) SendIMVideo(ctx context.Context, req IMVideoSendRequest) (
 	}
 
 	body, _ := json.Marshal(map[string]string{"file_key": fileKey})
-	resp, err := g.createMessageFn(ctx, receiveIDType, receiveID, "media", string(body))
+	resp, err := g.sendSurfaceMedia(ctx, req.SurfaceSessionID, req.ChatID, receiveIDType, receiveID, "media", string(body))
 	if err != nil {
 		return result, &IMVideoSendError{
 			Code: IMVideoSendErrorSendFailed,

@@ -316,7 +316,17 @@ func (s *Service) SetPrimaryBotPermissionChecker(checker PrimaryBotPermissionChe
 }
 
 func (s *Service) ApplySurfaceAction(action control.Action) []eventcontract.Event {
+	// Authenticate known topic actions before ensureSurface can change the
+	// current actor or project shared settings onto the surface.
+	if existing := s.root.Surfaces[action.SurfaceSessionID]; surfaceIsFeishuTopic(existing) {
+		if blocked := s.blockTopicAction(existing, action); blocked != nil {
+			return blocked
+		}
+	}
 	surface := s.ensureSurface(action)
+	if blocked := s.blockTopicAction(surface, action); blocked != nil {
+		return blocked
+	}
 	if blocked := s.rejectInvalidBotCapabilitySettings(surface, action); blocked != nil {
 		return s.filterEventsForSurfaceVisibility(blocked)
 	}
@@ -436,6 +446,8 @@ func (s *Service) ApplySurfaceAction(action control.Action) []eventcontract.Even
 		events = s.openThreadHistory(surface, action.MessageID, action.IsCardAction())
 	case control.ActionPrimaryCommand:
 		events = s.handlePrimaryCommand(surface, action)
+	case control.ActionTopicCommand:
+		events = s.handleTopicCommand(surface, action)
 	case control.ActionCoworkersCommand:
 		events = s.handleCoworkersCommand(surface, action)
 	case control.ActionUpgradeOwnerFlow:

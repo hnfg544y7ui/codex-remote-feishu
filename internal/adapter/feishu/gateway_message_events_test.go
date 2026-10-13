@@ -834,6 +834,7 @@ func TestParseMessageEventBuildsFileAction(t *testing.T) {
 				ChatId:      stringRef("oc_chat"),
 				ChatType:    stringRef("group"),
 				ThreadId:    stringRef("omt-thread-1"),
+				RootId:      stringRef("om-topic-root-1"),
 				MessageType: stringRef("file"),
 				Content:     stringRef(`{"file_key":"file-key-1","file_name":"notes.txt"}`),
 			},
@@ -846,6 +847,9 @@ func TestParseMessageEventBuildsFileAction(t *testing.T) {
 	}
 	if !ok || action.Kind != control.ActionFileMessage {
 		t.Fatalf("expected file message action, got ok=%v action=%#v", ok, action)
+	}
+	if action.SurfaceSessionID != "feishu:app-1:topic:oc_chat~om-topic-root-1" || action.FeishuTopicID != "omt-thread-1" {
+		t.Fatalf("file topic routing metadata missing: %#v", action)
 	}
 	if action.LocalPath != "/tmp/notes.txt" || action.FileName != "notes.txt" {
 		t.Fatalf("unexpected file action payload: %#v", action)

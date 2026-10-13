@@ -565,6 +565,7 @@ func TestResolveFeishuFrontstageActionContractLauncherDisposition(t *testing.T) 
 		{name: "help enters terminal", kind: ActionShowCommandHelp, want: FeishuFrontstageLauncherEnterTerminal},
 		{name: "status enters terminal", kind: ActionStatus, want: FeishuFrontstageLauncherEnterTerminal},
 		{name: "coworkers enters terminal", kind: ActionCoworkersCommand, want: FeishuFrontstageLauncherEnterTerminal},
+		{name: "topic enters terminal", kind: ActionTopicCommand, want: FeishuFrontstageLauncherEnterTerminal},
 		{name: "stop enters owner", kind: ActionStop, want: FeishuFrontstageLauncherEnterOwner},
 		{name: "rename enters owner", kind: ActionRenameCommand, want: FeishuFrontstageLauncherEnterOwner},
 		{name: "new enters owner", kind: ActionNewThread, want: FeishuFrontstageLauncherEnterOwner},

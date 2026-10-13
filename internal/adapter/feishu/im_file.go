@@ -97,7 +97,7 @@ func (g *LiveGateway) SendIMFile(ctx context.Context, req IMFileSendRequest) (IM
 		}
 	}
 	body, _ := json.Marshal(map[string]string{"file_key": fileKey})
-	resp, err := g.createMessageFn(ctx, receiveIDType, receiveID, "file", string(body))
+	resp, err := g.sendSurfaceMedia(ctx, req.SurfaceSessionID, req.ChatID, receiveIDType, receiveID, "file", string(body))
 	if err != nil {
 		return result, &IMFileSendError{
 			Code: IMFileSendErrorSendFailed,

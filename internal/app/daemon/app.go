@@ -96,6 +96,7 @@ type vscodeCompatibilityCacheState struct {
 }
 
 type App struct {
+	topicRoutes         topicRoutingIndex
 	service             *orchestrator.Service
 	projector           *feishu.Projector
 	gateway             feishu.Gateway

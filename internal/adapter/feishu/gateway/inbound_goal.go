@@ -17,6 +17,8 @@ func parseNaturalGoalInboundAction(text string, base control.Action) (control.Ac
 	action.GatewayID = base.GatewayID
 	action.SurfaceSessionID = base.SurfaceSessionID
 	action.ChatID = base.ChatID
+	action.FeishuTopicID = base.FeishuTopicID
+	action.FeishuTopicRootMessageID = base.FeishuTopicRootMessageID
 	action.ActorUserID = base.ActorUserID
 	action.MessageID = base.MessageID
 	action.TargetMessageID = base.TargetMessageID

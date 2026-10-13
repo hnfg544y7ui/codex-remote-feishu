@@ -77,10 +77,10 @@ const (
 func (s *Service) ensureSurface(action control.Action) *state.SurfaceConsoleRecord {
 	surface := s.root.Surfaces[action.SurfaceSessionID]
 	if surface != nil {
-		if action.GatewayID != "" {
+		if !surfaceIsFeishuTopic(surface) && action.GatewayID != "" {
 			surface.GatewayID = action.GatewayID
 		}
-		if action.ChatID != "" {
+		if !surfaceIsFeishuTopic(surface) && action.ChatID != "" {
 			surface.ChatID = action.ChatID
 		}
 		if action.ActorUserID != "" {

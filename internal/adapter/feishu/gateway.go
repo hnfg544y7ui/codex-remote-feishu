@@ -29,14 +29,16 @@ func (NopGateway) Start(context.Context, ActionHandler) error { return nil }
 func (NopGateway) Apply(context.Context, []Operation) error   { return nil }
 
 type LiveGatewayConfig struct {
-	GatewayID             string
-	AppID                 string
-	AppSecret             string
-	BotOpenID             string
-	Domain                string
-	TempDir               string
-	UseSystemProxy        bool
-	PrimaryGatewayForChat func(chatID string) string
+	GatewayID                 string
+	AppID                     string
+	AppSecret                 string
+	BotOpenID                 string
+	Domain                    string
+	TempDir                   string
+	UseSystemProxy            bool
+	PrimaryGatewayForChat     func(chatID string) string
+	ResolveTopicSurface       func(chatID, nativeTopicID, rootMessageID string) string
+	LookupTopicMessageSurface func(messageID, chatID string) string
 }
 
 type LiveGateway struct {
@@ -44,19 +46,20 @@ type LiveGateway struct {
 	client *lark.Client
 	broker *FeishuCallBroker
 
-	downloadImageFn    func(context.Context, string, string) (string, string, error)
-	downloadFileFn     func(context.Context, string, string, string) (string, error)
-	uploadImagePathFn  func(context.Context, string) (string, error)
-	uploadImageBytesFn func(context.Context, []byte) (string, error)
-	uploadFilePathFn   func(context.Context, string) (string, string, error)
-	uploadVideoPathFn  func(context.Context, string) (string, string, error)
-	fetchMessageFn     func(context.Context, string) (*gatewayMessage, error)
-	createMessageFn    func(context.Context, string, string, string, string) (*larkim.CreateMessageResp, error)
-	replyMessageFn     func(context.Context, string, string, string) (*larkim.ReplyMessageResp, error)
-	patchMessageFn     func(context.Context, string, string) (*larkim.PatchMessageResp, error)
-	deleteMessageFn    func(context.Context, string) (*larkim.DeleteMessageResp, error)
-	createReactionFn   func(context.Context, string, string) (*larkim.CreateMessageReactionResp, error)
-	deleteReactionFn   func(context.Context, string, string) (*larkim.DeleteMessageReactionResp, error)
+	downloadImageFn     func(context.Context, string, string) (string, string, error)
+	downloadFileFn      func(context.Context, string, string, string) (string, error)
+	uploadImagePathFn   func(context.Context, string) (string, error)
+	uploadImageBytesFn  func(context.Context, []byte) (string, error)
+	uploadFilePathFn    func(context.Context, string) (string, string, error)
+	uploadVideoPathFn   func(context.Context, string) (string, string, error)
+	fetchMessageFn      func(context.Context, string) (*gatewayMessage, error)
+	createMessageFn     func(context.Context, string, string, string, string) (*larkim.CreateMessageResp, error)
+	replyMessageFn      func(context.Context, string, string, string) (*larkim.ReplyMessageResp, error)
+	replyTopicMessageFn func(context.Context, string, string, string) (*larkim.ReplyMessageResp, error)
+	patchMessageFn      func(context.Context, string, string) (*larkim.PatchMessageResp, error)
+	deleteMessageFn     func(context.Context, string) (*larkim.DeleteMessageResp, error)
+	createReactionFn    func(context.Context, string, string) (*larkim.CreateMessageReactionResp, error)
+	deleteReactionFn    func(context.Context, string, string) (*larkim.DeleteMessageReactionResp, error)
 
 	mu        sync.Mutex
 	stateHook func(GatewayState, error)
@@ -120,6 +123,7 @@ func NewLiveGateway(config LiveGatewayConfig) *LiveGateway {
 	gateway.fetchMessageFn = gateway.fetchMessage
 	gateway.createMessageFn = gateway.createMessage
 	gateway.replyMessageFn = gateway.replyMessage
+	gateway.replyTopicMessageFn = gateway.replyTopicMessage
 	gateway.patchMessageFn = gateway.patchMessage
 	gateway.deleteMessageFn = gateway.deleteMessage
 	gateway.createReactionFn = gateway.createReaction

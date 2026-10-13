@@ -9,6 +9,7 @@ import (
 	"github.com/kxn/codex-remote-feishu/internal/adapter/feishu"
 	previewpkg "github.com/kxn/codex-remote-feishu/internal/adapter/feishu/preview"
 	"github.com/kxn/codex-remote-feishu/internal/core/agentproto"
+	"github.com/kxn/codex-remote-feishu/internal/core/control"
 	"github.com/kxn/codex-remote-feishu/internal/core/eventcontract"
 	"github.com/kxn/codex-remote-feishu/internal/core/orchestrator"
 	"github.com/kxn/codex-remote-feishu/internal/core/render"
@@ -28,6 +29,18 @@ func (a *App) handleUIEventsLocked(ctx context.Context, events []eventcontract.E
 	for index, event := range events {
 		event = event.Normalized()
 		if event.DaemonCommand != nil {
+			if event.DaemonCommand.Kind == control.DaemonCommandStartHeadless {
+				if topic := a.topicSurfaceLocked(event.SurfaceSessionID); topic != nil {
+					if topic.FeishuTopicClosed || topic.FeishuTopicID == "" {
+						continue
+					}
+					if err := a.persistTopicSurfaceLocked(topic); err != nil {
+						topic.FeishuTopicClosed = true
+						log.Printf("topic launch refused: %v", err)
+						continue
+					}
+				}
+			}
 			a.mu.Unlock()
 			followup := a.handleDaemonCommand(*event.DaemonCommand)
 			a.mu.Lock()
@@ -35,6 +48,19 @@ func (a *App) handleUIEventsLocked(ctx context.Context, events []eventcontract.E
 			continue
 		}
 		if event.Command != nil {
+			if topic := a.topicSurfaceLocked(event.SurfaceSessionID); topic != nil {
+				if topic.FeishuTopicClosed || topic.FeishuTopicID == "" {
+					a.service.RejectTopicUnsentDispatch(event.SurfaceSessionID)
+					log.Printf("topic command refused: route is closed or not ready surface=%s", event.SurfaceSessionID)
+					continue
+				}
+				if err := a.persistTopicSurfaceLocked(topic); err != nil {
+					topic.FeishuTopicClosed = true
+					a.service.RejectTopicUnsentDispatch(event.SurfaceSessionID)
+					log.Printf("topic command refused: %v", err)
+					continue
+				}
+			}
 			if event.Command.CommandID == "" {
 				event.Command.CommandID = a.nextCommandID()
 			}
@@ -268,6 +294,19 @@ func (a *App) deliverUIEventWithContextMode(ctx context.Context, event eventcont
 			operations[i].ReceiveIDType = receiveIDType
 		}
 	}
+	if topic := a.topicSurfaceLocked(event.SurfaceSessionID); topic != nil {
+		if err := a.persistTopicSurfaceLocked(topic); err != nil {
+			return err
+		}
+		for i := range operations {
+			operations[i].FeishuTopicID = topic.FeishuTopicID
+			operations[i].FeishuTopicRootMessageID = topic.FeishuTopicRootMessageID
+			if operations[i].Kind == feishu.OperationSendCard || operations[i].Kind == feishu.OperationSendText || operations[i].Kind == feishu.OperationSendImage {
+				operations[i].ReplyToMessageID = topic.FeishuTopicRootMessageID
+				operations[i].ReplyInThread = true
+			}
+		}
+	}
 	applyCtx, applyCancel := a.newTimeoutContext(ctx, a.gatewayApplyTimeout)
 	defer applyCancel()
 	var err error
@@ -286,6 +325,9 @@ func (a *App) deliverUIEventWithContextMode(ctx context.Context, event eventcont
 			}
 			return nil
 		}
+		return err
+	}
+	if err := a.recordTopicDeliveryLocked(event.SurfaceSessionID, operations); err != nil {
 		return err
 	}
 	a.recordUIEventDelivery(event, operations)

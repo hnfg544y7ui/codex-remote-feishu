@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-13`
-> Summary: 补充 Windows 自升级助手的独立生命周期和事务所有权，并保留私有 Codex 更新互锁边界。
+> Summary: 补充群话题 surface 的固定会话绑定、所有权、并发和重启边界；补充 Windows 自升级助手的独立生命周期和事务所有权，并保留私有 Codex 更新互锁边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2153,6 +2153,16 @@ retained-offline overlay 额外规则：
 - native 工具/审批只有已证明属于本连接 Remote turn 的请求才能进入飞书；外部请求和对应 resolved 广播不进入可回答 gate。已处理或已 resolved 的请求不能重复回答。已有同 thread writer 仲裁仍成立：两端交替运行，不支持同 thread 同时运行两个 turn。
 - 共享 WebSocket 断开不等价于后端 turn 完成。wrapper 不合成 `TurnCompleted`，发送明确的连接故障及后端状态未知；用户可 `/detach`、重选 `/use` 恢复订阅并核对实际状态，不能盲目自动继续旧请求。Remote 连接恢复受既有 pending timeout/manual escape 约束，不留下只能等待外部通知的永久 gate。
 - 该实现不支持热接入当前桌面 App 的私有 stdio 后端。App 必须从 `CODEX_APP_SERVER_WS_URL` 环境重新启动；同一端点先按一个 Remote daemon 管理，跨独立 daemon 的同 thread claim 不协调。配置示例及本机隔离证据见 [共享 Codex 后端](../implemented/shared-codex-backend.md)。
+
+## 10.5 飞书群话题独立会话
+
+- 话题 surface 标识为 `feishu:<gateway>:topic:<chatID>~<rootMessageID>`。根消息必须来自群主聊天中新发送的 `/topic new [名称]` 文本，不能由旧卡回调或已有话题嵌套创建；同一根消息重复交付幂等。
+- 话题持有独立的会话选择、队列、附件和 pending request；不从 room 全局 workspace 或群主聊天复制 target。不同话题允许各选项目，但共享本群运行名额；创建不隐式改变 `/coworkers` 上限。名额不足时话题任务留在自己的队列，同一话题仍串行。
+- 话题创建者为固定控制者。实际 gateway/chat/root/native topic 与 surface 不匹配、话题尚未登记或已关闭时 fail closed；转发卡不能凭 payload 接管话题。话题内会话第一次绑定后不可切换，`/use` 不同 target、`/new`、`/follow`、模式切换和底层 route transition 不能绕过 pinned thread。绑定后的 `/detach` 和 `/workspace detach` 拒绝执行，网络中断不清除固定绑定。
+- `/topic close` 只接受空闲话题；运行、排队、headless launch 或待确认时拒绝，不能用关闭打断任务。关闭持久化为 tombstone，保留原会话绑定，后续输入及重复创建根消息不能自动恢复开放状态。
+- topic outgoing operation 固定 `reply_in_thread=true` 及 immutable root；首个飞书回执补全 native thread ID，已知输出 message ID 用于重启后的关联。话题发送失败不得 fallback 到普通群发送，回执路由验证或持久化失败不得被当作成功完成绑定。
+- root/native ID、owner、title、bound thread、closed 与有限的近期输出 ID 集合随 surface resume 保存；恢复以话题自身 target 为准，不能由 room 全局 workspace 重写。现有内存队列不是可靠持久队列，重启恢复绑定不构成对未知执行结果的自动重放授权。
+- 使用和限制见 [飞书群话题多会话](../implemented/feishu-topic-sessions.md)。主机器人权限与 `/coworkers` 仍是群级控制，不新增跨主机统一调度。
 
 ## 11. 待讨论取舍
 

@@ -161,6 +161,7 @@ func TestResolveFeishuCommandDisplayProfileTracksModeSpecificFamilies(t *testing
 		FeishuCommandAutoWhip,
 		FeishuCommandPrimary,
 		FeishuCommandCoworkers,
+		FeishuCommandTopic,
 		FeishuCommandHistory,
 		FeishuCommandSchedule,
 		FeishuCommandCron,

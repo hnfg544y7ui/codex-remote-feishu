@@ -325,8 +325,10 @@ func resolveDesktopSessionInstanceID() string {
 }
 
 type gatewayRuntimeHooks struct {
-	PrimaryGatewayForChat func(chatID string) string
-	BotOpenIDForGateway   func(gatewayID string) string
+	ResolveTopicSurface       func(gatewayID, chatID, nativeID, rootID string) string
+	LookupTopicMessageSurface func(gatewayID, messageID, chatID string) string
+	PrimaryGatewayForChat     func(chatID string) string
+	BotOpenIDForGateway       func(gatewayID string) string
 }
 
 func buildRuntimeGatewayApps(appConfig config.AppConfig, services config.ServicesConfig, paths relayruntime.Paths, hooks gatewayRuntimeHooks) []feishu.GatewayAppConfig {
@@ -390,6 +392,18 @@ build:
 			PreviewCacheDir:       filepath.Join(paths.DataDir, "preview-cache", sanitizeGatewayPath(gatewayID)),
 			PreviewRootFolderName: strings.TrimSpace(appConfig.Storage.PreviewRootFolderName),
 			PrimaryGatewayForChat: hooks.PrimaryGatewayForChat,
+			ResolveTopicSurface: func(chatID, nativeID, rootID string) string {
+				if hooks.ResolveTopicSurface == nil {
+					return ""
+				}
+				return hooks.ResolveTopicSurface(gatewayID, chatID, nativeID, rootID)
+			},
+			LookupTopicMessageSurface: func(messageID, chatID string) string {
+				if hooks.LookupTopicMessageSurface == nil {
+					return ""
+				}
+				return hooks.LookupTopicMessageSurface(gatewayID, messageID, chatID)
+			},
 		})
 	}
 	return values

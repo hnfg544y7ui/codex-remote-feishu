@@ -105,7 +105,7 @@ func (s *Service) surfaceCurrentWorkspaceKey(surface *state.SurfaceConsoleRecord
 }
 
 func (s *Service) surfaceRoomWorkspaceBindingKey(surface *state.SurfaceConsoleRecord) string {
-	if surface == nil || !s.surfaceUsesWorkspaceClaims(surface) {
+	if surface == nil || surfaceIsFeishuTopic(surface) || !s.surfaceUsesWorkspaceClaims(surface) {
 		return ""
 	}
 	room := s.ensureFeishuRoomContextForSurface(surface)
@@ -676,6 +676,12 @@ func (s *Service) bindThreadClaim(surface *state.SurfaceConsoleRecord, instanceI
 	instanceID = strings.TrimSpace(instanceID)
 	if threadID == "" {
 		return
+	}
+	if surfaceIsFeishuTopic(surface) {
+		if surface.FeishuTopicBoundThreadID != "" && surface.FeishuTopicBoundThreadID != threadID {
+			return
+		}
+		surface.FeishuTopicBoundThreadID = threadID
 	}
 	s.threadClaims[threadID] = &threadClaimRecord{
 		ThreadID:         threadID,

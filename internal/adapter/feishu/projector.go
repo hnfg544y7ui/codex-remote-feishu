@@ -26,33 +26,37 @@ const (
 )
 
 type Operation struct {
-	Kind                 OperationKind
-	GatewayID            string
-	SurfaceSessionID     string
-	ReceiveID            string
-	ReceiveIDType        string
-	ChatID               string
-	MessageID            string
-	ReplyToMessageID     string
-	EmojiType            string
-	Text                 string
-	AttentionText        string
-	AttentionUserID      string
-	ImagePath            string
-	ImageBase64          string
-	CardTitle            string
-	CardTitleTag         string
-	CardSubtitle         string
-	CardSubtitleTag      string
-	CardBody             string
-	CardThemeKey         string
-	CardElements         []map[string]any
-	CardUpdateMulti      bool
-	ProgressCardStartSeq int
-	ProgressCardEndSeq   int
-	cardEnvelope         cardEnvelopeVersion
-	card                 *cardDocument
-	finalSourceBody      string
+	Kind                     OperationKind
+	GatewayID                string
+	SurfaceSessionID         string
+	ReceiveID                string
+	ReceiveIDType            string
+	ChatID                   string
+	MessageID                string
+	ReplyToMessageID         string
+	ReplyInThread            bool
+	FeishuTopicID            string
+	FeishuTopicRootMessageID string
+	FeishuTopicMessageURL    string
+	EmojiType                string
+	Text                     string
+	AttentionText            string
+	AttentionUserID          string
+	ImagePath                string
+	ImageBase64              string
+	CardTitle                string
+	CardTitleTag             string
+	CardSubtitle             string
+	CardSubtitleTag          string
+	CardBody                 string
+	CardThemeKey             string
+	CardElements             []map[string]any
+	CardUpdateMulti          bool
+	ProgressCardStartSeq     int
+	ProgressCardEndSeq       int
+	cardEnvelope             cardEnvelopeVersion
+	card                     *cardDocument
+	finalSourceBody          string
 }
 
 func (operation Operation) FinalSourceBody() string {

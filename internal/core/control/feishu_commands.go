@@ -18,6 +18,7 @@ const (
 	FeishuCommandHistory              = "history"
 	FeishuCommandPrimary              = "primary"
 	FeishuCommandCoworkers            = "coworkers"
+	FeishuCommandTopic                = "topic"
 	FeishuCommandReview               = "review"
 	FeishuCommandSendFile             = "sendfile"
 	FeishuCommandFollow               = "follow"
@@ -228,6 +229,7 @@ var feishuCommandSpecs = []feishuCommandSpec{
 	feishuScheduleCommandSpec,
 	feishuPrimaryCommandSpec,
 	feishuCoworkersCommandSpec,
+	feishuTopicCommandSpec,
 	reviewCommandSpec(),
 	sendFileCommandSpec(),
 	{

@@ -30,6 +30,7 @@ type InboundEnv struct {
 	GatewayID                        string
 	BotOpenID                        string
 	LookupSurfaceMessage             func(messageID string) string
+	ResolveTopicSurface              func(chatID, nativeTopicID, rootMessageID string) string
 	ParseTextActionWithoutCatalog    func(text string) (control.Action, bool)
 	QuotedInputs                     func(context.Context, *larkim.EventMessage) []agentproto.Input
 	QuotedMessageInputs              func(context.Context, *larkim.EventMessage) QuotedMessageInputs
