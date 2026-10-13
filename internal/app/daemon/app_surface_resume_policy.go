@@ -18,9 +18,24 @@ func surfaceAllowsDaemonLifecycleNotice(surface *state.SurfaceConsoleRecord) boo
 }
 
 func surfaceResumeEntryAllowsOnDemandRecovery(entry surfaceresume.Entry, action control.Action) bool {
-	return !entry.FeishuTopicClosed && surfaceResumeEntryIsFeishuGroup(entry) &&
-		action.Kind == control.ActionTextMessage &&
-		strings.TrimSpace(action.SurfaceSessionID) == strings.TrimSpace(entry.SurfaceSessionID)
+	if entry.FeishuTopicClosed || !surfaceResumeEntryIsFeishuGroup(entry) ||
+		strings.TrimSpace(action.SurfaceSessionID) != strings.TrimSpace(entry.SurfaceSessionID) ||
+		!surfaceAllowsOnDemandRecoveryAction(entry.SurfaceSessionID, action.Kind) {
+		return false
+	}
+	if ref, ok := feishuidentity.ParseSurfaceRef(entry.SurfaceSessionID); ok && ref.IsTopic() {
+		return strings.TrimSpace(entry.FeishuTopicID) != "" && strings.TrimSpace(entry.FeishuTopicOwnerID) != "" &&
+			strings.TrimSpace(entry.FeishuTopicBoundThreadID) != "" && entry.ResumeThreadID == entry.FeishuTopicBoundThreadID
+	}
+	return true
+}
+
+func surfaceAllowsOnDemandRecoveryAction(surfaceID string, kind control.ActionKind) bool {
+	if kind == control.ActionTextMessage {
+		return true
+	}
+	ref, ok := feishuidentity.ParseSurfaceRef(surfaceID)
+	return ok && ref.IsTopic() && kind == control.ActionShowHistory
 }
 
 func surfaceResumeEntryIsFeishuGroup(entry surfaceresume.Entry) bool {

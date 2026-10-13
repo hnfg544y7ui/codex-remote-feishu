@@ -66,8 +66,8 @@ func TestTopicResumePendingUnboundAndClosedRecoveryPolicy(t *testing.T) {
 		t.Fatal("unbound topic cannot be persisted")
 	}
 	action := control.Action{Kind: control.ActionTextMessage, SurfaceSessionID: entry.SurfaceSessionID}
-	if !surfaceResumeEntryAllowsOnDemandRecovery(current, action) {
-		t.Fatal("open topic should permit on-demand recovery")
+	if surfaceResumeEntryAllowsOnDemandRecovery(current, action) {
+		t.Fatal("unbound topic should not launch a runtime")
 	}
 	current.FeishuTopicClosed = true
 	if surfaceResumeEntryAllowsOnDemandRecovery(current, action) || surfaceResumeEntryAllowsBackgroundRecovery(current) {

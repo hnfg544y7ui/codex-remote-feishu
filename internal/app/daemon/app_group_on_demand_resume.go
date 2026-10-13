@@ -18,12 +18,25 @@ func (a *App) maybeStartFeishuGroupOnDemandResumeLocked(action control.Action) (
 	if surfaceID == "" || !surfaceIsFeishuGroup(surfaceID) {
 		return nil, false
 	}
-	if action.Kind != control.ActionTextMessage {
+	if !surfaceAllowsOnDemandRecoveryAction(surfaceID, action.Kind) {
 		return nil, false
 	}
 	snapshot := a.service.SurfaceSnapshot(surfaceID)
 	if snapshot == nil {
 		return nil, false
+	}
+	topic := a.topicSurfaceLocked(surfaceID)
+	if topic != nil {
+		if blocked := a.service.ValidateFeishuTopicAction(action); len(blocked) != 0 {
+			return blocked, true
+		}
+		if strings.TrimSpace(topic.FeishuTopicBoundThreadID) == "" {
+			return nil, false
+		}
+		if action.Kind == control.ActionShowHistory &&
+			(strings.TrimSpace(snapshot.PendingHeadless.InstanceID) != "" || a.surfaceResumeRuntime.groupOnDemandContinuations[surfaceID] != nil) {
+			return groupOnDemandResumeNotice(action, "group_on_demand_resume_waiting", "正在准备恢复", "话题正在恢复，请等待原操作完成后再试。"), true
+		}
 	}
 	if strings.TrimSpace(snapshot.Attachment.InstanceID) != "" || strings.TrimSpace(snapshot.PendingHeadless.InstanceID) != "" {
 		return nil, false
@@ -32,6 +45,11 @@ func (a *App) maybeStartFeishuGroupOnDemandResumeLocked(action control.Action) (
 		return nil, false
 	}
 	entry, ok := a.surfaceResumeRuntime.store.Get(surfaceID)
+	if topic != nil && ok && topic.FeishuTopicBoundThreadID != "" &&
+		(entry.ResumeThreadID != topic.FeishuTopicBoundThreadID || entry.FeishuTopicBoundThreadID != topic.FeishuTopicBoundThreadID ||
+			entry.FeishuTopicOwnerID != topic.FeishuTopicOwnerID || entry.FeishuTopicID != topic.FeishuTopicID) {
+		return groupOnDemandResumeNotice(action, "topic_resume_target_mismatch", "话题恢复目标不一致", "话题恢复记录与固定会话不一致，未启动运行环境。请检查绑定记录。"), true
+	}
 	if !ok || !surfaceResumeEntryAllowsOnDemandRecovery(entry, action) || !surfaceResumeEntryNeedsRecovery(entry) {
 		return nil, false
 	}
@@ -99,6 +117,9 @@ func (a *App) saveGroupOnDemandResumeContinuationLocked(surfaceID string, action
 	if a.surfaceResumeRuntime.groupOnDemandContinuations == nil {
 		a.surfaceResumeRuntime.groupOnDemandContinuations = map[string]*groupOnDemandResumeContinuation{}
 	}
+	if a.surfaceResumeRuntime.groupOnDemandContinuations[surfaceID] != nil {
+		return
+	}
 	expiresAt := now.Add(30 * time.Second)
 	if snapshot := a.service.SurfaceSnapshot(surfaceID); snapshot != nil && !snapshot.PendingHeadless.ExpiresAt.IsZero() {
 		expiresAt = snapshot.PendingHeadless.ExpiresAt
@@ -134,7 +155,7 @@ func (a *App) replayGroupOnDemandResumeContinuationsLocked(ctx context.Context, 
 		replays = append(replays, cloneControlAction(continuation.Action))
 	}
 	for _, action := range replays {
-		a.handleActionLocked(ctx, action, ingressEpisodeOptions{allowGroupOnDemandResume: false})
+		a.handleActionLocked(ctx, action, ingressEpisodeOptions{allowGroupOnDemandResume: false, deliverAsyncHistory: action.Kind == control.ActionShowHistory})
 	}
 }
 

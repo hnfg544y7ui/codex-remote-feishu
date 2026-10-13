@@ -189,6 +189,7 @@ func (a *App) HandleGatewayAction(ctx context.Context, action control.Action) *f
 
 type ingressEpisodeOptions struct {
 	allowGroupOnDemandResume bool
+	deliverAsyncHistory      bool
 }
 
 func (a *App) handleAction(ctx context.Context, action control.Action) *feishu.ActionResult {
@@ -342,7 +343,11 @@ func (a *App) handleActionLocked(ctx context.Context, action control.Action, opt
 		}
 	}
 	contract := control.ResolveFeishuFrontstageActionContract(action)
-	inlineResult, appendEvents := a.synchronousCurrentCardActionResultLocked(action, contract, events)
+	var inlineResult *feishu.ActionResult
+	appendEvents := events
+	if !options.deliverAsyncHistory {
+		inlineResult, appendEvents = a.synchronousCurrentCardActionResultLocked(action, contract, events)
+	}
 	inlineNavigationReplace := inlineResult != nil && contract.CurrentCardMode == control.FeishuFrontstageCurrentCardInlineView
 	if !inlineNavigationReplace || len(appendEvents) != 0 {
 		a.handleUIEventsLocked(ctx, appendEvents)

@@ -1113,6 +1113,7 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
 - 首次发送成功回执须验证 chat/root/native topic 的一致性，补全 topic native ID 及已知输出 message ID 后保存关联；失败或未知结果不把卡片发布状态虚构成可执行。网络发送释放锁期间目标可能变化，迟到回执须重新验证固定 root 与 surface 后才写回。
 - callback 以真实群和登记的消息归属为依据；payload 中 surface 字段不能独立恢复一个未知话题路由。不同话题/转发群的卡不能操纵原会话。所有旧卡仍受 daemon lifecycle、owner 和 freshness gate 约束，持久化话题关联不延长旧卡执行资格。
 - 选择器仅在未绑定话题中完成首次会话选择。固定绑定后改变 target 的 callback 和文本命令均拒绝；保留当前会话与队列并提示在群主聊天新建话题。关闭只对空闲话题生效，关闭通知不取消正在运行的任务。
+- 已绑定话题空闲释放实例后，新 `/history` 或当前菜单的历史入口可按需恢复。原 action 保留 lifecycle/owner 校验，异步 replay 将 loading view 交给正常 UI 事件投递，不再丢弃已超过同步回调窗口的 replacement；查询结果和失败继续收口到该 history owner card。旧分页、详情或前一 daemon 的卡片不得启动恢复，需重新 `/history`。
 - 回归覆盖命令目录、创建/绑定/关闭、真实 chat/root/native mismatch、线程回复失败不得群发、持久化恢复和晚到回执。群内实际验证仍需检查两个话题的回复、审批、附件和历史是否相互隔离，不能仅以服务 connected 代替验收。
 - 操作步骤及恢复限制见 [飞书群话题多会话](../implemented/feishu-topic-sessions.md)。
 

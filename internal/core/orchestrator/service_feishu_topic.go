@@ -20,6 +20,16 @@ func surfaceIsFeishuTopic(surface *state.SurfaceConsoleRecord) bool {
 	return ok && ref.IsTopic()
 }
 
+// ValidateFeishuTopicAction exposes the same read-only gate used by ingress
+// before daemon on-demand recovery can start a runtime for this topic.
+func (s *Service) ValidateFeishuTopicAction(action control.Action) []eventcontract.Event {
+	surface := s.root.Surfaces[strings.TrimSpace(action.SurfaceSessionID)]
+	if blocked := s.blockTopicAction(surface, action); len(blocked) != 0 {
+		return blocked
+	}
+	return s.rejectExpiredCommandEntry(surface, action)
+}
+
 func (s *Service) blockTopicAction(surface *state.SurfaceConsoleRecord, action control.Action) []eventcontract.Event {
 	if !surfaceIsFeishuTopic(surface) {
 		return nil
