@@ -30,6 +30,7 @@ func TestNaturalGoalCommandsBypassPromptQueueDuringActiveTurn(t *testing.T) {
 		{"查看当前Goal状态", agentproto.CommandThreadGoalGet, ""},
 		{"暂停当前Goal", agentproto.CommandThreadGoalSet, "paused"},
 		{"恢复Goal", agentproto.CommandThreadGoalSet, "active"},
+		{"继续执行目标", agentproto.CommandThreadGoalSet, "active"},
 	} {
 		t.Run(tc.text, func(t *testing.T) {
 			svc, surfaceID, instanceID := goalInterlockTestSetup(t)

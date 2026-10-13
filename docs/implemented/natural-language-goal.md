@@ -1,7 +1,7 @@
 # 飞书自然语言 Goal
 
 > Type: `implemented`
-> Updated: `2026-10-12`
+> Updated: `2026-10-13`
 > Summary: 将自然语言 Goal 纳入 v1.3.0.0 发布范围，保留配置前提与隔离协议验收边界。
 
 ## 使用前提
@@ -31,14 +31,18 @@ goals = true
 | 修改 | `修改Goal：完成登录重构并补充测试，预算6万tokens` | 更新当前会话的目标及预算 |
 | 查看 | `查看当前Goal` | 读取并显示当前 Goal 状态 |
 | 暂停 | `暂停当前Goal` | 暂停 Goal 的后续续跑 |
-| 恢复 | `恢复当前Goal` | 显式恢复当前 Goal |
+| 恢复 | `继续执行目标` 或 `恢复当前Goal` | 与 `/goal resume` 一样直接将当前 Goal 状态设为 active，不发送普通模型消息 |
 | 清除 | `清除当前Goal` | 打开确认卡，点击确认后才清除 |
 
 明确英文句式也可用，例如 `create goal: finish login refactoring, budget 50k tokens`、`show current goal`、`pause current goal`、`resume current goal`、`clear current goal`。
 
+恢复还支持 `继续目标`、`请继续执行当前 Goal`、`恢复当前目标的执行` 和 `continue the current goal`。单独的“继续执行”、关于目标文件的任务、引用句、否定句和问题都不作为恢复命令。
+
 预算是正整数 token 数，支持 `k`、`千`、`万` 后缀。省略预算时不额外指定新的预算；保留既有 `/goal` 命令与菜单入口，可以用 `/goal` 查看状态或打开表单。
 
 暂停控制后续 Goal 续跑，不保证中断已经开始的 turn。如需结束当前正在执行的工作，应使用现有中断操作。
+
+普通对话 turn 开始不等于 Goal 已恢复；状态以 `thread/goal/get` 返回值为准。Goal 若已变为 blocked，应先查看最后一轮的阻塞报告。恢复状态不会消除硬件离线、缺少输入等执行条件，条件未恢复时后续仍可能再次进入 blocked。
 
 ## 识别边界
 

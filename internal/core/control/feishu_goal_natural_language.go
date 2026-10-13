@@ -34,7 +34,7 @@ var (
 
 	goalGetPattern    = regexp.MustCompile(`(?i)^(?:请)?(?:查看|查询)(?:一下)?(?:当前)?\s*(?:Goal|目标)(?:的)?(?:状态)?\s*[。.!！?？]?$|^(?:please\s+)?(?:show|view|check)\s+(?:the\s+)?current\s+goal(?:\s+status)?\s*[.!?]?$`)
 	goalPausePattern  = regexp.MustCompile(`(?i)^(?:请)?暂停(?:当前)?\s*(?:Goal|目标)\s*[。.!！]?$|^(?:please\s+)?pause\s+(?:the\s+)?(?:current\s+)?goal\s*[.!]?$`)
-	goalResumePattern = regexp.MustCompile(`(?i)^(?:请)?恢复(?:当前)?\s*(?:Goal|目标)\s*[。.!！]?$|^(?:please\s+)?resume\s+(?:the\s+)?(?:current\s+)?goal\s*[.!]?$`)
+	goalResumePattern = regexp.MustCompile(`(?i)^(?:请\s*)?(?:恢复|继续)(?:执行)?\s*(?:当前\s*)?(?:Goal|目标)(?:\s*的?\s*执行)?\s*[。.!！]?$|^(?:please\s+)?(?:resume|continue)\s+(?:the\s+)?(?:current\s+)?goal(?:\s+execution)?\s*[.!]?$`)
 	goalClearPattern  = regexp.MustCompile(`(?i)^(?:请)?(?:清除|清空)(?:当前)?\s*(?:Goal|目标)\s*[。.!！]?$|^(?:please\s+)?clear\s+(?:the\s+)?(?:current\s+)?goal\s*[.!]?$`)
 
 	goalBudgetPattern       = regexp.MustCompile(`(?i)(?:[,，;；]\s*|\s+)(?:预算|token(?:s)?\s*预算|token\s+budget|budget)\s*[:：=]?\s*([0-9]+)\s*(k|千|万)?\s*(?:个?\s*)?(?:tokens?|令牌)?\s*[。.!！]?$`)

@@ -55,6 +55,7 @@ func TestPlanInboundMessageEventNaturalGoalControlCommandsBypassQueue(t *testing
 	}{
 		{name: "pause", text: "暂停当前Goal", operation: "pause"},
 		{name: "get", text: "查看当前Goal状态", operation: "get"},
+		{name: "resume", text: "继续执行目标", operation: "resume"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			planned, ok, err := PlanInboundMessageEvent(naturalGoalInboundEnv(func(_, _ string) {

@@ -2101,7 +2101,7 @@ retained-offline overlay 额外规则：
 
 2026-10-12 Goal 队列互锁权限：只有真正发出的用户 set/pause/resume/clear 才撤销匹配 instance+thread lease 的自动恢复权限；get 查询、打开表单及尚未确认的清除不撤销。撤销单向保存在 `ExternalMutationSeen`，不删除 `pause_pending`、`quiescing`、`draining` 屏障或其 pending command 关联；用户 RPC/交付失败不会重新赋予自动恢复权限。迟到的恢复 get 不再发送 active；尚未发出 resume 时重新检查 idle 屏障，已发出的 resume RPC 无法撤回，只等待原 ack，不发第二次恢复。撤销后的 draining 仅在队列与 live remote work 排空后退休；恢复过程不重发旧 pause 去暂停用户的新 Goal。已发 resume 的 ack 丢失时保持 fail-closed，不用指纹或 Goal 查询结果猜测其交付状态；用户可通过 detach/use 重新接管精确会话，既有移除实例路径也会清理 lease。`pause` 控制 Goal 后续续跑，不保证中断当前已开始的 turn。
 
-自然语言用法、共享后端配置前提及验收范围见 [自然语言 Goal](../implemented/natural-language-goal.md)。上游 CLI 必须支持 `thread/goal/set|get|clear`；共享模式继续要求显式 loopback WebSocket 配置，不能自动发现或热接管桌面 App 的私有 stdio 后端。
+自然语言用法、共享后端配置前提及验收范围见 [自然语言 Goal](../implemented/natural-language-goal.md)。明确的“继续执行目标”“继续目标”“恢复当前目标的执行”和 continue goal 均走同一 `user_control` resume 路径，发送 `thread/goal/set(status=active)`，不进入 prompt 队列；没有明确 Goal/目标对象或包含否定、引用、条件、问题、其它任务的表达不触发恢复。普通 turn 开始不是 Goal 恢复的状态证据。上游 CLI 必须支持 `thread/goal/set|get|clear`；共享模式继续要求显式 loopback WebSocket 配置，不能自动发现或热接管桌面 App 的私有 stdio 后端。
 
 ## 10.1 本机聊天定时任务
 
