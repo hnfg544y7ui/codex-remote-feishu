@@ -2156,6 +2156,8 @@ retained-offline overlay 额外规则：
 
 ## 10.5 飞书群话题独立会话
 
+话题的 `ClaimedWorkspaceKey` 是独立项目选择元数据，不拥有 legacy `workspaceClaims` 的独占条目；legacy owner 的扫描、重建和释放排除话题。话题选择器不会因私聊或普通群持有项目而删除目录及新建会话选项。路由转换仍校验 instance/thread claim，已占用的实例不能复用，需要独立 headless context；具体会话占用仍拒绝。私聊和普通群的 workspace 独占规则不变。
+
 - 话题 surface 标识为 `feishu:<gateway>:topic:<chatID>~<rootMessageID>`。根消息必须来自群主聊天中新发送的 `/topic new [名称]` 文本，不能由旧卡回调或已有话题嵌套创建；同一根消息重复交付幂等。
 - 话题持有独立的会话选择、队列、附件和 pending request；不从 room 全局 workspace 或群主聊天复制 target。不同话题允许各选项目，但共享本群运行名额；创建不隐式改变 `/coworkers` 上限。名额不足时话题任务留在自己的队列，同一话题仍串行。
 - 话题创建者为固定控制者。实际 gateway/chat/root/native topic 与 surface 不匹配、话题尚未登记或已关闭时 fail closed；转发卡不能凭 payload 接管话题。话题内会话第一次绑定后不可切换，`/use` 不同 target、`/new`、`/follow`、模式切换和底层 route transition 不能绕过 pinned thread。绑定后的 `/detach` 和 `/workspace detach` 拒绝执行，网络中断不清除固定绑定。

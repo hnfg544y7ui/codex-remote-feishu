@@ -137,7 +137,7 @@ func (s *Service) explicitWorkspaceClaimOwnerWithoutCurrentFallback(workspaceKey
 		return workspaceClaimOwner{}
 	}
 	for _, candidate := range s.root.Surfaces {
-		if candidate == nil || !s.surfaceUsesWorkspaceClaims(candidate) {
+		if candidate == nil || surfaceIsFeishuTopic(candidate) || !s.surfaceUsesWorkspaceClaims(candidate) {
 			continue
 		}
 		if normalizeWorkspaceClaimKey(candidate.ClaimedWorkspaceKey) == workspaceKey {
@@ -307,7 +307,7 @@ func (o workspaceClaimOwner) same(other workspaceClaimOwner) bool {
 }
 
 func (s *Service) workspaceClaimOwnerForSurface(surface *state.SurfaceConsoleRecord) workspaceClaimOwner {
-	if surface == nil {
+	if surface == nil || surfaceIsFeishuTopic(surface) {
 		return workspaceClaimOwner{}
 	}
 	if roomID := surfaceFeishuRoomID(surface); roomID != "" {
@@ -340,7 +340,7 @@ func (s *Service) workspaceClaimSurfaceForKey(workspaceKey string) *state.Surfac
 	}
 	var owner *state.SurfaceConsoleRecord
 	for _, surface := range s.root.Surfaces {
-		if surface == nil || !s.surfaceUsesWorkspaceClaims(surface) {
+		if surface == nil || surfaceIsFeishuTopic(surface) || !s.surfaceUsesWorkspaceClaims(surface) {
 			continue
 		}
 		if s.surfaceCurrentWorkspaceKey(surface) != workspaceKey {
@@ -389,6 +389,12 @@ func (s *Service) workspaceClaimOwnerFromRecord(claim *workspaceClaimRecord) wor
 	if claim == nil {
 		return workspaceClaimOwner{}
 	}
+	// Older topic builds stored an exclusive workspace owner. Topics retain
+	// their own project metadata but only claim instances and conversations.
+	if surfaceIsFeishuTopic(s.root.Surfaces[claim.SurfaceSessionID]) ||
+		(claim.OwnerScope == workspaceClaimOwnerSurface && surfaceIsFeishuTopic(s.root.Surfaces[claim.OwnerID])) {
+		return workspaceClaimOwner{}
+	}
 	owner := workspaceClaimOwner{
 		Scope:                   claim.OwnerScope,
 		ID:                      strings.TrimSpace(claim.OwnerID),
@@ -405,6 +411,7 @@ func (s *Service) workspaceClaimOwnerFromRecord(claim *workspaceClaimRecord) wor
 
 func (s *Service) surfaceMatchesWorkspaceClaimOwner(surface *state.SurfaceConsoleRecord, workspaceKey string, owner workspaceClaimOwner) bool {
 	return surface != nil &&
+		!surfaceIsFeishuTopic(surface) &&
 		s.surfaceUsesWorkspaceClaims(surface) &&
 		s.surfaceCurrentWorkspaceKey(surface) == workspaceKey &&
 		s.workspaceClaimOwnerForSurface(surface).same(owner)
@@ -433,6 +440,10 @@ func (s *Service) claimWorkspace(surface *state.SurfaceConsoleRecord, workspaceK
 	if workspaceKey == "" {
 		return false
 	}
+	if surfaceIsFeishuTopic(surface) {
+		surface.ClaimedWorkspaceKey = workspaceKey
+		return true
+	}
 	requestOwner := s.workspaceClaimOwnerForSurface(surface)
 	if owner := s.workspaceClaimOwner(workspaceKey); owner.valid() && !owner.same(requestOwner) {
 		return false
@@ -446,7 +457,7 @@ func (s *Service) claimWorkspace(surface *state.SurfaceConsoleRecord, workspaceK
 }
 
 func (s *Service) bindWorkspaceClaim(surface *state.SurfaceConsoleRecord, workspaceKey string) {
-	if s == nil || surface == nil {
+	if s == nil || surface == nil || surfaceIsFeishuTopic(surface) {
 		return
 	}
 	workspaceKey = normalizeWorkspaceClaimKey(workspaceKey)
@@ -464,6 +475,10 @@ func (s *Service) bindWorkspaceClaim(surface *state.SurfaceConsoleRecord, worksp
 
 func (s *Service) releaseSurfaceWorkspaceClaim(surface *state.SurfaceConsoleRecord) {
 	if surface == nil {
+		return
+	}
+	if surfaceIsFeishuTopic(surface) {
+		surface.ClaimedWorkspaceKey = ""
 		return
 	}
 	workspaceKey := normalizeWorkspaceClaimKey(surface.ClaimedWorkspaceKey)
@@ -488,7 +503,7 @@ func (s *Service) workspaceBusyOwnerForSurface(surface *state.SurfaceConsoleReco
 }
 
 func (s *Service) workspaceBusyOwnerForKey(surface *state.SurfaceConsoleRecord, workspaceKey string) *state.SurfaceConsoleRecord {
-	if surface == nil || !s.surfaceUsesWorkspaceClaims(surface) {
+	if surface == nil || surfaceIsFeishuTopic(surface) || !s.surfaceUsesWorkspaceClaims(surface) {
 		return nil
 	}
 	if workspaceKey == "" {
@@ -524,7 +539,7 @@ func (s *Service) workspaceClaimOwnerForKey(workspaceKey string) workspaceClaimO
 func (s *Service) findExplicitWorkspaceClaimSurface(workspaceKey string, owner workspaceClaimOwner) *state.SurfaceConsoleRecord {
 	var display *state.SurfaceConsoleRecord
 	for _, surface := range s.root.Surfaces {
-		if surface == nil || !s.surfaceUsesWorkspaceClaims(surface) {
+		if surface == nil || surfaceIsFeishuTopic(surface) || !s.surfaceUsesWorkspaceClaims(surface) {
 			continue
 		}
 		if normalizeWorkspaceClaimKey(surface.ClaimedWorkspaceKey) != workspaceKey {

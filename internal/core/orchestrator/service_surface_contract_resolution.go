@@ -197,6 +197,11 @@ func (s *Service) resolveThreadContract(surface *state.SurfaceConsoleRecord, vie
 		if inst == nil {
 			return false
 		}
+		if surfaceIsFeishuTopic(surface) {
+			if owner := s.instanceClaimSurface(inst.InstanceID); owner != nil && owner.SurfaceSessionID != surface.SurfaceSessionID {
+				return false
+			}
+		}
 		if directVisibleOnly && !s.surfaceInstanceCompatibleForAttach(surface, inst) {
 			return false
 		}
@@ -276,6 +281,11 @@ func (s *Service) resolveWorkspaceContractForInstances(surface *state.SurfaceCon
 		AllowDirectVisible: func(inst *state.InstanceRecord) bool {
 			if inst == nil {
 				return false
+			}
+			if surfaceIsFeishuTopic(surface) {
+				if owner := s.instanceClaimSurface(inst.InstanceID); owner != nil && owner.SurfaceSessionID != surface.SurfaceSessionID {
+					return false
+				}
 			}
 			if allowSameRoomIndependentContext && s.instanceClaimedBySameRoomSibling(surface, inst.InstanceID) {
 				return false
