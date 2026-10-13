@@ -59,20 +59,24 @@ func TestResolveDevManifestSelectsCurrentPlatformAsset(t *testing.T) {
 }
 
 func TestResolveDevManifestErrorsWhenPlatformAssetMissing(t *testing.T) {
+	otherArch := "arm64"
+	if runtime.GOARCH == otherArch {
+		otherArch = "amd64"
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{
+		_, _ = fmt.Fprintf(w, `{
   "channel": "dev",
   "version": "dev-abc123",
   "assets": [
     {
-      "goos": "linux",
-      "goarch": "arm64",
+      "goos": "%s",
+      "goarch": "%s",
       "name": "other",
       "url": "https://example.invalid/other",
       "sha256": "cafebabe"
     }
   ]
-}`))
+}`, runtime.GOOS, otherArch)
 	}))
 	defer server.Close()
 
