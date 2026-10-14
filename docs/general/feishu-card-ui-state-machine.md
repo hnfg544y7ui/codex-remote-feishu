@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-14`
-> Summary: 明确 Goal 文字命令追加结果卡，只有带生命周期标记的命令卡入口才能同卡更新 loading 和异步回执。
+> Summary: 修复 Goal 命令按钮的渲染载体，并明确清除确认、上下文校验和回执卡片所有权。
 
 ## 1. 文档定位
 
@@ -16,7 +16,7 @@
 
 2026-08-13 #888/#889 补充：Claude 与 OpenCode `/review` 均从 hidden reject 改为 common tools 可见的 approximation；bare `/review`、review 页面和 final-card 待提交/commit 按钮复用与 Codex 相同的卡片交互，底层分别走独立 Claude fork session 与 OpenCode ACP fork/review mode。结果卡、一次性追问 capture、退出和应用动作保持 backend-neutral；active turn 上的退出动作先发送一次 interrupt，并在匹配终态后才清 overlay，不能提前释放并发 ownership。OpenCode fork 在 review mode gate 前已经按 typed binding 标记 `source=review`，mode/config 失败会清 overlay 与 active queue，不产生可操作结果卡。
 
-2026-08-15 #896 补充：`/goal` 是新增 config-flow slash command，完全复用现有命令卡体系：bare `/goal` 经现有命令解析与 freshness 校验，通过 `pageEvent` inline replace 回显 Goal 状态页；`/goal clear` 的确认/取消通过 `CommandText` 命令重放（`/goal clear --confirm`、`/goal`），不引入新 callback payload、不新增 owner 分类、不改 `daemon_lifecycle_id` stamping。状态页按钮均声明在 `FeishuCommandBinding` 上（`CommandID=goal`），走 `CommandCatalogButtonCallbackAction`，与 `/codexprofile` 等配置命令同一条路由，Goal 控制面不产生第二套卡片 carrier 或 freshness 规则。
+2026-08-15 #896 补充：`/goal` 是新增 config-flow slash command，完全复用现有命令卡体系：bare `/goal` 经现有命令解析与 freshness 校验，通过 `pageEvent` inline replace 回显 Goal 状态页；`/goal clear` 的确认/取消通过 `CommandText` 命令重放（`/goal clear --confirm`、`/goal`），不引入新 callback payload、不新增 owner 分类、不改 `daemon_lifecycle_id` stamping。状态页按钮均声明在 `FeishuCommandBinding` 上（`CommandID=goal`），走 `CommandCatalogButtonAction` 的命令重放路径，与 `/codexprofile` 等配置命令同一条路由，Goal 控制面不产生第二套卡片 carrier 或 freshness 规则。
 
 2026-08-15 #896 review 修复补充：确认卡/编辑表单打开时服务端暂存 Goal fingerprint，命令重放执行前比对、漂移 fail closed；goal 命令发送失败会清理 pending 并回错误卡；卡片入口触发的 loading 与结果卡通过 `MessageID + Patchable` 在同一 message 上 patch；错误页复用 config 命令 builder（非 sealed），失败原因不伪装成 no-goal 状态。
 
@@ -25,6 +25,8 @@
 清除确认按钮及创建/编辑表单的 `CommandText` 携带 opaque context；上下文保存在服务器，绑定原 surface、actor、instance、thread、操作及 Goal 存在状态/createdAt/objective/token budget，10 分钟内单次有效。上下文校验消费先于目标与指纹比对，失败后也不能重放。切换会话、预算变化、错误 actor、重放或过期提交拒绝执行并提示重新打开当前 Goal 页面；不能把旧卡的确认重新解释为当前会话的清除。内部上下文不作为用户可输入的使用方式公开，不更改既有 callback payload、`daemon_lifecycle_id` 或 freshness 路径。结果先校验原 instance/thread；切换后迟到结果只提示刷新当前状态，不将原会话的 Goal 显示在新会话卡片中。详见 [自然语言 Goal](../implemented/natural-language-goal.md)。
 
 2026-10-14 Goal 回执所有权修复：文字输入的 `/goal` 与自然语言 Goal 指令的 `MessageID` 是用户原消息，不能作为机器人卡片 owner。命令复用既有 `commandCardOwnsInlineResult` 判定，只有携带非空 `CardDaemonLifecycleID` 且通过既有入口校验的命令卡才保留 owner ID，loading 与异步成功、失败、发送失败或切换会话后的回执更新同一张卡。纯文字入口不生成无主 loading 卡，RPC 返回后追加结果卡，绝不 PATCH 用户文字；附带普通入站 metadata 也不构成卡片所有权。此修复不改变 Goal RPC、队列互锁、运行中 turn、上下文 nonce 或旧卡拒绝策略。`TestGoalFeedbackOwnsOnlyStampedCommandCards` 覆盖 core 到 projector 的 send/update 分流；既有 Goal 上下文与命令 provenance 测试保持有效。
+
+2026-10-14 Goal 按钮载体修复：Goal 状态页与清除确认页的按钮只声明 `CommandText`，必须使用 `CommandCatalogButtonAction`；`CommandCatalogButtonCallbackAction` 要求显式 `CallbackValue`，不能用于只有命令文本的按钮。服务端绑定 Goal 上下文后，projector 解析完整命令；修改操作生成 `page_action`、catalog provenance 与生命周期标记，取消/刷新沿既有 `page_local_action` 只读导航路径。确认携带原 nonce，取消只读状态。按钮缺少 callback 的旧实现会被 projector 跳过，造成确认卡没有操作入口。`TestGoalClearRenderedButtonsRoundTrip`、`TestGoalRenderedConfirmationRejectsChangedContext` 与 `TestGoalStatusRendersCommandButtons` 覆盖实际 V2 按钮到 gateway、core 的确认/取消、重放拒绝、错误操作人、会话与预算漂移及状态操作入口，不改变队列、turn 或 Goal RPC 语义。
 
 它关注的是：
 

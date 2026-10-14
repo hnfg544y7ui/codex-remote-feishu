@@ -584,7 +584,7 @@ func (s *Service) surfaceGoalForPage(surface *state.SurfaceConsoleRecord) *agent
 func goalCommandButton(label, commandText string) control.CommandCatalogButton {
 	return control.CommandCatalogButton{
 		Label:       label,
-		Kind:        control.CommandCatalogButtonCallbackAction,
+		Kind:        control.CommandCatalogButtonAction,
 		CommandText: commandText,
 		CommandID:   control.FeishuCommandGoal,
 	}

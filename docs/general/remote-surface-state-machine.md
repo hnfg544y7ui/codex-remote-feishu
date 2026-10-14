@@ -2095,6 +2095,8 @@ retained-offline overlay 额外规则：
 
 2026-08-15 #896 补充：Codex Goal 用户控制面已接入现有命令卡体系。`/goal` 是 config-flow slash command（复用 `FeishuCatalogConfigView` / `FeishuPageView` / 菜单三态 / owner card 状态机）：bare `/goal` 发 `thread/goal/get`（`user_control` provenance）并回显 Goal 状态页；`/goal new|edit <目标> [--budget N]` 创建/编辑，`/goal pause|resume` 动态生效，`/goal clear` 先出确认卡、`--confirm` 后清除；无精确 selected thread / 非 Codex / Review/helper 会话 fail closed。用户动作携带 `user_control`，会撤销 queue interlock 的自动恢复所有权；状态页通过现有 `pageEvent` inline replace 刷新，不新建第二套卡片 carrier。
 
+2026-10-14 Goal 卡片入口：状态与清除确认按钮通过 `CommandCatalogButtonAction` 重放完整 `CommandText`，由 projector 生成对应命令动作与生命周期标记；修改操作带命令来源，取消/刷新仍走只读本地导航。确认命令携带绑定原上下文的 nonce；取消仅查询状态。按钮渲染修复不改变 Goal/队列互锁与用户控制权限。
+
 2026-08-15 #896 review 修复补充：确认卡/编辑表单打开时在服务端暂存当前 thread 的 Goal fingerprint（createdAt/objective/budget），执行 `clear --confirm` / `new|edit` 前先与最新 thread Goal 比对，漂移则取消操作并出错误卡，避免外部 mutation 窗口内的误清/误改；goal 命令 dispatch 失败会清理 pending `goalUserCommands` 并回错误卡，不再静默丢弃；卡片入口触发的 loading 与结果卡通过 `MessageID + Patchable` 在同一 message 上 patch，不残留无按钮死卡；错误卡复用 config 命令 builder（非 sealed），失败原因不伪装成 no-goal 状态。
 
 2026-10-12 自然语言 Goal 首版：飞书可信用户的纯 `text` 消息中，完整而明确的创建、修改、查看、暂停、恢复、清除 Goal 指令转换为 typed `GoalIntent`，进入与 `/goal` 相同的 `user_control` RPC 控制面，不作为普通 prompt 入队。入口保留 surface/actor/message 身份，orchestrator 再验证文字与 intent 一致；只允许在线 Codex headless 实例中当前精确选中、存在且由此 surface 持有 claim 的 thread，Review/helper thread 拒绝。中英文明确句式可用；模糊表达、否定、条件或引用句、代码块、富文本 `post` 不被转换为自然语言 Goal 控制。没有新增 MCP Goal 工具，也不因共享 app-server 而继承桌面 App 或其他客户端的私有工具。
