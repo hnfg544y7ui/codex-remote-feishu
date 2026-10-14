@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-13`
-> Summary: 补充群话题 surface 的固定会话绑定、所有权、并发和重启边界；补充 Windows 自升级助手的独立生命周期和事务所有权，并保留私有 Codex 更新互锁边界。
+> Updated: `2026-10-14`
+> Summary: 修正 Goal 异步回执的卡片所有权边界，文字入口追加结果卡，不改变 Goal、队列及运行中 turn 状态。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2104,6 +2104,8 @@ retained-offline overlay 额外规则：
 2026-10-12 Goal 队列互锁权限：只有真正发出的用户 set/pause/resume/clear 才撤销匹配 instance+thread lease 的自动恢复权限；get 查询、打开表单及尚未确认的清除不撤销。撤销单向保存在 `ExternalMutationSeen`，不删除 `pause_pending`、`quiescing`、`draining` 屏障或其 pending command 关联；用户 RPC/交付失败不会重新赋予自动恢复权限。迟到的恢复 get 不再发送 active；尚未发出 resume 时重新检查 idle 屏障，已发出的 resume RPC 无法撤回，只等待原 ack，不发第二次恢复。撤销后的 draining 仅在队列与 live remote work 排空后退休；恢复过程不重发旧 pause 去暂停用户的新 Goal。已发 resume 的 ack 丢失时保持 fail-closed，不用指纹或 Goal 查询结果猜测其交付状态；用户可通过 detach/use 重新接管精确会话，既有移除实例路径也会清理 lease。`pause` 控制 Goal 后续续跑，不保证中断当前已开始的 turn。
 
 自然语言用法、共享后端配置前提及验收范围见 [自然语言 Goal](../implemented/natural-language-goal.md)。明确的“继续执行目标”“继续目标”“恢复当前目标的执行”和 continue goal 均走同一 `user_control` resume 路径，发送 `thread/goal/set(status=active)`，不进入 prompt 队列；没有明确 Goal/目标对象或包含否定、引用、条件、问题、其它任务的表达不触发恢复。普通 turn 开始不是 Goal 恢复的状态证据。上游 CLI 必须支持 `thread/goal/set|get|clear`；共享模式继续要求显式 loopback WebSocket 配置，不能自动发现或热接管桌面 App 的私有 stdio 后端。
+
+2026-10-14 Goal 异步回执：pending `goalUserCommands.MessageID` 只记录经既有命令卡入口判定的 lifecycle-stamped 卡片 owner。文字 slash / 自然语言入口保留原输入身份，但不把用户文字 ID 作为可 PATCH owner；成功、RPC 错误、发送失败和原会话迟到回执均追加新的 Goal 卡。已有命令卡入口仍同卡 loading/result 更新。此处只修正 UI 交付目标，不改变 `user_control`、自动恢复权限撤销、原 instance/thread 结果匹配、队列、claim 或当前 turn 的执行状态。
 
 ## 10.1 本机聊天定时任务
 

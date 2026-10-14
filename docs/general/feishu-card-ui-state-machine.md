@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-14`
-> Summary: 补充群话题卡片的固定回复根、回执绑定及跨群和旧卡拒绝规则；记录自然语言 Goal 复用命令卡，以及清除确认和创建/编辑表单的单次上下文绑定。
+> Summary: 明确 Goal 文字命令追加结果卡，只有带生命周期标记的命令卡入口才能同卡更新 loading 和异步回执。
 
 ## 1. 文档定位
 
@@ -23,6 +23,8 @@
 2026-10-12 自然语言 Goal 首版：可信用户的明确纯文本指令先转换为 typed `GoalIntent`，复用 `/goal` 的状态、错误、清除确认及 RPC loading/result 卡，不增加 MCP Goal 工具或卡片 owner 类型。清除仍须点击确认；打开确认或表单、查看 Goal 不改变队列互锁的自动恢复权限，真正发出用户修改命令才撤销该权限。暂停只控制 Goal 续跑，卡片不能声称已中断当前 turn。
 
 清除确认按钮及创建/编辑表单的 `CommandText` 携带 opaque context；上下文保存在服务器，绑定原 surface、actor、instance、thread、操作及 Goal 存在状态/createdAt/objective/token budget，10 分钟内单次有效。上下文校验消费先于目标与指纹比对，失败后也不能重放。切换会话、预算变化、错误 actor、重放或过期提交拒绝执行并提示重新打开当前 Goal 页面；不能把旧卡的确认重新解释为当前会话的清除。内部上下文不作为用户可输入的使用方式公开，不更改既有 callback payload、`daemon_lifecycle_id` 或 freshness 路径。结果先校验原 instance/thread；切换后迟到结果只提示刷新当前状态，不将原会话的 Goal 显示在新会话卡片中。详见 [自然语言 Goal](../implemented/natural-language-goal.md)。
+
+2026-10-14 Goal 回执所有权修复：文字输入的 `/goal` 与自然语言 Goal 指令的 `MessageID` 是用户原消息，不能作为机器人卡片 owner。命令复用既有 `commandCardOwnsInlineResult` 判定，只有携带非空 `CardDaemonLifecycleID` 且通过既有入口校验的命令卡才保留 owner ID，loading 与异步成功、失败、发送失败或切换会话后的回执更新同一张卡。纯文字入口不生成无主 loading 卡，RPC 返回后追加结果卡，绝不 PATCH 用户文字；附带普通入站 metadata 也不构成卡片所有权。此修复不改变 Goal RPC、队列互锁、运行中 turn、上下文 nonce 或旧卡拒绝策略。`TestGoalFeedbackOwnsOnlyStampedCommandCards` 覆盖 core 到 projector 的 send/update 分流；既有 Goal 上下文与命令 provenance 测试保持有效。
 
 它关注的是：
 

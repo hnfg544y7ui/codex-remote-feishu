@@ -104,11 +104,11 @@ func (s *Service) handleGoalCommand(surface *state.SurfaceConsoleRecord, action 
 		if !s.goalFingerprintAllows(surface, threadID, sub) {
 			return []eventcontract.Event{s.pageEvent(surface, s.goalStalePage(surface))}
 		}
-		return s.issueGoalCommand(surface, threadID, "set", goalSetCommand(threadID, objective, budget, "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "set", goalSetCommand(threadID, objective, budget, "user_control"), goalCommandOwnerMessageID(action))
 	case "pause":
-		return s.issueGoalCommand(surface, threadID, "pause", goalStatusCommand(threadID, "paused", "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "pause", goalStatusCommand(threadID, "paused", "user_control"), goalCommandOwnerMessageID(action))
 	case "resume":
-		return s.issueGoalCommand(surface, threadID, "resume", goalStatusCommand(threadID, "active", "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "resume", goalStatusCommand(threadID, "active", "user_control"), goalCommandOwnerMessageID(action))
 	case "clear":
 		confirm := false
 		for _, part := range parts[2:] {
@@ -124,9 +124,9 @@ func (s *Service) handleGoalCommand(surface *state.SurfaceConsoleRecord, action 
 		if !s.goalFingerprintAllows(surface, threadID, "clear") {
 			return []eventcontract.Event{s.pageEvent(surface, s.goalStalePage(surface))}
 		}
-		return s.issueGoalCommand(surface, threadID, "clear", goalClearCommand(threadID, "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "clear", goalClearCommand(threadID, "user_control"), goalCommandOwnerMessageID(action))
 	default:
-		return s.issueGoalCommand(surface, threadID, "get", goalGetCommand(threadID, "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "get", goalGetCommand(threadID, "user_control"), goalCommandOwnerMessageID(action))
 	}
 }
 
@@ -203,7 +203,16 @@ func goalGetCommand(threadID, purpose string) *agentproto.Command {
 	}
 }
 
-func (s *Service) issueGoalCommand(surface *state.SurfaceConsoleRecord, threadID, actionName string, command *agentproto.Command, sourceMessageID string) []eventcontract.Event {
+// A text command's MessageID is the user's text, not a bot-owned card. Only
+// lifecycle-stamped card ingress may own inline loading and async results.
+func goalCommandOwnerMessageID(action control.Action) string {
+	if !commandCardOwnsInlineResult(action) {
+		return ""
+	}
+	return strings.TrimSpace(action.MessageID)
+}
+
+func (s *Service) issueGoalCommand(surface *state.SurfaceConsoleRecord, threadID, actionName string, command *agentproto.Command, ownerMessageID string) []eventcontract.Event {
 	if actionName != "get" && command.Goal.Purpose == "user_control" {
 		s.revokeGoalAutoResumeForUserMutation(surface.AttachedInstanceID, threadID)
 	}
@@ -217,16 +226,16 @@ func (s *Service) issueGoalCommand(surface *state.SurfaceConsoleRecord, threadID
 		InstanceID: surface.AttachedInstanceID,
 		ThreadID:   threadID,
 		Action:     actionName,
-		MessageID:  sourceMessageID,
+		MessageID:  ownerMessageID,
 	}
 	events := []eventcontract.Event{{
 		Kind:             eventcontract.KindAgentCommand,
 		SurfaceSessionID: surface.SurfaceSessionID,
 		Command:          command,
 	}}
-	if actionName != "get" && sourceMessageID != "" {
+	if actionName != "get" && ownerMessageID != "" {
 		loading := goalLoadingPage(surface)
-		loading.MessageID = sourceMessageID
+		loading.MessageID = ownerMessageID
 		loading.Patchable = true
 		events = append(events, s.pageEvent(surface, loading))
 	}

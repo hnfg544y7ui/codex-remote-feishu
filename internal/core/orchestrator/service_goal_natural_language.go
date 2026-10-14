@@ -18,13 +18,13 @@ func (s *Service) handleNaturalGoalCommand(surface *state.SurfaceConsoleRecord, 
 	}
 	switch intent.Operation {
 	case "new", "edit":
-		return s.issueGoalCommand(surface, threadID, "set", goalSetCommand(threadID, intent.Objective, intent.TokenBudget, "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "set", goalSetCommand(threadID, intent.Objective, intent.TokenBudget, "user_control"), goalCommandOwnerMessageID(action))
 	case "get":
-		return s.issueGoalCommand(surface, threadID, "get", goalGetCommand(threadID, "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "get", goalGetCommand(threadID, "user_control"), goalCommandOwnerMessageID(action))
 	case "pause":
-		return s.issueGoalCommand(surface, threadID, "pause", goalStatusCommand(threadID, "paused", "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "pause", goalStatusCommand(threadID, "paused", "user_control"), goalCommandOwnerMessageID(action))
 	case "resume":
-		return s.issueGoalCommand(surface, threadID, "resume", goalStatusCommand(threadID, "active", "user_control"), action.MessageID)
+		return s.issueGoalCommand(surface, threadID, "resume", goalStatusCommand(threadID, "active", "user_control"), goalCommandOwnerMessageID(action))
 	case "clear":
 		s.captureGoalFingerprint(surface, threadID, "clear")
 		page := s.goalClearConfirmPage(surface)
