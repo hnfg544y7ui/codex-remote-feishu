@@ -1,7 +1,7 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-10-13`
+> Updated: `2026-10-14`
 > Summary: 补充群话题卡片的固定回复根、回执绑定及跨群和旧卡拒绝规则；记录自然语言 Goal 复用命令卡，以及清除确认和创建/编辑表单的单次上下文绑定。
 
 ## 1. 文档定位
@@ -971,6 +971,8 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
   - 锁定 `mcp_tool_call` 已并入共享过程卡：started/failed 的同卡复用、去重、行级摘要，以及首个 assistant text delta 后不复活旧卡
 - [internal/core/orchestrator/service_protocol_notice_test.go](../../internal/core/orchestrator/service_protocol_notice_test.go)
   - 锁定 turn 内真实投影的 append-only protocol notice 会切断 active progress，而仅记录状态、没有可见 UI event 的普通 warning 不形成边界
+- [internal/core/orchestrator/service_guardian_approved_notice_test.go](../../internal/core/orchestrator/service_guardian_approved_notice_test.go)
+  - 已验证格式的自动审批通过通知保留原文状态和日志，不生成卡片、不切断共享过程卡，也不改变任务或 request gate。拒绝与未知格式继续显示“Codex 安全提醒”；这些 passive notice 没有新增 callback 或可执行动作。
 - [internal/core/orchestrator/service_compact_notice_test.go](../../internal/core/orchestrator/service_compact_notice_test.go)
   - 锁定 `context_compaction` 已并入共享过程卡：attached normal / verbose 都会进入 `整理` 行，quiet 保持静默；无 surface 时的 replay 也只在 normal / verbose attach 下可见，并继续保持顶层 append-only
 - [internal/core/orchestrator/service_image_output_test.go](../../internal/core/orchestrator/service_image_output_test.go)

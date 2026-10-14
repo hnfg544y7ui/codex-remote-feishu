@@ -22,20 +22,23 @@ func (s *Service) projectProtocolNotice(instanceID string, notice agentproto.Pro
 }
 
 func (s *Service) projectGuardianWarning(instanceID string, notice agentproto.ProtocolNotice) []eventcontract.Event {
+	if isGuardianApprovedReview(notice.Summary) {
+		return nil
+	}
 	surface := s.turnSurface(instanceID, notice.ThreadID, notice.TurnID)
 	if surface == nil {
 		return nil
 	}
 	summary := strings.TrimSpace(notice.Summary)
 	if summary == "" {
-		summary = "Codex 返回了 guardian warning，请检查当前任务是否需要调整。"
+		summary = "Codex 返回了一条安全提醒，请检查当前操作。"
 	}
 	if !s.allowActiveNotice("guardian", surface.SurfaceSessionID, instanceID, notice.ThreadID, summary, 10*time.Minute) {
 		return nil
 	}
 	payload := control.Notice{
 		Code:     "codex_guardian_warning",
-		Title:    "Codex guardian warning",
+		Title:    "Codex 安全提醒",
 		Text:     summary,
 		ThemeKey: "warning",
 	}

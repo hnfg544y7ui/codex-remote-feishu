@@ -1,7 +1,7 @@
 # Relay Protocol Spec
 
 > Type: `general`
-> Updated: `2026-10-10`
+> Updated: `2026-10-14`
 > Summary: 在既有 canonical 协议基础上补充 `thread.shell_command`、Codex capability 声明、payload-file UserShell 注入和 queued `APPLAUSE` ack/恢复边界（#901）。 补充 Codex headless 会话重命名命令及精确目标关联。
 
 ## 1. 文档定位
@@ -611,8 +611,10 @@ wrapper 只向 native `thread/shellCommand` 发送固定读取命令：POSIX 使
 当前语义：
 
 - translator 只抽取白名单字段，不把 native raw payload 常驻到 relay event。
-- orchestrator 只把 notice 记录到 instance / thread 的最近 notice state，默认不生成 Feishu card、notice 或消息。
-- 这条 carrier 是 P1 底层承接，不代表 Feishu notice center 或安全告警产品展示已经完成。
+- orchestrator 保存 instance / thread 的最近 notice state；普通 `warning` 和 `deprecationNotice` 仅记录状态。
+- `guardianWarning` 当前原生参数只有 `threadId` 和 `message`，没有独立 decision。仅当正文匹配完整的 `Automatic approval review approved (risk: <level>, authorization: <level>):` 前缀，且两个 level 均为 `low` / `medium` / `high` 时保持状态和日志、不生成聊天卡片。拒绝、其他安全提醒、截断或未知格式继续向受影响的 surface 展示“Codex 安全提醒”，按原有冷却规则去重。
+- 上述识别只决定展示，不授予审批、不执行工具，也不改变 request gate、队列或 turn 状态；原始通知内容和 severity 仍保留。静默通过通知不会封口当前共享过程卡。
+- `configWarning` 中会影响运行的严重配置问题仍向受影响 surface 展示；找不到目标 surface 时仅保留状态。该 carrier 不代表完整 notice center 已实现。
 - `windows/worldWritableWarning` 当前仍是 planned follow-up；在确认上游 payload 前不并入本 carrier。
 
 ### 5.4.3 Thread lifecycle / goal / settings state
