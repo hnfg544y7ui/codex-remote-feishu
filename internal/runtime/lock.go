@@ -19,9 +19,11 @@ type FileLock struct {
 }
 
 type lockRecord struct {
-	PID       int       `json:"pid"`
-	Token     string    `json:"token"`
-	CreatedAt time.Time `json:"createdAt"`
+	PID          int       `json:"pid"`
+	Token        string    `json:"token"`
+	CreatedAt    time.Time `json:"createdAt"`
+	BootID       string    `json:"bootId,omitempty"`
+	ProcessStart string    `json:"processStart,omitempty"`
 }
 
 func AcquireLock(ctx context.Context, path string, wait bool) (*FileLock, error) {
@@ -37,6 +39,7 @@ func AcquireLock(ctx context.Context, path string, wait bool) (*FileLock, error)
 		Token:     token,
 		CreatedAt: time.Now().UTC(),
 	}
+	record.BootID, record.ProcessStart = lockProcessIdentity(record.PID)
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return nil, err
@@ -113,7 +116,7 @@ func clearStaleLock(path string) (bool, error) {
 	if err := json.Unmarshal(raw, &record); err != nil {
 		return false, err
 	}
-	if record.PID > 0 && processAlive(record.PID) {
+	if record.PID > 0 && !lockOwnerReplaced(record) && processAlive(record.PID) {
 		return false, nil
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {

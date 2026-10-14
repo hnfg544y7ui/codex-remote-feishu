@@ -1,8 +1,8 @@
 # 安装与部署设计
 
 > Type: `general`
-> Updated: `2026-08-11`
-> Summary: 修正 upgrade helper 当前来源：安装文档只保留升级事务边界，完整时序以本地自升级流程文档为准。
+> Updated: `2026-10-14`
+> Summary: 安装、升级与服务部署边界；Linux 运行锁通过系统启动标识与进程启动标识识别重启或 PID 复用后的旧锁。
 
 ## 1. 范围
 
@@ -411,6 +411,8 @@ Linux 当前已支持显式选择 `systemd_user` 作为 daemon lifecycle manager
   - 这里的 `serviceHome` 指真实 `systemd --user` home，通常仍是 `$HOME`；它不等于 install `baseDir`
   - 运行身份仍保持为当前用户
   - unit 里的 `WorkingDirectory` 与 `XDG_CONFIG_HOME` / `XDG_DATA_HOME` / `XDG_STATE_HOME` 仍指向目标实例自己的 `baseDir`
+
+Linux 的文件运行锁同时保存 PID、系统 boot ID 和进程启动 tick。PID 在重启或同一次启动中被复用时，只在内核标识明确不匹配后回收旧锁；不会停止复用该 PID 的无关进程。旧版本只含 PID 和创建时间的锁，创建时间明确早于当前系统启动时间时可回收；身份信息不可读或无法确定时仍按原有进程存活检查保守处理。损坏 JSON 不自动删除，token 校验及正常活跃锁的互斥保持不变。其它平台的锁行为保持原样。
 
 如果希望机器重启后在没有手工打开终端的情况下也恢复 user service，需要额外启用：
 
