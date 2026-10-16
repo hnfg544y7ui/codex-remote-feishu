@@ -106,6 +106,7 @@ async def serve(config):
             signal.signal(sig, lambda *_: loop.call_soon_threadsafe(stopped.set))
     server = None
     server_started = False
+    watcher = None
     try:
         # Fail before launching a second server if either public port is occupied.
         async with websockets.serve(owner.proxy, *public, max_size=32 << 20):
@@ -115,8 +116,14 @@ async def serve(config):
             atomic_json(path, dict(schemaVersion=1, endpoint=config['endpoint'], controlURL=config['controlURL'], token=token))
             threading.Thread(target=server.serve_forever, daemon=True).start()
             server_started = True
+            watcher = asyncio.create_task(owner.runtime_env.monitor())
             notify_ready()
             while not stopped.is_set():
+                if watcher.done():
+                    if not watcher.cancelled():
+                        watcher.exception()  # Retrieve without exposing runtime data.
+                    owner.runtime_env.state = 'monitor_restarting'
+                    watcher = asyncio.create_task(owner.runtime_env.monitor())
                 if not owner.busy and owner.child.returncode is not None:
                     owner.state, owner.frozen = 'failed', True
                     raise RuntimeError('Backend exited unexpectedly; refusing silent restart during user work')
@@ -125,6 +132,10 @@ async def serve(config):
                 except asyncio.TimeoutError:
                     pass
     finally:
+        if watcher:
+            watcher.cancel()
+            await asyncio.gather(watcher, return_exceptions=True)
+        await owner.runtime_env.close()
         if server:
             if server_started:
                 await asyncio.to_thread(server.shutdown)

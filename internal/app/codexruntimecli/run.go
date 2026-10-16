@@ -28,6 +28,14 @@ type operations struct {
 // Run exposes preparation and explicitly offline activation. Online updates are
 // owned by the daemon coordinator, which drains workers before changing runtime.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer, version string) error {
+	if len(args) > 0 && args[0] == "host-export" {
+		return runHostExport(ctx, args[1:], stdout, stderr)
+	}
+	if len(args) > 0 && (args[0] == "bundle" || args[0] == "verify-bundle") {
+		return runBundle(ctx, args, stdout, stderr, os.Environ(), bundleOperations{
+			snapshot: codexmanaged.SnapshotBundle, verify: codexmanaged.VerifyBundle,
+		})
+	}
 	paths, err := relayruntime.DefaultPaths()
 	if err != nil {
 		return err

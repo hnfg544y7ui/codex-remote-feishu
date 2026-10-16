@@ -27,6 +27,8 @@ class UpgradeTests(unittest.IsolatedAsyncioTestCase):
         self.owner.native_idle = AsyncMock()
         self.owner.stop = AsyncMock()
         self.owner.launch = AsyncMock()
+        self.owner.verify_selection = AsyncMock(side_effect=lambda selected, **kwargs: dict(selected))
+        self.owner.runtime_env.prepare = AsyncMock(return_value=dict(environment={}, args=[], snapshot=None, fingerprint=None))
 
     def tearDown(self):
         self.owner.log.close()
@@ -36,7 +38,7 @@ class UpgradeTests(unittest.IsolatedAsyncioTestCase):
         return dict(version='0.163.0', expectedVersion='0.162.1', **extra)
 
     async def test_success_is_fenced_until_health_and_selection_commit(self):
-        async def launch(selected):
+        async def launch(selected, **kwargs):
             self.assertTrue(self.owner.frozen)
             self.assertEqual(selected, self.new)
         self.owner.launch.side_effect = launch
