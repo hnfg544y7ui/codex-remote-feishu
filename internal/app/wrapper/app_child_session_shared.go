@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,13 +24,14 @@ const sharedBackendFrameLimit = 16 << 20
 // The pipe retains the existing JSONL bootstrap/translation path and applies
 // backpressure instead of buffering an unbounded stream of notifications.
 type sharedCodexTransport struct {
-	conn      *websocket.Conn
-	reader    *io.PipeReader
-	writer    *io.PipeWriter
-	writeMu   sync.Mutex
-	closeOnce sync.Once
-	done      chan struct{}
-	waitErr   chan error
+	conn              *websocket.Conn
+	reader            *io.PipeReader
+	writer            *io.PipeWriter
+	writeMu           sync.Mutex
+	closeOnce         sync.Once
+	done              chan struct{}
+	waitErr           chan error
+	maintenanceClosed atomic.Bool
 }
 
 func validateSharedCodexArgs(cfg Config) error {
@@ -65,33 +67,25 @@ func (a *App) launchSharedCodexSession(ctx context.Context, rawLogger *debuglog.
 	if err := validateSharedCodexArgs(a.config); err != nil {
 		return nil, err
 	}
-	// No HTTP_PROXY lookup: a local privileged backend must always be reached
-	// directly. Redirects are rejected by gorilla's WebSocket handshake.
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	conn, response, err := dialer.DialContext(ctx, endpoint, nil)
-	if response != nil && response.Body != nil {
-		_ = response.Body.Close()
+	bootstrapCtx, cancelBootstrap := context.WithTimeout(ctx, wrapperBootstrapTimeout)
+	defer cancelBootstrap()
+	transport, stdout, err := a.initializeSharedCodex(ctx, bootstrapCtx, endpoint, rawLogger, reportProblem)
+	if err == nil {
+		initialized := stdout
+		stdout, err = a.runChildBootstrap(bootstrapCtx, wrapperBootstrapTimeout, func() { _ = transport.Close() }, func() (io.Reader, error) {
+			return a.bootstrapSharedResume(transport, initialized, rawLogger, reportProblem)
+		})
 	}
 	if err != nil {
-		return nil, sharedBackendTransportProblem(err)
-	}
-	conn.SetReadLimit(sharedBackendFrameLimit)
-	transport := newSharedCodexTransport(ctx, conn)
-	go a.watchSharedCodexOwnership(ctx, transport, reportProblem)
-	stdout, err := a.runChildBootstrap(ctx, wrapperBootstrapTimeout, func() { _ = transport.Close() }, func() (io.Reader, error) {
-		initialized, err := a.bootstrapHeadlessCodex(transport, transport.reader, rawLogger, reportProblem)
-		if err != nil {
-			return nil, err
+		if transport != nil {
+			_ = transport.Close()
 		}
-		return a.bootstrapSharedResume(transport, initialized, rawLogger, reportProblem)
-	})
-	if err != nil {
-		_ = transport.Close()
 		if a.config.ResumeThreadID != "" {
 			return nil, sharedBootstrapScopeProblem(err, a.config.ResumeThreadID)
 		}
 		return nil, err
 	}
+	go a.watchSharedCodexOwnership(ctx, transport, reportProblem)
 	return &childSession{
 		sharedBackend: true,
 		stdin:         transport, stdout: stdout, stderr: bytes.NewReader(nil),
@@ -128,6 +122,7 @@ func (t *sharedCodexTransport) readFrames() {
 	for {
 		kind, payload, err := t.conn.ReadMessage()
 		if err != nil {
+			t.maintenanceClosed.Store(websocket.IsCloseError(err, websocket.CloseTryAgainLater))
 			terminal = err
 			return
 		}
