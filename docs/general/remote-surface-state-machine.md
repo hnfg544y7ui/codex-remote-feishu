@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-16`
-> Summary: 增加显式登记共享后端宿主的版本检查、手动维护与失败恢复准入边界。
+> Summary: 共享后端维护期间只在初始化成功前有界重试明确的准入拒绝，保留订阅与原会话恢复校验。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2158,6 +2158,7 @@ retained-offline overlay 额外规则：
 - 仅宿主可停止其子进程。新版本健康确认并持久化后恢复准入，失败时恢复已校验旧版；双重失败保持准入关闭。宿主报告本生命周期的 native `generation`，每次尝试启动递增。Remote 按升级前的 surface/thread/workspace/连接 contract 等待既有恢复管线建立在线且已加载原 thread 的绑定；代次变化时不接受旧 wrapper ID 的缓存快照，不向已退出的旧 ID 发送 `child.restart`，空闲池由既有预热机制补齐。`ApplyInstanceDisconnected` 清空选择/claims、PendingHeadless 恢复中、replacement hello 尚未装回原选择都只是等待态；空 route 不能当作显式 detach 或恢复成功，非空不同 thread 才判为重定向错误，原 surface 消失也失败关闭。代次未变的准备失败保留原连接。确认恢复后才解除事务与派发暂停。维护结果未知、宿主失联或连接恢复失败时保留升级 gate 与输入，卡片及普通输入均明确要求修复宿主后重启 Remote，不能继续显示等待升级完成；不得显示成功或自动派发缓存。
 - Profile 目录仅提供 `cp_native`（共享后端，继承配置），API/OAuth 拒绝。`initialize/initialized/config/read` 直接从共享端点获得 native evidence；探测失败不把私有 CLI 或旧缓存当作可用证据，后台按已有探测重试周期恢复。projection 使用 `codex-shared-native-v1`，精确校验 native revision/generation 与 context preference；不生成 child 环境凭据、CLI override 或 managed file。
 - 进入已有 thread 时，在报告 worker 已接管之前完成有界 startup initialize 和仅携带 `threadId` 的 `thread/resume`，成功响应必须精确匹配目标；新 thread 由本连接成功的 `thread/start` 响应建立 scope。外部 thread 广播不能改变 selected thread。重连只恢复连接和订阅，不自动重放旧 prompt。
+- startup initialize 尚未成功时，显式维护拒绝（WebSocket 1013 或握手 HTTP 503）在同一个 bootstrap 总期限内短暂退避重连；不把窗口内的维护拒绝直接交给 headless 失败退避。initialize 成功后只发送一次原 thread 的 resume；resume 已发送后丢失回执、其它断线、协议错误或身份错误均不重试订阅，也不延长启动总期限。旧请求结果不明时继续失败关闭，不能以重连为由重放用户任务。
 - turn 归属由本连接的请求 ID 与成功响应内 turn ID 建立；通知先于响应时有界缓存（128 帧/1 MiB、15 秒），竞态、超限或归属无法证明均明确失败并关闭连接。其他客户端在已订阅 thread 上运行的 turn 投影为 `local_ui`，不消费 Remote pending owner；不同 thread 的通知不投影。
 - native 工具/审批只有已证明属于本连接 Remote turn 的请求才能进入飞书；外部请求和对应 resolved 广播不进入可回答 gate。已处理或已 resolved 的请求不能重复回答。已有同 thread writer 仲裁仍成立：两端交替运行，不支持同 thread 同时运行两个 turn。
 - App 的 `agentMessage(delivery=async, questions 非空)` 是异步提问通知，不是 native RPC request。Remote 在 item 完成时立即展示正文和回答指引，不等下一段文本或 turn 结束、不标记最终回复、不创建 request gate；quiet 模式仍展示提问。用户可发送回答并对该回答添加 `ThumbsUp`，复用当前话题/会话的单条 queued steer；普通输入继续排队，`/steerall` 仍只在用户明确调用时合并当前 surface 全部可插入输入。App 面板的选择控件不在飞书伪造，外部审批归属规则不变。
