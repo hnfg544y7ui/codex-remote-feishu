@@ -155,6 +155,9 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 		Rollback:           req.Rollback,
 		Automatic:          req.Automatic,
 	}
+	if tx.Install.SourceKind == codexupgrade.SourceSharedBackend {
+		tx.SharedTargets = a.sharedCodexRecoveryTargetsLocked()
+	}
 	a.pauseCodexUpgradeSurfacesLocked(tx)
 	a.codexUpgradeRuntime.Active = tx
 

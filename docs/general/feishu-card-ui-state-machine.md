@@ -1110,7 +1110,7 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
 - 连续点击历史详情时，只消费当前 surface 最新查询的结果，迟到的旧轮次结果不会把当前详情还原成摘要；其它 surface 的查询不受影响。正文来自分页 envelope 的 `item` 对象，不将条目数量作为有正文的证据。
 - `/history` 的列表页读取全部轮次摘要，详情回调将所选轮次贯穿到只读查询，按需补齐该轮完整条目；callback schema、owner/lifecycle、页码与原序号不变。查询在派发前登记 pending，快速成功或错误不会丢失；分页错误结束 loading 并显示失败原因，不把连接伪装成断线、不自动重放对话任务。
 - 显式共享端点的 profile 目录只显示 `cp_native`（共享后端，继承配置）。已有 OAuth/API 选择不能启动共享 worker；用户需重新选择 native。“Codex 来源”仍只提示宿主管理，不创建来源事务。`/upgrade` 现在显示“Codex 升级”：登记健康本机维护宿主后复用现有 owner card 的检查更新、确认升级、上一版回退；当前版本来自该宿主，不来自配置中的私有 CLI 路径。未登记、宿主离线、身份或权限不匹配时给出具体失败原因，不能触发私有安装。direct command 和旧卡仍受同一 owner/lifecycle/TTL gate 约束。
-- 共享维护失败而旧版已恢复时，owner card 显示失败、Remote 恢复 client 后才释放缓存；宿主恢复未确认时保留输入 gate，显示人工恢复指引，不声称升级成功。打开升级页不会自动下载；点击检查仅查询状态和 npm metadata，确认后宿主才准备与切换。callback family、同卡 patch、发起者限制及其它 surface 静默规则均不变。
+- 共享维护失败而旧版已恢复时，owner card 显示失败、Remote 验证原 surface/thread 在新 wrapper 上已加载后才释放缓存，不以已退出 ID 的重启回执为准；宿主恢复未确认时保留输入 gate，卡片与普通输入均显示人工恢复指引，不声称升级成功或继续等待即可恢复。打开升级页不会自动下载；点击检查仅查询状态和 npm metadata，确认后宿主才准备与切换。callback family、同卡 patch、发起者限制及其它 surface 静默规则均不变。
 - callback schema、owner/lifecycle/freshness 和 inline replace 规则沿用现有合同，没有新增 callback family。共享错误配置、离线或归属失败给出明确 notice，保留 `/detach` 与重新 `/use` 的退出/恢复入口。
 - 来自其他客户端的 native 工具/审批不会生成飞书可回答卡；仅本连接 Remote turn 上已登记的 request/resolved 进入产品投影，resolved 立即撤销回答资格。共享断线不会把正在运行的后端任务投影成完成，也不会自动重发 prompt。
 - 协议与状态审计覆盖 startup resume、两端交替、不同 thread 过滤、审批归属、连接重启及断线。验证范围和使用步骤见 [共享 Codex 后端](../implemented/shared-codex-backend.md)；隔离真实 App 握手与协议控制器交替的验证不替代手机飞书 UI 或真实模型网络验收。

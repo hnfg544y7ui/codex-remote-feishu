@@ -29,6 +29,9 @@ func (a *App) inspectSharedCodexInstallation(ctx context.Context) (codexupgrade.
 	if status.Busy || status.State != "running" {
 		return codexupgrade.Installation{}, fmt.Errorf("共享后端正在维护或等待恢复，请稍后再检查")
 	}
+	if status.Generation == 0 {
+		return codexupgrade.Installation{}, fmt.Errorf("共享后端维护宿主需要更新后才能检查升级")
+	}
 	return codexupgrade.Installation{SourceKind: codexupgrade.SourceSharedBackend,
 		PackageVersion: status.Version, ManagedPreviousVersion: status.PreviousVersion}, nil
 }
@@ -36,6 +39,13 @@ func (a *App) inspectSharedCodexInstallation(ctx context.Context) (codexupgrade.
 func (a *App) runSharedCodexUpgrade(ctx context.Context, tx *codexupgraderuntime.Transaction, complete func(error)) {
 	c, err := a.sharedCodexOwner()
 	recovered := false
+	var before sharedcodex.Status
+	if err == nil {
+		before, err = c.Status(ctx)
+		if err == nil && (before.Generation == 0 || before.State != "running" || before.Busy || before.Version != tx.CurrentVersion) {
+			err = fmt.Errorf("共享后端状态已经变化，请重新检查；宿主需要提供运行代次")
+		}
+	}
 	if err == nil {
 		var result sharedcodex.Status
 		result, err = c.Upgrade(ctx, sharedcodex.Upgrade{Version: tx.TargetVersion, ExpectedVersion: tx.CurrentVersion, Rollback: tx.Rollback})
@@ -43,13 +53,14 @@ func (a *App) runSharedCodexUpgrade(ctx context.Context, tx *codexupgraderuntime
 			err = fmt.Errorf("共享后端未确认目标版本运行成功")
 		}
 	}
-	// A healthy new or restored old backend lives at the same endpoint. Rebuild
-	// Remote's client connections, not the independently owned backend process.
+	// The shared transport exits its old wrapper on native disconnect. Existing
+	// surface recovery creates a new wrapper ID; never send child.restart to the
+	// transaction's obsolete IDs or treat their old snapshots as fresh evidence.
 	recoveryCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	if c != nil {
-		if status, probeErr := c.Status(recoveryCtx); probeErr == nil && status.State == "running" && !status.Busy {
-			if restoreErr := a.restartManagedCodexChildren(recoveryCtx, tx.RestartInstanceIDs); restoreErr != nil {
+		if status, probeErr := c.Status(recoveryCtx); probeErr == nil && status.State == "running" && !status.Busy && before.Generation > 0 && status.Generation > 0 {
+			if restoreErr := a.waitSharedCodexClients(recoveryCtx, tx, status.Generation != before.Generation); restoreErr != nil {
 				err = fmt.Errorf("共享后端连接恢复失败：%v；维护结果：%v", restoreErr, err)
 			} else {
 				recovered = true

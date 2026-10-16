@@ -27,6 +27,7 @@ type Enrollment struct {
 }
 
 type Status struct {
+	Generation      uint64 `json:"generation"`
 	Endpoint        string `json:"endpoint"`
 	Version         string `json:"version"`
 	PreviousVersion string `json:"previousVersion"`

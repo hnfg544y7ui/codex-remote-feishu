@@ -23,6 +23,14 @@ type Transaction struct {
 	Rollback           bool
 	Automatic          bool
 	RecoveryRequired   bool
+	SharedTargets      map[string]SharedClientTarget
+}
+
+type SharedClientTarget struct {
+	InstanceID   string
+	ThreadID     string
+	WorkspaceKey string
+	ContractID   string
 }
 
 type OwnerCardFlowStage string

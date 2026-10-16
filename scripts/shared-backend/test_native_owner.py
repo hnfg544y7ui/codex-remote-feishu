@@ -37,6 +37,7 @@ class NativeOwnerTests(unittest.IsolatedAsyncioTestCase):
                 await owner.native_idle()
                 original = dict(owner.selection)
                 old_pid = owner.child.pid
+                old_generation = owner.status()['generation']
                 # Wrong candidate version must fail BEFORE launching it; the
                 # already stopped old native server must then be restored.
                 target = '0.0.999'
@@ -44,6 +45,7 @@ class NativeOwnerTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaisesRegex(RuntimeError, 'version changed'):
                     await owner.upgrade(dict(version=target, expectedVersion=original['version']))
                 self.assertNotEqual(owner.child.pid, old_pid)
+                self.assertGreater(owner.status()['generation'], old_generation)
                 self.assertEqual(owner.selection, original)
                 self.assertEqual(owner.state, 'running')
                 await owner.native_idle()

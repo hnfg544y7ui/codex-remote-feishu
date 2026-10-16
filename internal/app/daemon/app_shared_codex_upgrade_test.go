@@ -18,9 +18,10 @@ import (
 )
 
 type ownerStub struct {
-	status  sharedcodex.Status
-	request sharedcodex.Upgrade
-	err     error
+	status    sharedcodex.Status
+	request   sharedcodex.Upgrade
+	err       error
+	onUpgrade func()
 }
 
 func TestSharedCodexUpgradeLookupUsesCapturedEnvironmentAndStableChannel(t *testing.T) {
@@ -68,15 +69,19 @@ func TestSharedCodexUpgradeLookupActuallyContactsCapturedProxy(t *testing.T) {
 func (o *ownerStub) Status(context.Context) (sharedcodex.Status, error) { return o.status, nil }
 func (o *ownerStub) Upgrade(_ context.Context, u sharedcodex.Upgrade) (sharedcodex.Status, error) {
 	o.request = u
+	if o.onUpgrade != nil {
+		o.onUpgrade()
+	}
 	if o.err == nil {
 		o.status.Version = u.Version
+		o.status.Generation++
 	}
 	return o.status, o.err
 }
 
 func enrolledSharedFixture(t *testing.T) (*App, *ownerStub) {
 	a := sharedCodexDaemonFixture(t)
-	o := &ownerStub{status: sharedcodex.Status{Version: "0.162.1", PreviousVersion: "0.161.0", State: "running"}}
+	o := &ownerStub{status: sharedcodex.Status{Generation: 1, Version: "0.162.1", PreviousVersion: "0.161.0", State: "running"}}
 	a.codexUpgradeRuntime.SharedOwner = func(_ string, endpoint string) (sharedcodex.Maintenance, error) {
 		if endpoint != a.headlessRuntime.CodexAppServerURL {
 			t.Fatal("wrong backend owner")
@@ -113,15 +118,14 @@ func TestSharedCodexUpgradeChecksActualOwnerRatherThanPrivateCLI(t *testing.T) {
 	}
 }
 
-func TestSharedCodexUpgradeCoordinatesOwnerAndOnlyRestartsRemoteClients(t *testing.T) {
+func TestSharedCodexUpgradeWithoutBindingsDoesNotRestartIdlePool(t *testing.T) {
 	a, o := enrolledSharedFixture(t)
 	tx := &codexupgraderuntime.Transaction{ID: "shared-1", CurrentVersion: "0.162.1", TargetVersion: "0.163.0"}
 	a.codexUpgradeRuntime.Active = tx
-	restored := false
-	a.managedCodex.restart = func(context.Context, []string) error { restored = true; return nil }
+	a.managedCodex.restart = func(context.Context, []string) error { t.Fatal("must not restart obsolete wrapper IDs"); return nil }
 	var result error
 	a.runSharedCodexUpgrade(context.Background(), tx, func(err error) { result = err })
-	if result != nil || !restored || a.codexUpgradeRuntime.Active != nil {
+	if result != nil || a.codexUpgradeRuntime.Active != nil {
 		t.Fatalf("upgrade did not finish: %v", result)
 	}
 	if o.request.Version != tx.TargetVersion || o.request.ExpectedVersion != tx.CurrentVersion {

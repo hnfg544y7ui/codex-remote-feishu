@@ -82,6 +82,7 @@ class Owner:
     def status(self, problem=''):
         selected = self.selection or {}
         return dict(endpoint=self.config['endpoint'], version=selected.get('version', ''),
+                    generation=self.generation,
                     previousVersion=selected.get('previous', {}).get('version', ''),
                     state=self.state, busy=self.busy, problem=problem)
 
