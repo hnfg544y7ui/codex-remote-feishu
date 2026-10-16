@@ -2,7 +2,7 @@
 
 > Type: `general`
 > Updated: `2026-10-16`
-> Summary: 共享后端维护期间只在初始化成功前有界重试明确的准入拒绝，保留订阅与原会话恢复校验。
+> Summary: 共享后端维护保留完整运行包索引；App 环境刷新与版本切换共用空闲准入、恢复与失败关闭边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2145,6 +2145,9 @@ retained-offline overlay 额外规则：
 - 此流程是 daemon 来源配置事务，与 G10 的同来源 CLI 版本升级/回退不同；不能沿用 G10 对 VS Code/非 Codex backend 的排除或 initiator busy 例外。
 
 ## 10.4 显式共享 Codex 后端
+
+- 宿主选择文件与 previous 保存完整组件清单，而不是单个 CLI 路径。启动、切换前与回退均验证同版 CLI、code-mode-host 及平台沙箱助手的存在、权限、SHA 和版本；旧单文件记录只有完整验证后才迁移。停止旧进程前拒绝不完整候选；新进程健康后才写入选择，写盘失败也恢复旧版。准备器 managed.json 不是共享宿主实际选择的替代品。
+- 生产宿主源码嵌入 Remote，由固定 bootstrap 在服务启动时从当前 remoteBinary 导出完整内容哈希包并验证加载；不热替换运行中源码。App 环境监测重新发现当前进程、Node、资源与内存凭据，和 CLI 维护共用锁与准入栅栏；Remote 未派发输入、未确认请求、原生任务及 active Goal 阻止自动刷新，附着但空闲的连接可恢复。新环境须通过指定 MCP 工具只读健康检查，失败恢复上一套环境，双重失败保持关闭。发现/状态发布失败不能永久关闭监测；不重放用户任务、不持久化 App 凭据。详见 [共享后端版本维护](../implemented/shared-codex-upgrade.md)。
 
 - 共享 `thread/resume` 是精确会话订阅/接续，不承载历史正文；prompt、compact prepare、startup subscription 和 reconnect restore 都传 `excludeTurns=true`。响应仍按原 request ID 推进原 continuation，不能在断线后自动重发原 prompt，也不能以提高帧上限替代分页历史。私有 stdio 的 resume 参数保持原行为。
 

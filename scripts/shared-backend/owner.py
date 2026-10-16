@@ -14,10 +14,13 @@ import time
 from urllib.parse import urlsplit
 
 import websockets
+from runtime_environment import RuntimeEnvironment
+from runtime_selection import verify as verify_runtime_selection
+from runtime_selection import prepared_bundle
 
 READ_ONLY = {'initialize', 'thread/read', 'thread/list', 'thread/loaded/list',
              'thread/turns/list', 'thread/items/list', 'config/read', 'model/list',
-             'account/read', 'thread/goal/get'}
+             'account/read', 'thread/goal/get', 'mcpServerStatus/list'}
 
 
 @functools.lru_cache(maxsize=1)
@@ -78,16 +81,19 @@ class Owner:
         self.upgrade_lock = asyncio.Lock()
         self.generation = 0
         self.log = (self.root / 'backend.log').open('ab')
+        self.runtime_env = RuntimeEnvironment(self)
 
     def status(self, problem=''):
         selected = self.selection or {}
         return dict(endpoint=self.config['endpoint'], version=selected.get('version', ''),
                     generation=self.generation,
                     previousVersion=selected.get('previous', {}).get('version', ''),
-                    state=self.state, busy=self.busy, problem=problem)
+                    state=self.state, busy=self.busy, problem=problem, **self.runtime_env.status())
 
-    async def command(self, *args, timeout=180):
+    async def command(self, *args, timeout=180, env=None):
         options = dict(stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        if env is not None:
+            options['env'] = env
         if os.name == 'nt':
             options['creationflags'] = subprocess.CREATE_NO_WINDOW
         process = await asyncio.create_subprocess_exec(*map(str, args), **options)
@@ -98,7 +104,7 @@ class Owner:
             await process.wait()
             raise
         if process.returncode:
-            self.log.write(stderr[-16384:])
+            self.log.write(('Runtime command failed (exit %s); raw plugin output omitted\n' % process.returncode).encode())
             self.log.flush()
             # Never return raw plugin/config output, which can contain secrets.
             raise RuntimeError('CLI validation/preparation failed (exit %s); inspect owner logs' % process.returncode)
@@ -135,12 +141,14 @@ class Owner:
             if goal and goal.get('status') == 'active':
                 raise RuntimeError('An active Goal can continue without new client input; pause it before maintenance')
 
-    async def launch(self, selected):
-        if digest(selected['binary']) != selected['sha256']:
-            raise RuntimeError('Selected CLI integrity check failed')
-        actual = await self.command(selected['binary'], '--version', timeout=10)
-        if actual.removeprefix('codex-cli ').strip() != selected['version']:
-            raise RuntimeError('Selected CLI version changed')
+    async def verify_selection(self, selected, runtime=None):
+        return await verify_runtime_selection(self, selected, runtime=runtime)
+
+    async def launch(self, selected, runtime=None):
+        runtime = runtime or await self.runtime_env.prepare(selected)
+        selected = await self.verify_selection(selected, runtime=runtime)
+        if Path(runtime['environment'].get('CODEX_CLI_PATH', '')).resolve() != Path(selected['binary']).resolve():
+            raise RuntimeError('Runtime environment does not match the selected CLI')
         if self.generation:
             # The public endpoint never changes. A new internal port avoids
             # Windows TIME_WAIT preventing both the upgrade and its rollback.
@@ -152,13 +160,9 @@ class Owner:
             literal = '[' + host + ']' if ':' in host else host
             self.config['nativeEndpoint'] = 'ws://' + literal + ':' + str(port)
         self.generation += 1
-        args = [selected['binary'], *self.config.get('launchArgs', []), 'app-server', '--listen', self.config['nativeEndpoint']]
+        args = [selected['binary'], *self.config.get('launchArgs', []), *runtime['args'], 'app-server', '--listen', self.config['nativeEndpoint']]
         options = dict(stdin=asyncio.subprocess.DEVNULL, stdout=self.log, stderr=self.log)
-        env = dict(os.environ)
-        env.pop('CODEX_APP_SERVER_WS_URL', None)
-        env.pop('CODEX_APP_SERVER_FORCE_CLI', None)
-        env.pop('NOTIFY_SOCKET', None)
-        options['env'] = env
+        options['env'] = runtime['environment']
         if os.name == 'nt':
             options['creationflags'] = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         else:
@@ -168,11 +172,13 @@ class Owner:
             while self.child.returncode is None:
                 try:
                     await self.rpc('thread/loaded/list', {})
+                    await self.runtime_env.health(runtime)
                     return
                 except Exception:
                     await asyncio.sleep(.25)
             raise RuntimeError('Native backend readiness failed')
         await asyncio.wait_for(ready(), 25)
+        self.runtime_env.accept(runtime)
 
     async def stop(self):
         if self.child and self.child.returncode is None:
@@ -190,26 +196,30 @@ class Owner:
                 await self.child.wait()
 
     async def boot(self):
+        runtime = None
         if self.selection is None:
             binary = str(Path(self.config['initialBinary']).resolve(strict=True))
-            version = (await self.command(binary, '--version', timeout=10)).removeprefix('codex-cli ').strip()
+            runtime = await self.runtime_env.prepare(dict(binary=binary))
+            version = (await self.command(binary, '--version', timeout=10, env=runtime['environment'])).removeprefix('codex-cli ').strip()
             if not version_valid(version):
                 raise RuntimeError('Initial CLI did not report a supported version')
             self.selection = dict(binary=binary, version=version, sha256=digest(binary))
-        await self.launch(self.selection)
+        runtime = runtime or await self.runtime_env.prepare(self.selection)
+        self.selection = await self.verify_selection(self.selection, runtime=runtime)
+        await self.launch(self.selection, runtime=runtime)
         atomic_json(self.selection_file, self.selection)
         self.state = 'running'
+        self.runtime_env.publish()
 
     async def prepare(self, version):
         root = self.root / 'releases'
+        runtime = await self.runtime_env.prepare(self.selection)
         data = await self.command(self.config['remoteBinary'], 'codex-runtime', 'prepare', '--root', root,
-                                  '--version', version, '--retry-failed')
+                                  '--version', version, '--retry-failed', env=runtime['environment'])
         release = json.loads(data)
-        binary = Path(release['binary']).resolve(strict=True)
-        binary.relative_to(root.resolve())
-        if release['version'] != version:
-            raise RuntimeError('Prepared version changed')
-        return dict(binary=str(binary), version=version, sha256=digest(binary))
+        selected = prepared_bundle(root, version, release)
+        target_runtime = await self.runtime_env.prepare(selected, snapshot=runtime['snapshot'])
+        return await self.verify_selection(selected, runtime=target_runtime)
 
     async def upgrade(self, request):
         if self.upgrade_lock.locked():
@@ -221,17 +231,22 @@ class Owner:
             if self.state != 'running' or target == expected:
                 raise RuntimeError('Backend is not ready or target is already running')
             self.busy = True
+            previous_runtime = self.runtime_env.active
             previous = dict(self.selection)
             original = dict(self.selection)
             previous.pop('previous', None)
             stopped = False
             try:
+                previous = await self.verify_selection(previous, runtime=previous_runtime)
+                previous.pop('previous', None)
                 if request.get('rollback'):
                     selected = self.selection.get('previous', {})
                     if selected.get('version') != target:
                         raise RuntimeError('Previous verified release changed')
                 else:
                     selected = await self.prepare(target)  # Download before fencing clients.
+                runtime = await self.runtime_env.prepare(selected)
+                selected = await self.verify_selection(selected, runtime=runtime)
                 # Fence the public gateway BEFORE inspecting native state. Every
                 # admitted client RPC is tracked until acknowledged; no turn/start
                 # can race the idle check, including messages from the desktop App.
@@ -244,7 +259,7 @@ class Owner:
                 self.state = 'switching'
                 stopped = True
                 await self.stop()
-                await self.launch(selected)
+                await self.launch(selected, runtime=runtime)
                 self.selection = dict(selected, previous=previous)
                 atomic_json(self.selection_file, self.selection)
                 self.state = 'running'
@@ -253,7 +268,7 @@ class Owner:
                     self.state = 'restoring'
                     try:
                         await self.stop()
-                        await self.launch(previous)
+                        await self.launch(previous, runtime=previous_runtime)
                         self.selection = original
                         atomic_json(self.selection_file, self.selection)
                         self.state = 'running'
@@ -264,6 +279,7 @@ class Owner:
             finally:
                 self.busy = False
                 self.frozen = self.state != 'running'
+                self.runtime_env.publish()
             return self.status()
 
     async def proxy(self, client):
