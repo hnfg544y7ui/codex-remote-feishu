@@ -10,6 +10,7 @@ const (
 	SourceStandaloneNPM   SourceKind = "standalone_npm"
 	SourceStandaloneOther SourceKind = "standalone_other"
 	SourceManagedRuntime  SourceKind = "managed_runtime"
+	SourceSharedBackend   SourceKind = "shared_backend_owner"
 )
 
 const (
@@ -38,7 +39,11 @@ type Installation struct {
 }
 
 func (i Installation) Upgradeable() bool {
-	return (i.SourceKind == SourceStandaloneNPM || i.SourceKind == SourceManagedRuntime) && i.PackageVersion != ""
+	return (i.SourceKind == SourceStandaloneNPM || i.SourceKind == SourceManagedRuntime || i.SourceKind == SourceSharedBackend) && i.PackageVersion != ""
+}
+
+func (i Installation) SupportsRollback() bool {
+	return i.SourceKind == SourceManagedRuntime || i.SourceKind == SourceSharedBackend
 }
 
 func (i Installation) BundleBacked() bool {

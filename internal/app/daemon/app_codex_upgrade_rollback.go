@@ -22,6 +22,8 @@ func codexUpgradeOwnerConfirmFailurePrefix(rollback bool) string {
 
 func codexUpgradeOwnerSourceLabel(source codexupgrade.SourceKind) string {
 	switch source {
+	case codexupgrade.SourceSharedBackend:
+		return "共享后端宿主管理的 Codex CLI"
 	case codexupgrade.SourceManagedRuntime:
 		return "Remote 独立托管的官方 Codex CLI"
 	case codexupgrade.SourceStandaloneNPM:
@@ -40,7 +42,7 @@ func (a *App) confirmCodexRollbackOwnerFlowLocked(command control.DaemonCommand)
 	if blocked != nil {
 		return blocked
 	}
-	if a.codexUpgradeRuntime.Active != nil || flow.Stage != codexupgraderuntime.OwnerFlowStageReady || !flow.Checked || !flow.CanRollback || flow.SourceKind != codexupgrade.SourceManagedRuntime || strings.TrimSpace(flow.PreviousVersion) == "" || flow.PreviousVersion == flow.CurrentVersion {
+	if a.codexUpgradeRuntime.Active != nil || flow.Stage != codexupgraderuntime.OwnerFlowStageReady || !flow.Checked || !flow.CanRollback || (flow.SourceKind != codexupgrade.SourceManagedRuntime && flow.SourceKind != codexupgrade.SourceSharedBackend) || strings.TrimSpace(flow.PreviousVersion) == "" || flow.PreviousVersion == flow.CurrentVersion {
 		return []eventcontract.Event{upgradeNoticeEvent(command.SurfaceSessionID, "codex_upgrade_owner_invalid_stage", "当前这张 Codex 升级卡片不能回退，请先重新检查。")}
 	}
 	flow.Rollback = true

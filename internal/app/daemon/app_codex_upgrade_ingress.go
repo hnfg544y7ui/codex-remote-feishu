@@ -19,7 +19,7 @@ func (a *App) maybeHandleStandaloneCodexUpgradeActionLocked(ctx context.Context,
 	}
 
 	if strings.TrimSpace(action.SurfaceSessionID) == strings.TrimSpace(tx.InitiatorSurface) {
-		a.handleUIEventsLocked(ctx, codexUpgradeBlockedEvents(action.SurfaceSessionID, false))
+		a.handleUIEventsLocked(ctx, codexUpgradeBlockedEvents(action.SurfaceSessionID, false, tx.RecoveryRequired))
 		a.syncSurfaceResumeStateLocked(nil)
 		a.syncClaudeWorkspaceProfileStateLocked()
 		return true
@@ -27,14 +27,14 @@ func (a *App) maybeHandleStandaloneCodexUpgradeActionLocked(ctx context.Context,
 	if codexUpgradeQueueableInput(action) && strings.TrimSpace(a.service.AttachedInstanceID(action.SurfaceSessionID)) != "" {
 		a.service.PauseSurfaceDispatch(action.SurfaceSessionID)
 		events := a.applyIngressActionLocked(action)
-		events = append(events, codexUpgradeBlockedEvents(action.SurfaceSessionID, true)...)
+		events = append(events, codexUpgradeBlockedEvents(action.SurfaceSessionID, true, tx.RecoveryRequired)...)
 		a.handleUIEventsLocked(ctx, events)
 		a.syncSurfaceResumeStateLocked(nil)
 		a.syncClaudeWorkspaceProfileStateLocked()
 		return true
 	}
 
-	a.handleUIEventsLocked(ctx, codexUpgradeBlockedEvents(action.SurfaceSessionID, false))
+	a.handleUIEventsLocked(ctx, codexUpgradeBlockedEvents(action.SurfaceSessionID, false, tx.RecoveryRequired))
 	a.syncSurfaceResumeStateLocked(nil)
 	a.syncClaudeWorkspaceProfileStateLocked()
 	return true
@@ -65,16 +65,24 @@ func codexUpgradeQueueableInput(action control.Action) bool {
 	}
 }
 
-func codexUpgradeBlockedEvents(surfaceID string, queued bool) []eventcontract.Event {
+func codexUpgradeBlockedEvents(surfaceID string, queued, recoveryRequired bool) []eventcontract.Event {
+	code := "codex_upgrade_running"
 	text := "当前正在升级 Codex。请等待完成后再继续操作。"
 	if queued {
 		text = "当前正在升级 Codex，这条输入会在升级完成后执行。"
+	}
+	if recoveryRequired {
+		code = "codex_shared_backend_recovery"
+		text = "共享后端维护需要恢复，继续等待不会自动解除。请先修复宿主，再重启 Remote 恢复会话连接；可用 `/upgrade codex` 查看恢复提示。"
+		if queued {
+			text += " 这条消息已缓存。"
+		}
 	}
 	return []eventcontract.Event{{
 		Kind:             eventcontract.KindNotice,
 		SurfaceSessionID: strings.TrimSpace(surfaceID),
 		Notice: &control.Notice{
-			Code: "codex_upgrade_running",
+			Code: code,
 			Text: text,
 		},
 	}}

@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-14`
-> Summary: 修正 Goal 异步回执的卡片所有权边界，文字入口追加结果卡，不改变 Goal、队列及运行中 turn 状态。
+> Updated: `2026-10-16`
+> Summary: 增加显式登记共享后端宿主的版本检查、手动维护与失败恢复准入边界。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2152,7 +2152,10 @@ retained-offline overlay 额外规则：
 
 - 共享 `/history` 使用 `thread/read(includeTurns=false)` 元数据与 `thread/turns/list` 分页轮次摘要；列表保留全部轮次和原序号，详情通过既有 `Target.TurnID` 对指定轮次使用 `thread/items/list` 分页获取完整条目。每页按本连接 request ID 关联，不改变 selected thread、订阅或 turn owner，不执行 `thread/resume` / `turn/start`。分页失败、接口不支持或游标无进展时结束对应查询并将 loading 卡变为失败态，连接仍可继续查询；不退回全量历史。私有 stdio 保留原完整读取。
 - `wrapper.codexAppServerURL` 或 `CODEX_REMOTE_CODEX_APP_SERVER_URL` 在 daemon 启动时冻结。仅允许显式端口的 loopback WebSocket；URL 无效或后端离线时 fail closed，不回退私有 CLI。默认仍为私有 stdio。共享路径只用于 Codex headless/cron，非 headless wrapper 拒绝启用；Claude/OpenCode 不继承该连接。
-- 共享后端由外部宿主管理版本、凭据与进程。Remote 只关闭自己的连接；worker 退出、detach、超时清理和 `process.child.restart` 均不结束外部后端。managed 安装、预热、自动升级、激活、回退和来源切换全部停用；`/upgrade codex-source` 显式提示宿主管理，不建立 owner gate。
+- 共享后端由宿主管理版本、凭据与进程。Remote 只关闭自己的连接；worker 退出、detach、超时清理和 `process.child.restart` 均不结束后端。私有 managed 安装、预热、自动升级和来源切换停用；`/upgrade codex-source` 仍提示宿主管理。`/upgrade codex` 对显式登记且健康的本机维护宿主开放手动检查、升级及上一版回退，未登记或身份不匹配则明确失败，不用私有 CLI 版本冒充后端版本。
+- 维护登记按 endpoint 的 SHA-256 定位 `StateDir/shared-backend-owners/<digest>.json`，schema 1 的 endpoint 必须与冻结共享配置一致；仅接受 literal loopback WS/HTTP，凭据文件须具备私有权限，控制请求携带 bearer，禁止代理与重定向。实际版本由宿主启动校验及健康握手报告。最新稳定版查询沿用官方 npm metadata，使用已捕获的模型代理环境，不随飞书直连配置清除，也不继承私有 CLI 的 pinned version/channel；更旧稳定版不能覆盖较新的 alpha。
+- 维护宿主先准备并验证官方 CLI，再冻结公共 WebSocket 的新方法请求，确认没有未回执请求且 native 全部 loaded thread 为 idle 或 terminal systemError，且没有 active Goal；App 独立运行的 turn 同样阻止切换。不自动 pause/clear Goal、不启动模型任务、不重放旧 prompt。原生内部端口不供客户端使用，每轮切换可变化，公共端点保持不变。
+- 仅宿主可停止其子进程。新版本健康确认并持久化后恢复准入，失败时恢复已校验旧版；双重失败保持准入关闭。宿主报告本生命周期的 native `generation`，每次尝试启动递增。Remote 按升级前的 surface/thread/workspace/连接 contract 等待既有恢复管线建立在线且已加载原 thread 的绑定；代次变化时不接受旧 wrapper ID 的缓存快照，不向已退出的旧 ID 发送 `child.restart`，空闲池由既有预热机制补齐。`ApplyInstanceDisconnected` 清空选择/claims、PendingHeadless 恢复中、replacement hello 尚未装回原选择都只是等待态；空 route 不能当作显式 detach 或恢复成功，非空不同 thread 才判为重定向错误，原 surface 消失也失败关闭。代次未变的准备失败保留原连接。确认恢复后才解除事务与派发暂停。维护结果未知、宿主失联或连接恢复失败时保留升级 gate 与输入，卡片及普通输入均明确要求修复宿主后重启 Remote，不能继续显示等待升级完成；不得显示成功或自动派发缓存。
 - Profile 目录仅提供 `cp_native`（共享后端，继承配置），API/OAuth 拒绝。`initialize/initialized/config/read` 直接从共享端点获得 native evidence；探测失败不把私有 CLI 或旧缓存当作可用证据，后台按已有探测重试周期恢复。projection 使用 `codex-shared-native-v1`，精确校验 native revision/generation 与 context preference；不生成 child 环境凭据、CLI override 或 managed file。
 - 进入已有 thread 时，在报告 worker 已接管之前完成有界 startup initialize 和仅携带 `threadId` 的 `thread/resume`，成功响应必须精确匹配目标；新 thread 由本连接成功的 `thread/start` 响应建立 scope。外部 thread 广播不能改变 selected thread。重连只恢复连接和订阅，不自动重放旧 prompt。
 - turn 归属由本连接的请求 ID 与成功响应内 turn ID 建立；通知先于响应时有界缓存（128 帧/1 MiB、15 秒），竞态、超限或归属无法证明均明确失败并关闭连接。其他客户端在已订阅 thread 上运行的 turn 投影为 `local_ui`，不消费 Remote pending owner；不同 thread 的通知不投影。
@@ -2176,7 +2179,7 @@ retained-offline overlay 额外规则：
 
 ## 11. 待讨论取舍
 
-- 共享后端的服务安装、端口分配、桌面启动环境和版本兼容性由外部宿主管理；本版安全默认显式配置且失败不回退。是否增加统一宿主生命周期与可视化连接设置，需另外设计，不把 Remote worker 重启扩展成后端重启。
+- 共享后端的服务安装、桌面工具环境采集仍由部署者明确配置。新增可选维护宿主不自动接管已有后端、不更改凭据；所有客户端须连接其公共 gateway。客户端断开前未确认的非只读请求会阻止维护，须先人工核对 native 工作再进行宿主维护；不以连接断开作为任务已停止的依据。NanoPi 实机验收与部署步骤见 [共享后端版本维护](../implemented/shared-codex-upgrade.md)。
 
 - 本机定时任务暂时复用原 surface 在线实例；是否增加独立后台实例恢复，需要统一 headless ownership 生命周期。本版安全默认为等待原 workspace 恢复，允许用户查询、暂停、删除，不抢占其他聊天。
 

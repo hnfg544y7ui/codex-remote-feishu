@@ -1,8 +1,8 @@
 # Documentation Index
 
 > Type: `general`
-> Updated: `2026-10-13`
-> Summary: 增加飞书群话题多会话用法，以及固定绑定、并发和恢复边界索引。
+> Updated: `2026-10-16`
+> Summary: 增加共享 Codex 后端版本维护的开发、验证与部署索引。
 
 ## 1. 适用范围
 
@@ -159,6 +159,7 @@
 
 ### 6.2 `implemented`
 
+- [shared-codex-upgrade.md](./implemented/shared-codex-upgrade.md)
 - [feishu-topic-sessions.md](./implemented/feishu-topic-sessions.md)
 - [natural-language-goal.md](./implemented/natural-language-goal.md)
 - [desktop-project-picker.md](./implemented/desktop-project-picker.md)

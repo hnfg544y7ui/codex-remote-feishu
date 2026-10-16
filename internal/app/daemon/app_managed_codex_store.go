@@ -162,7 +162,15 @@ func (a *App) inspectManagedCodexInstallation(cfg HeadlessRuntimeConfig) (codexu
 
 func (a *App) configureManagedCodexUpgrade() {
 	cfg := a.managedCodexConfig()
-	if cfg.CodexAppServerURL != "" || cfg.CodexRuntime.Source != config.CodexRuntimeSourceManaged {
+	if cfg.CodexAppServerURL != "" {
+		// Feishu may run without process proxy variables. Registry requests use
+		// the captured model environment, independent of the private CLI policy.
+		a.codexUpgradeRuntime.LatestLookup = func(ctx context.Context) (string, error) {
+			return a.managedCodexStore().latest(ctx, codexmanaged.Options{Channel: "stable"}, cfg.BaseEnv)
+		}
+		return
+	}
+	if cfg.CodexRuntime.Source != config.CodexRuntimeSourceManaged {
 		return
 	}
 	// Menu visibility invokes Inspect while holding App.mu. Capture the immutable
