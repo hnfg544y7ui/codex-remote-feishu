@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kxn/codex-remote-feishu/internal/app/codexupgrade"
+	"github.com/kxn/codex-remote-feishu/internal/app/sharedcodex"
 )
 
 type InspectFunc func(context.Context, codexupgrade.InspectOptions) (codexupgrade.Installation, error)
@@ -21,6 +22,7 @@ type Transaction struct {
 	StartedAt          time.Time
 	Rollback           bool
 	Automatic          bool
+	RecoveryRequired   bool
 }
 
 type OwnerCardFlowStage string
@@ -56,6 +58,7 @@ type OwnerCardFlowRecord struct {
 }
 
 type State struct {
+	SharedOwner  func(string, string) (sharedcodex.Maintenance, error)
 	Inspect      InspectFunc
 	LatestLookup func(context.Context) (string, error)
 	Install      func(context.Context, codexupgrade.Installation, string) error

@@ -44,7 +44,7 @@ func (a *App) codexUpgradeRequestCheck(ctx context.Context, req codexUpgradeStar
 	if err != nil {
 		return codexUpgradeCheckResult{}, err
 	}
-	if installation.SourceKind != codexupgrade.SourceManagedRuntime || installation.ManagedPreviousVersion == "" {
+	if !installation.SupportsRollback() || installation.ManagedPreviousVersion == "" {
 		return codexUpgradeCheckResult{}, fmt.Errorf("no verified previous managed Codex release is available")
 	}
 	if req.TargetVersion != installation.ManagedPreviousVersion {

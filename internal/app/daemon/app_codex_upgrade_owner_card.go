@@ -177,7 +177,7 @@ func codexUpgradeOwnerReadyButtons(flow *codexupgraderuntime.OwnerCardFlowRecord
 	if flow.HasUpdate && flow.CanUpgrade {
 		buttons = append(buttons, codexUpgradeOwnerButton("确认升级", flow.FlowID, upgradeOwnerActionConfirm, "primary"))
 	}
-	if flow.Stage == codexupgraderuntime.OwnerFlowStageReady && flow.Checked && flow.CanRollback && flow.SourceKind == codexupgrade.SourceManagedRuntime && strings.TrimSpace(flow.PreviousVersion) != "" && flow.PreviousVersion != flow.CurrentVersion {
+	if flow.Stage == codexupgraderuntime.OwnerFlowStageReady && flow.Checked && flow.CanRollback && (flow.SourceKind == codexupgrade.SourceManagedRuntime || flow.SourceKind == codexupgrade.SourceSharedBackend) && strings.TrimSpace(flow.PreviousVersion) != "" && flow.PreviousVersion != flow.CurrentVersion {
 		buttons = append(buttons, codexUpgradeOwnerButton("回退上一版", flow.FlowID, codexUpgradeOwnerActionRollback, "default"))
 	}
 	label := "检查更新"
@@ -298,12 +298,18 @@ func codexUpgradeOwnerTerminalEvent(surfaceID string, flow *codexupgraderuntime.
 }
 
 func (a *App) standaloneCodexUpgradeVisibleLocked() bool {
+	if a.sharedCodexBackendLocked() {
+		return true // The page also explains a missing/unreachable owner enrollment.
+	}
 	installation, err := a.inspectStandaloneCodexInstallation(context.Background())
 	return err == nil && installation.Upgradeable()
 }
 
 func (a *App) openCodexUpgradeOwnerFlowLocked(command control.DaemonCommand) []eventcontract.Event {
 	if tx := a.codexUpgradeRuntime.Active; tx != nil {
+		if tx.RecoveryRequired {
+			return []eventcontract.Event{upgradeNoticeEvent(command.SurfaceSessionID, "codex_shared_backend_recovery", "共享后端维护结果尚未恢复，输入继续缓存。请先修复后端宿主，再重启 Remote 恢复连接；不要重复执行升级。")}
+		}
 		if strings.TrimSpace(tx.InitiatorSurface) == strings.TrimSpace(command.SurfaceSessionID) {
 			return []eventcontract.Event{upgradeNoticeEvent(command.SurfaceSessionID, "codex_upgrade_running", "当前 Codex 升级已经在进行中，请查看现有升级卡片。")}
 		}
@@ -373,7 +379,7 @@ func (a *App) finishCodexUpgradeOwnerCheckLocked(surfaceID, flowID string, check
 		flow.SourceKind = check.Installation.SourceKind
 	}
 	flow.PreviousVersion = strings.TrimSpace(check.PreviousVersion)
-	flow.CanRollback = check.CanRollback && check.Installation.SourceKind == codexupgrade.SourceManagedRuntime && flow.PreviousVersion != ""
+	flow.CanRollback = check.CanRollback && check.Installation.SupportsRollback() && flow.PreviousVersion != ""
 	flow.Rollback = false
 	flow.LatestVersion = strings.TrimSpace(check.LatestVersion)
 	flow.TargetVersion = strings.TrimSpace(check.LatestVersion)

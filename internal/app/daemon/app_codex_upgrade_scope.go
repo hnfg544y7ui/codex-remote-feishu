@@ -26,7 +26,7 @@ func (a *App) codexUpgradeAffectsInstanceLocked(inst *state.InstanceRecord) bool
 	if !standaloneCodexUpgradeAffectsInstance(inst) {
 		return false
 	}
-	if a.headlessRuntime.CodexRuntime.Source != config.CodexRuntimeSourceManaged {
+	if !a.sharedCodexBackendLocked() && a.headlessRuntime.CodexRuntime.Source != config.CodexRuntimeSourceManaged {
 		return true
 	}
 	return inst.Managed && (inst.Backend == "" || inst.Backend == agentproto.BackendCodex)
@@ -41,7 +41,7 @@ func (a *App) standaloneCodexUpgradeAffectsSurfaceLocked(surface *state.SurfaceC
 			return a.codexUpgradeAffectsInstanceLocked(inst)
 		}
 	}
-	if a.headlessRuntime.CodexRuntime.Source == config.CodexRuntimeSourceManaged && surface.Backend != "" && surface.Backend != agentproto.BackendCodex {
+	if (a.sharedCodexBackendLocked() || a.headlessRuntime.CodexRuntime.Source == config.CodexRuntimeSourceManaged) && surface.Backend != "" && surface.Backend != agentproto.BackendCodex {
 		return false
 	}
 	return state.NormalizeProductMode(surface.ProductMode) != state.ProductModeVSCode

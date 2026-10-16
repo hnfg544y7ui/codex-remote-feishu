@@ -132,8 +132,8 @@ func TestSharedCodexDaemonBlocksSourceAndCliUpgrade(t *testing.T) {
 	if len(events) != 1 || events[0].Notice == nil || events[0].Notice.Code != "codex_shared_backend_external" || app.codexSourceSwitch != nil || app.upgradeRuntime.ActiveFlow != nil {
 		t.Fatalf("unexpected source transaction: %+v", events)
 	}
-	if app.standaloneCodexUpgradeVisibleLocked() {
-		t.Fatal("shared backend CLI upgrade must be hidden")
+	if !app.standaloneCodexUpgradeVisibleLocked() {
+		t.Fatal("shared backend upgrade entry must explain missing owner enrollment")
 	}
 	profiles := app.materializeCodexProfileSummariesLocked(config.DefaultAppConfig())
 	if len(profiles) != 1 || profiles[0].ID != state.NativeCodexProfileID || !strings.Contains(profiles[0].Name, "共享") {

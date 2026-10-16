@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kxn/codex-remote-feishu/internal/app/codexmanaged"
 	"github.com/kxn/codex-remote-feishu/internal/app/codexupgrade"
 	codexupgraderuntime "github.com/kxn/codex-remote-feishu/internal/app/daemon/codexupgraderuntime"
 	"github.com/kxn/codex-remote-feishu/internal/core/eventcontract"
@@ -42,7 +43,7 @@ type codexUpgradeStartRequest struct {
 
 func (a *App) inspectStandaloneCodexInstallation(ctx context.Context) (codexupgrade.Installation, error) {
 	if a.headlessRuntime.CodexAppServerURL != "" {
-		return codexupgrade.Installation{}, sharedCodexMaintenanceError()
+		return a.inspectSharedCodexInstallation(ctx)
 	}
 	loaded, err := a.loadAdminConfig()
 	if err != nil {
@@ -83,6 +84,9 @@ func (a *App) checkStandaloneCodexUpgrade(ctx context.Context, initiatorSurfaceI
 		}
 		result.LatestVersion = latest
 		result.HasUpdate = strings.TrimSpace(latest) != "" && strings.TrimSpace(latest) != strings.TrimSpace(result.CurrentVersion)
+		if installation.SourceKind == codexupgrade.SourceSharedBackend {
+			result.HasUpdate = codexmanaged.IsNewerVersion(latest, result.CurrentVersion)
+		}
 	}
 
 	a.mu.Lock()
@@ -96,12 +100,12 @@ func (a *App) checkStandaloneCodexUpgrade(ctx context.Context, initiatorSurfaceI
 	}
 	result.BusyReasons = a.codexUpgradeBusyReasonsLocked(strings.TrimSpace(initiatorSurfaceID))
 	result.CanUpgrade = installation.Upgradeable() && result.HasUpdate && len(result.BusyReasons) == 0
-	result.CanRollback = installation.SourceKind == codexupgrade.SourceManagedRuntime && result.PreviousVersion != "" && len(result.BusyReasons) == 0
+	result.CanRollback = installation.SupportsRollback() && result.PreviousVersion != "" && len(result.BusyReasons) == 0
 	return result, nil
 }
 
 func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeStartRequest) error {
-	if a.headlessRuntime.CodexAppServerURL != "" {
+	if a.headlessRuntime.CodexAppServerURL != "" && req.Automatic {
 		return sharedCodexMaintenanceError()
 	}
 	check, err := a.codexUpgradeRequestCheck(ctx, req)
@@ -118,6 +122,9 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 		return fmt.Errorf("current codex binary is not upgradeable")
 	}
 	targetVersion := xutil.FirstNonEmpty(strings.TrimSpace(req.TargetVersion), strings.TrimSpace(check.LatestVersion))
+	if check.Installation.SourceKind == codexupgrade.SourceSharedBackend && req.TargetVersion != "" && req.TargetVersion != check.LatestVersion {
+		return fmt.Errorf("目标 Codex 版本已经变化，请重新检查")
+	}
 	if targetVersion == "" {
 		return fmt.Errorf("missing target version for codex upgrade")
 	}
@@ -158,6 +165,10 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 func (a *App) runStandaloneCodexUpgrade(tx *codexupgraderuntime.Transaction, onComplete func(error)) {
 	ctx, cancel := context.WithTimeout(context.Background(), codexUpgradeInstallTimeout)
 	defer cancel()
+	if tx.Install.SourceKind == codexupgrade.SourceSharedBackend {
+		a.runSharedCodexUpgrade(ctx, tx, onComplete)
+		return
+	}
 	if tx.Install.SourceKind == codexupgrade.SourceManagedRuntime {
 		a.runManagedCodexUpgrade(ctx, tx, onComplete)
 		return
