@@ -61,7 +61,11 @@ func (a *App) runSharedCodexUpgrade(ctx context.Context, tx *codexupgraderuntime
 	if c != nil {
 		if status, probeErr := c.Status(recoveryCtx); probeErr == nil && status.State == "running" && !status.Busy && before.Generation > 0 && status.Generation > 0 {
 			if restoreErr := a.waitSharedCodexClients(recoveryCtx, tx, status.Generation != before.Generation); restoreErr != nil {
-				err = fmt.Errorf("共享后端连接恢复失败：%v；维护结果：%v", restoreErr, err)
+				if err == nil {
+					err = fmt.Errorf("共享后端连接恢复失败：%w", restoreErr)
+				} else {
+					err = fmt.Errorf("共享后端连接恢复失败：%v；维护请求失败：%w", restoreErr, err)
+				}
 			} else {
 				recovered = true
 			}
@@ -75,6 +79,9 @@ func (a *App) runSharedCodexUpgrade(ctx context.Context, tx *codexupgraderuntime
 		}
 	} else {
 		tx.RecoveryRequired = true
+		if err == nil {
+			err = fmt.Errorf("维护请求已返回，但宿主或会话尚未通过恢复验证")
+		}
 		err = fmt.Errorf("共享后端维护结果尚未恢复，输入继续缓存；请修复宿主后重启 Remote。维护结果：%v", err)
 	}
 	a.mu.Unlock()

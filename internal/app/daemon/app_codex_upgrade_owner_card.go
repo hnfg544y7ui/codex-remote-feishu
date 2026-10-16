@@ -512,6 +512,10 @@ func (a *App) finishCodexUpgradeOwnerRunLocked(surfaceID, flowID string, runErr 
 		return blocked
 	}
 	if runErr != nil {
+		recoveryHint := "需要时可以重新发送 `/upgrade codex` 再检查一次。"
+		if tx := a.codexUpgradeRuntime.Active; tx != nil && tx.RecoveryRequired {
+			recoveryHint = "请先修复宿主并重启 Remote 恢复连接；不要重复点击升级或回退。"
+		}
 		a.refreshCodexUpgradeOwnerFlowLocked(flow, codexupgraderuntime.OwnerFlowStageFailed)
 		event := codexUpgradeOwnerTerminalEvent(
 			surfaceID,
@@ -519,7 +523,7 @@ func (a *App) finishCodexUpgradeOwnerRunLocked(surfaceID, flowID string, runErr 
 			codexUpgradeOwnerTerminalTitle(flow, false),
 			"error",
 			runErr.Error(),
-			"需要时可以重新发送 `/upgrade codex` 再检查一次。",
+			recoveryHint,
 		)
 		a.clearCodexUpgradeOwnerFlowLocked()
 		return []eventcontract.Event{event}

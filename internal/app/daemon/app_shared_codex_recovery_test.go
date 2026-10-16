@@ -102,7 +102,7 @@ func TestSharedCodexRecoveryTimeoutDoesNotReleaseGate(t *testing.T) {
 	}
 }
 
-func TestSharedCodexRecoveryHonorsExplicitDetachAndRejectsRetarget(t *testing.T) {
+func TestSharedCodexRecoveryWaitsForClearedRouteAndRejectsRetarget(t *testing.T) {
 	a, _, tx := sharedRecoveryFixture(t)
 	s := a.service.Surface("surface-1")
 	s.SelectedThreadID = "another-thread"
@@ -110,8 +110,8 @@ func TestSharedCodexRecoveryHonorsExplicitDetachAndRejectsRetarget(t *testing.T)
 		t.Fatal("retarget accepted")
 	}
 	s.SelectedThreadID, s.AttachedInstanceID, s.ClaimedWorkspaceKey = "", "", ""
-	if ready, err := a.sharedCodexClientsReadyLocked(tx, true); err != nil || !ready {
-		t.Fatalf("explicit detach recreated binding or blocked completion: %v %v", ready, err)
+	if ready, err := a.sharedCodexClientsReadyLocked(tx, true); err != nil || ready {
+		t.Fatalf("cleared disconnect route is not recovery: %v %v", ready, err)
 	}
 }
 
