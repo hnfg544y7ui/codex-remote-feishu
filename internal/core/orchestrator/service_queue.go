@@ -327,6 +327,9 @@ func (s *Service) dispatchNext(surface *state.SurfaceConsoleRecord) []eventcontr
 }
 
 func (s *Service) dispatchNextWithOptions(surface *state.SurfaceConsoleRecord, opts dispatchNextOptions) []eventcontract.Event {
+	if s.surfaceDispatchHeld(surface) {
+		return nil
+	}
 	if surfaceIsFeishuTopic(surface) && surface.FeishuTopicClosed {
 		return nil
 	}

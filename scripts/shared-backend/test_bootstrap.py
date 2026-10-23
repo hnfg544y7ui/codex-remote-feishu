@@ -12,7 +12,7 @@ from unittest.mock import patch, Mock
 
 import bootstrap
 
-CURRENT_FILES = ('host.py', 'owner.py', 'runtime_selection.py', 'runtime_environment.py',
+CURRENT_FILES = ('host.py', 'owner.py', 'immediate_upgrade.py', 'runtime_selection.py', 'runtime_environment.py',
                  'app_environment.py', 'app_windows.py', 'bootstrap.py')
 
 
@@ -48,9 +48,9 @@ class BootstrapTests(unittest.TestCase):
     def test_complete_content_addressed_export_is_verified(self):
         self.assertEqual(bootstrap.verify_export(self.manifest, self.root), self.directory)
 
-    def test_fixed_bootstrap_accepts_future_eight_module_export(self):
+    def test_fixed_bootstrap_accepts_future_module_export(self):
         directory, manifest = self.package(CURRENT_FILES + ('future_runtime_probe.py',))
-        self.assertEqual(len(manifest['files']), 8)
+        self.assertEqual(len(manifest['files']), len(CURRENT_FILES) + 1)
         self.assertEqual(bootstrap.verify_export(manifest, self.root), directory)
         with patch.object(bootstrap.subprocess, 'run', return_value=Mock(
                 returncode=0, stdout=json.dumps(manifest))):

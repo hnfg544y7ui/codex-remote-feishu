@@ -27,19 +27,29 @@ type Enrollment struct {
 }
 
 type Status struct {
-	Generation      uint64 `json:"generation"`
-	Endpoint        string `json:"endpoint"`
-	Version         string `json:"version"`
-	PreviousVersion string `json:"previousVersion"`
-	State           string `json:"state"`
-	Busy            bool   `json:"busy"`
-	Problem         string `json:"problem"`
+	Generation                uint64         `json:"generation"`
+	Endpoint                  string         `json:"endpoint"`
+	Version                   string         `json:"version"`
+	PreviousVersion           string         `json:"previousVersion"`
+	State                     string         `json:"state"`
+	Busy                      bool           `json:"busy"`
+	Problem                   string         `json:"problem"`
+	ImmediateUpgradeSupported bool           `json:"immediateUpgradeSupported,omitempty"`
+	ImmediatePlan             *ImmediatePlan `json:"immediatePlan,omitempty"`
 }
 
 type Upgrade struct {
-	Version         string `json:"version"`
-	ExpectedVersion string `json:"expectedVersion"`
-	Rollback        bool   `json:"rollback"`
+	Version           string `json:"version"`
+	ExpectedVersion   string `json:"expectedVersion"`
+	Rollback          bool   `json:"rollback"`
+	Immediate         bool   `json:"immediate,omitempty"`
+	ConfirmationToken string `json:"confirmationToken,omitempty"`
+}
+
+// ImmediateMaintenance is optional: older enrolled owners and existing normal
+// maintenance implementations must never imply destructive-upgrade support.
+type ImmediateMaintenance interface {
+	PreviewImmediate(context.Context, Upgrade) (ImmediatePlan, error)
 }
 
 type Maintenance interface {
@@ -116,8 +126,9 @@ func (c *Client) request(ctx context.Context, method, path string, body any) (St
 		return Status{}, fmt.Errorf("共享后端宿主不可达或维护结果尚未确认：%w", err)
 	}
 	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 16385))
 	var status Status
-	if err := json.NewDecoder(io.LimitReader(response.Body, 16384)).Decode(&status); err != nil {
+	if err != nil || len(raw) > 16384 || json.Unmarshal(raw, &status) != nil {
 		return Status{}, fmt.Errorf("共享后端宿主返回无效状态")
 	}
 	if status.Endpoint != c.enrollment.Endpoint {
@@ -139,5 +150,11 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 }
 
 func (c *Client) Upgrade(ctx context.Context, upgrade Upgrade) (Status, error) {
+	if upgrade.Immediate && (upgrade.Rollback || !validImmediateToken(upgrade.ConfirmationToken)) {
+		return Status{}, fmt.Errorf("立即升级必须提供有效确认凭据，且不能同时回退")
+	}
+	if !upgrade.Immediate && upgrade.ConfirmationToken != "" {
+		return Status{}, fmt.Errorf("普通升级不能携带立即升级确认凭据")
+	}
 	return c.request(ctx, http.MethodPost, "/v1/upgrade", upgrade)
 }

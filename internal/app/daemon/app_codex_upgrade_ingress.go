@@ -25,6 +25,8 @@ func (a *App) maybeHandleStandaloneCodexUpgradeActionLocked(ctx context.Context,
 		return true
 	}
 	if codexUpgradeQueueableInput(action) && strings.TrimSpace(a.service.AttachedInstanceID(action.SurfaceSessionID)) != "" {
+		a.service.HoldSurfaceDispatch(action.SurfaceSessionID)
+		tx.PausedSurfaceIDs[action.SurfaceSessionID] = true
 		a.service.PauseSurfaceDispatch(action.SurfaceSessionID)
 		events := a.applyIngressActionLocked(action)
 		events = append(events, codexUpgradeBlockedEvents(action.SurfaceSessionID, true, tx.RecoveryRequired)...)

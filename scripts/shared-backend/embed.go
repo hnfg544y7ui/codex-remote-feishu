@@ -13,7 +13,7 @@ import (
 	"sort"
 )
 
-//go:embed host.py owner.py runtime_selection.py runtime_environment.py app_environment.py app_windows.py bootstrap.py
+//go:embed host.py owner.py immediate_upgrade.py runtime_selection.py runtime_environment.py app_environment.py app_windows.py bootstrap.py
 var source embed.FS
 
 // Manifest identifies an immutable, fully verified owner implementation.

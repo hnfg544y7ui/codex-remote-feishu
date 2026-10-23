@@ -19,13 +19,14 @@ const (
 )
 
 type Installation struct {
-	ManagedPreviousVersion string
-	RuntimeRoot            string
-	ConfiguredBinary       string
-	EffectiveBinary        string
-	ResolvedBinary         string
-	SourceKind             SourceKind
-	Problem                string
+	ImmediateUpgradeSupported bool
+	ManagedPreviousVersion    string
+	RuntimeRoot               string
+	ConfiguredBinary          string
+	EffectiveBinary           string
+	ResolvedBinary            string
+	SourceKind                SourceKind
+	Problem                   string
 
 	NPMCommand      string
 	NPMPrefix       string

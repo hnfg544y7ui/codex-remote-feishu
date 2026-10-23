@@ -33,12 +33,14 @@ type codexUpgradeCheckResult struct {
 }
 
 type codexUpgradeStartRequest struct {
-	SurfaceSessionID string
-	ActorUserID      string
-	TargetVersion    string
-	Rollback         bool
-	Automatic        bool
-	OnComplete       func(error)
+	SurfaceSessionID  string
+	ActorUserID       string
+	TargetVersion     string
+	Rollback          bool
+	Automatic         bool
+	Immediate         bool
+	ConfirmationToken string
+	OnComplete        func(error)
 }
 
 func (a *App) inspectStandaloneCodexInstallation(ctx context.Context) (codexupgrade.Installation, error) {
@@ -112,6 +114,9 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 	if err != nil {
 		return err
 	}
+	if req.Immediate && (req.Automatic || req.Rollback || check.Installation.SourceKind != codexupgrade.SourceSharedBackend || !check.Installation.ImmediateUpgradeSupported || strings.TrimSpace(req.ConfirmationToken) == "") {
+		return fmt.Errorf("立即升级需要支持此功能的共享宿主及本次风险确认，请重新检查")
+	}
 	if !check.Installation.Upgradeable() {
 		if check.Installation.BundleBacked() {
 			return fmt.Errorf("current codex binary is backed by a vscode bundle")
@@ -138,7 +143,7 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 		return fmt.Errorf("another codex upgrade transaction is already running")
 	}
 	busyReasons := a.codexUpgradeBusyReasonsLocked(strings.TrimSpace(req.SurfaceSessionID))
-	if len(busyReasons) != 0 {
+	if len(busyReasons) != 0 && !req.Immediate {
 		return fmt.Errorf("other instances are still busy: %s", formatCodexUpgradeBusyReasons(busyReasons))
 	}
 
@@ -154,6 +159,8 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 		StartedAt:          time.Now().UTC(),
 		Rollback:           req.Rollback,
 		Automatic:          req.Automatic,
+		Immediate:          req.Immediate,
+		ConfirmationToken:  req.ConfirmationToken,
 	}
 	if tx.Install.SourceKind == codexupgrade.SourceSharedBackend {
 		tx.SharedTargets = a.sharedCodexRecoveryTargetsLocked()
@@ -248,6 +255,7 @@ func (a *App) finishStandaloneCodexUpgradeLocked(tx *codexupgraderuntime.Transac
 	sort.Strings(surfaceIDs)
 	events := make([]eventcontract.Event, 0, len(surfaceIDs))
 	for _, surfaceID := range surfaceIDs {
+		a.service.ReleaseSurfaceDispatchHold(surfaceID)
 		events = append(events, a.service.ResumeSurfaceDispatch(surfaceID, nil)...)
 	}
 	return events
@@ -262,9 +270,10 @@ func (a *App) pauseCodexUpgradeSurfacesLocked(tx *codexupgraderuntime.Transactio
 			continue
 		}
 		surfaceID := strings.TrimSpace(surface.SurfaceSessionID)
-		if surfaceID == "" || surfaceID == tx.InitiatorSurface || !a.standaloneCodexUpgradeAffectsSurfaceLocked(surface) {
+		if surfaceID == "" || !a.standaloneCodexUpgradeAffectsSurfaceLocked(surface) {
 			continue
 		}
+		a.service.HoldSurfaceDispatch(surfaceID)
 		a.service.PauseSurfaceDispatch(surfaceID)
 		tx.PausedSurfaceIDs[surfaceID] = true
 	}
