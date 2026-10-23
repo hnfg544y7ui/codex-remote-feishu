@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-16`
-> Summary: 共享后端维护保留完整运行包索引；App 环境刷新与版本切换共用空闲准入、恢复与失败关闭边界。
+> Updated: `2026-10-23`
+> Summary: 共享后端增加显式确认的立即升级；维护派发屏障跨重连保留，活动任务和未知请求不自动重放。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2157,7 +2157,9 @@ retained-offline overlay 额外规则：
 - `wrapper.codexAppServerURL` 或 `CODEX_REMOTE_CODEX_APP_SERVER_URL` 在 daemon 启动时冻结。仅允许显式端口的 loopback WebSocket；URL 无效或后端离线时 fail closed，不回退私有 CLI。默认仍为私有 stdio。共享路径只用于 Codex headless/cron，非 headless wrapper 拒绝启用；Claude/OpenCode 不继承该连接。
 - 共享后端由宿主管理版本、凭据与进程。Remote 只关闭自己的连接；worker 退出、detach、超时清理和 `process.child.restart` 均不结束后端。私有 managed 安装、预热、自动升级和来源切换停用；`/upgrade codex-source` 仍提示宿主管理。`/upgrade codex` 对显式登记且健康的本机维护宿主开放手动检查、升级及上一版回退，未登记或身份不匹配则明确失败，不用私有 CLI 版本冒充后端版本。
 - 维护登记按 endpoint 的 SHA-256 定位 `StateDir/shared-backend-owners/<digest>.json`，schema 1 的 endpoint 必须与冻结共享配置一致；仅接受 literal loopback WS/HTTP，凭据文件须具备私有权限，控制请求携带 bearer，禁止代理与重定向。实际版本由宿主启动校验及健康握手报告。最新稳定版查询沿用官方 npm metadata，使用已捕获的模型代理环境，不随飞书直连配置清除，也不继承私有 CLI 的 pinned version/channel；更旧稳定版不能覆盖较新的 alpha。
-- 维护宿主先准备并验证官方 CLI，再冻结公共 WebSocket 的新方法请求，确认没有未回执请求且 native 全部 loaded thread 为 idle 或 terminal systemError，且没有 active Goal；App 独立运行的 turn 同样阻止切换。不自动 pause/clear Goal、不启动模型任务、不重放旧 prompt。原生内部端口不供客户端使用，每轮切换可变化，公共端点保持不变。
+- 普通维护宿主先准备并验证官方 CLI，再冻结公共 WebSocket 的新方法请求，确认没有未回执请求且 native 全部 loaded thread 为 idle 或 terminal systemError，且没有 active Goal；App 独立运行的 turn 同样阻止切换。不自动 pause/clear Goal、不启动模型任务、不重放旧 prompt。原生内部端口不供客户端使用，每轮切换可变化，公共端点保持不变。
+- 仅明确配置 `allowImmediateUpgrade: true` 的宿主报告立即升级能力。检查后独立预览活动任务、Goal、未知/待回执请求，发起者二次确认单次短效 token 后才允许中断；token 绑定版本/目标/generation，旧卡不能确认新计划。先验证完整候选、冻结并复核影响，再暂停活动 Goal、中断已确认 turn 并停止 native 进程树，确认退出后才能清除旧代请求跟踪。发现超出预览的新工作则拒绝，不自动继续已中断任务、恢复 Goal 或重发未知请求。准备失败不打断；启动失败仅恢复旧完整运行包，已中断工作仍需人工确认。
+- Remote 维护派发屏障独立于 surface 的 local-ui 暂停 gate，跨断线、重绑与执行 gate 重置保留，包含发起 surface；仅原绑定、合同与 loaded 验证完成才解除。尚未发出的队列保留并在恢复后按原规则派发，不能把已派发而结果未知的请求放回队列重发。旧代 proxy 在 native generation 变化后不再接纳请求，避免晚到断线污染新代跟踪。
 - 仅宿主可停止其子进程。新版本健康确认并持久化后恢复准入，失败时恢复已校验旧版；双重失败保持准入关闭。宿主报告本生命周期的 native `generation`，每次尝试启动递增。Remote 按升级前的 surface/thread/workspace/连接 contract 等待既有恢复管线建立在线且已加载原 thread 的绑定；代次变化时不接受旧 wrapper ID 的缓存快照，不向已退出的旧 ID 发送 `child.restart`，空闲池由既有预热机制补齐。`ApplyInstanceDisconnected` 清空选择/claims、PendingHeadless 恢复中、replacement hello 尚未装回原选择都只是等待态；空 route 不能当作显式 detach 或恢复成功，非空不同 thread 才判为重定向错误，原 surface 消失也失败关闭。代次未变的准备失败保留原连接。确认恢复后才解除事务与派发暂停。维护结果未知、宿主失联或连接恢复失败时保留升级 gate 与输入，卡片及普通输入均明确要求修复宿主后重启 Remote，不能继续显示等待升级完成；不得显示成功或自动派发缓存。
 - Profile 目录仅提供 `cp_native`（共享后端，继承配置），API/OAuth 拒绝。`initialize/initialized/config/read` 直接从共享端点获得 native evidence；探测失败不把私有 CLI 或旧缓存当作可用证据，后台按已有探测重试周期恢复。projection 使用 `codex-shared-native-v1`，精确校验 native revision/generation 与 context preference；不生成 child 环境凭据、CLI override 或 managed file。
 - 进入已有 thread 时，在报告 worker 已接管之前完成有界 startup initialize 和仅携带 `threadId` 的 `thread/resume`，成功响应必须精确匹配目标；新 thread 由本连接成功的 `thread/start` 响应建立 scope。外部 thread 广播不能改变 selected thread。重连只恢复连接和订阅，不自动重放旧 prompt。
@@ -2183,7 +2185,7 @@ retained-offline overlay 额外规则：
 
 ## 11. 待讨论取舍
 
-- 共享后端的服务安装、桌面工具环境采集仍由部署者明确配置。新增可选维护宿主不自动接管已有后端、不更改凭据；所有客户端须连接其公共 gateway。客户端断开前未确认的非只读请求会阻止维护，须先人工核对 native 工作再进行宿主维护；不以连接断开作为任务已停止的依据。NanoPi 实机验收与部署步骤见 [共享后端版本维护](../implemented/shared-codex-upgrade.md)。
+- 共享后端的服务安装、桌面工具环境采集仍由部署者明确配置。新增可选维护宿主不自动接管已有后端、不更改凭据；所有客户端须连接其公共 gateway。客户端断开前未确认的非只读请求会阻止普通维护，须先人工核对 native 工作，或明确预览并确认立即升级；不以连接断开作为任务已停止的依据。NanoPi 实机验收与部署步骤见 [共享后端版本维护](../implemented/shared-codex-upgrade.md)。
 
 - 本机定时任务暂时复用原 surface 在线实例；是否增加独立后台实例恢复，需要统一 headless ownership 生命周期。本版安全默认为等待原 workspace 恢复，允许用户查询、暂停、删除，不抢占其他聊天。
 

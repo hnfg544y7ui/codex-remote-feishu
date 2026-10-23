@@ -14,7 +14,7 @@ func TestHostExportCompleteImmutablePackageAndReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"app_environment.py", "app_windows.py", "bootstrap.py", "host.py", "owner.py", "runtime_environment.py", "runtime_selection.py"}
+	want := []string{"app_environment.py", "app_windows.py", "bootstrap.py", "host.py", "immediate_upgrade.py", "owner.py", "runtime_environment.py", "runtime_selection.py"}
 	if first.SchemaVersion != 1 || len(first.Files) != len(want) || filepath.Base(first.Directory) != first.SHA256 {
 		t.Fatalf("invalid manifest: %+v", first)
 	}

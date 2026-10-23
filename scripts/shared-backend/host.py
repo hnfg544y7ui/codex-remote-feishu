@@ -61,7 +61,7 @@ def handler(owner, loop, token):
         def do_POST(self):
             if not self.authorized():
                 return self.respond(403, {})
-            if self.path != '/v1/upgrade':
+            if self.path not in ('/v1/upgrade', '/v1/upgrade/immediate/preview'):
                 return self.respond(404, {})
             try:
                 length = int(self.headers.get('Content-Length', '0'))
@@ -69,11 +69,18 @@ def handler(owner, loop, token):
                     raise ValueError('Invalid request size')
                 self.connection.settimeout(5)
                 request = json.loads(self.rfile.read(length))
-                if not isinstance(request, dict) or set(request) - {'version', 'expectedVersion', 'rollback'}:
+                if not isinstance(request, dict) or set(request) - {'version', 'expectedVersion', 'rollback', 'immediate', 'confirmationToken'}:
                     raise ValueError('Invalid maintenance request')
                 if 'rollback' in request and type(request['rollback']) is not bool:
                     raise ValueError('Invalid rollback request')
-                result = asyncio.run_coroutine_threadsafe(owner.upgrade(request), loop).result(300)
+                if self.path.endswith('/preview'):
+                    if set(request) - {'version', 'expectedVersion'}:
+                        raise ValueError('Invalid immediate upgrade preview')
+                    operation = owner.immediate_upgrade.preview(request)
+                else:
+                    owner.immediate_upgrade.validate_request(request)
+                    operation = owner.upgrade(request)
+                result = asyncio.run_coroutine_threadsafe(operation, loop).result(300)
                 self.respond(200, result)
             except Exception as error:
                 # A client disconnect must not cancel a switch/rollback in flight.

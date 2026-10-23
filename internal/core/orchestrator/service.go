@@ -55,6 +55,7 @@ type Service struct {
 	nextShellBindingSequence  int
 	handoffUntil              map[string]time.Time
 	pausedUntil               map[string]time.Time
+	surfaceDispatchHolds      map[string]bool
 	abandoningUntil           map[string]time.Time
 	itemBuffers               map[string]*itemBuffer
 	threadRefreshes           map[string]bool
@@ -254,6 +255,7 @@ func NewService(now func() time.Time, cfg Config, planner *renderer.Planner) *Se
 		renderer:              planner,
 		handoffUntil:          map[string]time.Time{},
 		pausedUntil:           map[string]time.Time{},
+		surfaceDispatchHolds:  map[string]bool{},
 		abandoningUntil:       map[string]time.Time{},
 		itemBuffers:           map[string]*itemBuffer{},
 		threadRefreshes:       map[string]bool{},

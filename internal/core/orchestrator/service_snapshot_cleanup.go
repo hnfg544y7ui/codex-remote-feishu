@@ -111,6 +111,12 @@ func (s *Service) updateInstanceCWDDefaults(inst *state.InstanceRecord, cwd stri
 }
 
 func (s *Service) discardDrafts(surface *state.SurfaceConsoleRecord) []eventcontract.Event {
+	// Maintenance reconnects may pass through the same cleanup as a user
+	// changing target. Keep unsent inputs frozen until the daemon has verified
+	// the original binding and explicitly released the maintenance barrier.
+	if s.surfaceDispatchHeld(surface) {
+		return nil
+	}
 	var events []eventcontract.Event
 	for _, image := range surface.StagedImages {
 		if image.State != state.ImageStaged {

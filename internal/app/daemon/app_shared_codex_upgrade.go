@@ -33,7 +33,8 @@ func (a *App) inspectSharedCodexInstallation(ctx context.Context) (codexupgrade.
 		return codexupgrade.Installation{}, fmt.Errorf("共享后端维护宿主需要更新后才能检查升级")
 	}
 	return codexupgrade.Installation{SourceKind: codexupgrade.SourceSharedBackend,
-		PackageVersion: status.Version, ManagedPreviousVersion: status.PreviousVersion}, nil
+		PackageVersion: status.Version, ManagedPreviousVersion: status.PreviousVersion,
+		ImmediateUpgradeSupported: status.ImmediateUpgradeSupported}, nil
 }
 
 func (a *App) runSharedCodexUpgrade(ctx context.Context, tx *codexupgraderuntime.Transaction, complete func(error)) {
@@ -48,7 +49,8 @@ func (a *App) runSharedCodexUpgrade(ctx context.Context, tx *codexupgraderuntime
 	}
 	if err == nil {
 		var result sharedcodex.Status
-		result, err = c.Upgrade(ctx, sharedcodex.Upgrade{Version: tx.TargetVersion, ExpectedVersion: tx.CurrentVersion, Rollback: tx.Rollback})
+		result, err = c.Upgrade(ctx, sharedcodex.Upgrade{Version: tx.TargetVersion, ExpectedVersion: tx.CurrentVersion, Rollback: tx.Rollback,
+			Immediate: tx.Immediate, ConfirmationToken: tx.ConfirmationToken})
 		if err == nil && (result.State != "running" || result.Version != tx.TargetVersion) {
 			err = fmt.Errorf("共享后端未确认目标版本运行成功")
 		}

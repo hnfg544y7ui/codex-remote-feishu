@@ -14,6 +14,7 @@ import time
 from urllib.parse import urlsplit
 
 import websockets
+from immediate_upgrade import ImmediateUpgrade, NativeRPCError, get_goal
 from runtime_environment import RuntimeEnvironment
 from runtime_selection import verify as verify_runtime_selection
 from runtime_selection import prepared_bundle
@@ -65,6 +66,9 @@ def version_valid(version):
 
 
 class Owner:
+    read_only_methods = READ_ONLY
+    valid_version = staticmethod(version_valid)
+
     def __init__(self, config):
         self.config = config
         self.root = Path(config['directory']).resolve()
@@ -82,11 +86,12 @@ class Owner:
         self.generation = 0
         self.log = (self.root / 'backend.log').open('ab')
         self.runtime_env = RuntimeEnvironment(self)
+        self.immediate_upgrade = ImmediateUpgrade(self)
 
     def status(self, problem=''):
         selected = self.selection or {}
         return dict(endpoint=self.config['endpoint'], version=selected.get('version', ''),
-                    generation=self.generation,
+                    generation=self.generation, immediateUpgradeSupported=self.immediate_upgrade.supported,
                     previousVersion=selected.get('previous', {}).get('version', ''),
                     state=self.state, busy=self.busy, problem=problem, **self.runtime_env.status())
 
@@ -118,7 +123,8 @@ class Owner:
                     message = json.loads(await asyncio.wait_for(ws.recv(), 8))
                     if message.get('id') == n and 'method' not in message:
                         if 'error' in message:
-                            raise RuntimeError('Native backend rejected maintenance probe')
+                            error = message['error']
+                            raise NativeRPCError(name, error.get('code'), error.get('message'))
                         return message['result']
             await call(1, 'initialize', dict(clientInfo=dict(name='codex-remote-owner', version='1'),
                                            capabilities=dict(experimentalApi=True)))
@@ -134,10 +140,7 @@ class Owner:
             # A terminal systemError is not active work. Unknown states fail closed.
             if thread.get('status', {}).get('type') not in ('idle', 'systemError'):
                 raise RuntimeError('Shared backend has active work; retry when all clients are idle')
-            goal_result = await self.rpc('thread/goal/get', dict(threadId=thread_id))
-            if 'goal' not in goal_result:
-                raise RuntimeError('Cannot establish native Goal state')
-            goal = goal_result['goal']
+            goal = await get_goal(self, thread_id)
             if goal and goal.get('status') == 'active':
                 raise RuntimeError('An active Goal can continue without new client input; pause it before maintenance')
 
@@ -180,10 +183,13 @@ class Owner:
         await asyncio.wait_for(ready(), 25)
         self.runtime_env.accept(runtime)
 
-    async def stop(self):
+    async def stop(self, force=False):
         if self.child and self.child.returncode is None:
             if os.name == 'nt':
-                self.child.terminate()
+                if force:
+                    await self.command('taskkill.exe', '/PID', str(self.child.pid), '/T', '/F', timeout=10)
+                else:
+                    self.child.terminate()
             else:
                 os.killpg(self.child.pid, signal.SIGTERM)
             try:
@@ -194,6 +200,13 @@ class Owner:
                 else:
                     os.killpg(self.child.pid, signal.SIGKILL)
                 await self.child.wait()
+        if force and self.child and os.name != 'nt':
+            # Parent exit alone does not establish descendant exit. The
+            # native process owns this isolated process group.
+            try:
+                os.killpg(self.child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
     async def boot(self):
         runtime = None
@@ -225,6 +238,8 @@ class Owner:
         if self.upgrade_lock.locked():
             raise RuntimeError('Another shared backend maintenance is running')
         async with self.upgrade_lock:
+            immediate = self.immediate_upgrade.validate_request(request)
+            impact = self.immediate_upgrade.consume(request) if immediate else None
             target, expected = request.get('version'), request.get('expectedVersion')
             if not version_valid(target) or expected != self.selection['version']:
                 raise RuntimeError('Version changed; check for updates again')
@@ -251,30 +266,44 @@ class Owner:
                 # admitted client RPC is tracked until acknowledged; no turn/start
                 # can race the idle check, including messages from the desktop App.
                 self.frozen = True
-                if self.pending:
+                if not immediate and self.pending:
                     if self.uncertain_requests:
                         raise RuntimeError('A disconnected client left unconfirmed work; inspect native tasks, then restart the owner only when idle before retrying')
                     raise RuntimeError('Shared clients have pending requests; retry when idle')
-                await self.native_idle()
+                if immediate:
+                    await self.immediate_upgrade.interrupt(impact)
+                else:
+                    await self.native_idle()
                 self.state = 'switching'
                 stopped = True
-                await self.stop()
+                if immediate:
+                    await self.stop(force=True)
+                    self.immediate_upgrade.clear_after_exit()
+                else:
+                    await self.stop()
                 await self.launch(selected, runtime=runtime)
                 self.selection = dict(selected, previous=previous)
                 atomic_json(self.selection_file, self.selection)
                 self.state = 'running'
-            except BaseException:
+            except BaseException as error:
                 if stopped:
                     self.state = 'restoring'
                     try:
-                        await self.stop()
+                        if immediate:
+                            await self.stop(force=True)
+                            self.immediate_upgrade.clear_after_exit()
+                        else:
+                            await self.stop()
                         await self.launch(previous, runtime=previous_runtime)
                         self.selection = original
                         atomic_json(self.selection_file, self.selection)
                         self.state = 'running'
                     except BaseException:
                         self.state = 'failed'
-                        raise RuntimeError('Upgrade and rollback failed; owner requires maintenance')
+                        suffix = '; confirmed work may already be paused or interrupted' if immediate else ''
+                        raise RuntimeError('Upgrade and rollback failed; owner requires maintenance' + suffix)
+                if immediate and stopped and isinstance(error, Exception):
+                    raise RuntimeError(str(error) + '; confirmed work was interrupted and paused Goals were not resumed') from error
                 raise
             finally:
                 self.busy = False
@@ -287,6 +316,7 @@ class Owner:
             await client.close(1013, 'Shared backend maintenance; reconnect later')
             return
         own_pending = set()
+        generation = self.generation
         self.next_connection_id += 1
         connection_id = self.next_connection_id
         try:
@@ -299,6 +329,9 @@ class Owner:
 
                 async def incoming():
                     async for frame in client:
+                        if generation != self.generation:
+                            await client.close(1012, 'Shared backend generation changed; reconnect')
+                            return
                         message = json.loads(frame)
                         if 'method' in message and self.frozen:
                             if 'id' in message:

@@ -35,7 +35,7 @@ func autoContinueBackoff(consecutiveDryFailures int) (time.Duration, int, bool) 
 }
 
 func (s *Service) autoContinueDispatchReady(surface *state.SurfaceConsoleRecord) bool {
-	if surface == nil || !surface.AutoContinue.Enabled {
+	if surface == nil || s.surfaceDispatchHeld(surface) || !surface.AutoContinue.Enabled {
 		return false
 	}
 	if surface.AttachedInstanceID == "" || surface.Abandoning || surface.PendingHeadless != nil {
@@ -232,6 +232,9 @@ func (s *Service) autoContinueFailureEvent(surface *state.SurfaceConsoleRecord, 
 }
 
 func (s *Service) maybeDispatchPendingAutoContinue(surface *state.SurfaceConsoleRecord, now time.Time) []eventcontract.Event {
+	if s.surfaceDispatchHeld(surface) {
+		return nil
+	}
 	episode := activeAutoContinueEpisode(surface)
 	if episode == nil || !surface.AutoContinue.Enabled || episode.State != state.AutoContinueEpisodeScheduled {
 		return nil
@@ -281,7 +284,7 @@ func (s *Service) maybeDispatchPendingAutoContinue(surface *state.SurfaceConsole
 }
 
 func (s *Service) dispatchAutoContinueEpisode(surface *state.SurfaceConsoleRecord, inst *state.InstanceRecord, episode *state.PendingAutoContinueEpisodeRecord) []eventcontract.Event {
-	if surface == nil || inst == nil || episode == nil {
+	if surface == nil || s.surfaceDispatchHeld(surface) || inst == nil || episode == nil {
 		return nil
 	}
 	if events, restarting := s.maybeRestartClaudeHeadlessForPrompt(surface, inst, episode.FrozenOverride, autoContinueEpisodePromptDispatchPlan(episode).CWD); restarting {

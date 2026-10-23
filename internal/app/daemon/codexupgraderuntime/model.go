@@ -22,6 +22,8 @@ type Transaction struct {
 	StartedAt          time.Time
 	Rollback           bool
 	Automatic          bool
+	Immediate          bool
+	ConfirmationToken  string
 	RecoveryRequired   bool
 	SharedTargets      map[string]SharedClientTarget
 }
@@ -36,33 +38,37 @@ type SharedClientTarget struct {
 type OwnerCardFlowStage string
 
 const (
-	OwnerFlowStageOpen      OwnerCardFlowStage = "open"
-	OwnerFlowStageChecking  OwnerCardFlowStage = "checking"
-	OwnerFlowStageReady     OwnerCardFlowStage = "ready"
-	OwnerFlowStageRunning   OwnerCardFlowStage = "running"
-	OwnerFlowStageSucceeded OwnerCardFlowStage = "succeeded"
-	OwnerFlowStageFailed    OwnerCardFlowStage = "failed"
+	OwnerFlowStageOpen             OwnerCardFlowStage = "open"
+	OwnerFlowStageChecking         OwnerCardFlowStage = "checking"
+	OwnerFlowStageReady            OwnerCardFlowStage = "ready"
+	OwnerFlowStageRunning          OwnerCardFlowStage = "running"
+	OwnerFlowStageSucceeded        OwnerCardFlowStage = "succeeded"
+	OwnerFlowStageFailed           OwnerCardFlowStage = "failed"
+	OwnerFlowStageImmediateConfirm OwnerCardFlowStage = "immediate_confirm"
 )
 
 type OwnerCardFlowRecord struct {
-	SourceKind       codexupgrade.SourceKind
-	PreviousVersion  string
-	CanRollback      bool
-	Rollback         bool
-	FlowID           string
-	SurfaceSessionID string
-	OwnerUserID      string
-	MessageID        string
-	Stage            OwnerCardFlowStage
-	CurrentVersion   string
-	LatestVersion    string
-	TargetVersion    string
-	Checked          bool
-	HasUpdate        bool
-	CanUpgrade       bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	ExpiresAt        time.Time
+	ImmediateSupported bool
+	Immediate          bool
+	ImmediatePlan      *sharedcodex.ImmediatePlan
+	SourceKind         codexupgrade.SourceKind
+	PreviousVersion    string
+	CanRollback        bool
+	Rollback           bool
+	FlowID             string
+	SurfaceSessionID   string
+	OwnerUserID        string
+	MessageID          string
+	Stage              OwnerCardFlowStage
+	CurrentVersion     string
+	LatestVersion      string
+	TargetVersion      string
+	Checked            bool
+	HasUpdate          bool
+	CanUpgrade         bool
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	ExpiresAt          time.Time
 }
 
 type State struct {
