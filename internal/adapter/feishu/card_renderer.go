@@ -157,7 +157,7 @@ func renderCardDocument(doc *cardDocument, version cardEnvelopeVersion, updateMu
 	if updateMulti {
 		config["update_multi"] = true
 	}
-	return map[string]any{
+	payload := map[string]any{
 		"schema": "2.0",
 		"config": config,
 		"header": header,
@@ -165,6 +165,8 @@ func renderCardDocument(doc *cardDocument, version cardEnvelopeVersion, updateMu
 			"elements": elements,
 		},
 	}
+	normalizeCardMarkdownImages(payload)
+	return payload
 }
 
 func stampRenderedCardCallbackSurface(payload map[string]any, surfaceSessionID string) map[string]any {

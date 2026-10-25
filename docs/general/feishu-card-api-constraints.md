@@ -1,7 +1,7 @@
 # Feishu Card API Constraints
 
 > Type: `general`
-> Updated: `2026-05-04`
+> Updated: `2026-10-25`
 > Summary: 固化当前仓库进行飞书卡片、消息卡片 patch、CardKit 流式更新设计时必须先考虑的平台硬约束、频控和降级基线。
 
 ## 1. 文档定位
@@ -196,6 +196,21 @@ CardKit 卡片实体本身也有生命周期限制：
 来源：
 
 - `https://open.feishu.cn/document/cardkit-v1/streaming-updates-openapi-overview`
+
+### 3.10 Markdown 图片必须使用飞书图片 Key
+
+飞书 Markdown 的 `![说明](目标)` 图片语法要求目标是上传图片接口返回的 `image_key`（例如 `img_v3_xxx`），不能直接填 HTTP/HTTPS 图片地址或网页预览链接。否则整张卡片可能被拒绝，实际错误为 `230099` / `200570: card contains invalid image keys`。
+
+当前仓库的输出基线：
+
+1. 卡片渲染的统一出口把 Markdown 中的外部图片地址改为保留说明和原始 URL 的普通文字链接，避免图片标记阻止整条正文送达。
+2. 已上传的飞书图片 Key 保留图片显示；代码块、行内代码及转义文字保留原文。
+3. 同一规则适用于正文以及嵌套组件中的 Markdown，覆盖卡片创建、回复和更新。
+4. 渲染过程中不自动下载外部链接；实际截图仍走已有的图片上传与发送入口。
+
+来源：
+
+- `https://open.feishu.cn/document/server-docs/im-v1/message-content-description/create_json`
 
 ## 4. 关于 30 KB 的当前仓库判断
 
