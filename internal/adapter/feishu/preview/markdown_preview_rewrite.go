@@ -118,6 +118,12 @@ func (p *DriveMarkdownPreviewer) rewriteMarkdownLinksInline(
 	)
 	last := 0
 	for i := 0; i < len(text); {
+		// A citation is an atomic annotation, including any literal backticks
+		// inside its attributes. The plain scanner handles it as a whole.
+		if citation, ok := parseCodexOutputFileCitation(text, i); ok {
+			i = citation.end
+			continue
+		}
 		if rewrittenLink, ok := p.tryRewriteNeutralizedLocalMarkdownLink(
 			ctx,
 			req,
@@ -209,63 +215,6 @@ func (p *DriveMarkdownPreviewer) rewriteMarkdownLinksInline(
 	return builder.String(), changed, errs
 }
 
-func (p *DriveMarkdownPreviewer) rewriteMarkdownLinksCodeSpan(
-	ctx context.Context,
-	req FinalBlockPreviewRequest,
-	principals []previewPrincipal,
-	runtime *previewRewriteRuntime,
-	scopeKey string,
-	rewrittenTargets map[string]string,
-	rawSpan string,
-	text string,
-	baseOffset int,
-) (string, bool, []string) {
-	if text == "" {
-		return rawSpan, false, nil
-	}
-	trimStart, trimEnd := trimMarkdownInlineSpaceBounds(text)
-	if trimStart >= trimEnd {
-		return rawSpan, false, nil
-	}
-	trimmed := text[trimStart:trimEnd]
-	if end, label, rawTarget, ok := markdown.ParseMarkdownLinkAt(trimmed, 0); ok && end == len(trimmed) {
-		replacement, rewrittenChanged, rewrittenErrs := p.rewritePreviewReferenceTarget(
-			ctx,
-			req,
-			principals,
-			runtime,
-			scopeKey,
-			rewrittenTargets,
-			rawTarget,
-			baseOffset+trimStart+len(label)+3,
-			baseOffset+trimStart+len(label)+3+len(rawTarget),
-		)
-		if !rewrittenChanged {
-			return rawSpan, false, rewrittenErrs
-		}
-		return "[" + label + "](" + replacement + ")", true, rewrittenErrs
-	}
-	rawTarget, display, ok := parseStandalonePreviewReferenceWhole(trimmed)
-	if !ok {
-		return rawSpan, false, nil
-	}
-	replacement, rewrittenChanged, rewrittenErrs := p.rewritePreviewReferenceTarget(
-		ctx,
-		req,
-		principals,
-		runtime,
-		scopeKey,
-		rewrittenTargets,
-		rawTarget,
-		baseOffset+trimStart,
-		baseOffset+trimStart+len(rawTarget),
-	)
-	if !rewrittenChanged {
-		return rawSpan, false, rewrittenErrs
-	}
-	return "[" + display + "](" + replacement + ")", true, rewrittenErrs
-}
-
 func (p *DriveMarkdownPreviewer) rewriteMarkdownLinksPlain(
 	ctx context.Context,
 	req FinalBlockPreviewRequest,
@@ -287,6 +236,17 @@ func (p *DriveMarkdownPreviewer) rewriteMarkdownLinksPlain(
 	)
 	last := 0
 	for i := 0; i < len(text); {
+		if citation, ok := parseCodexOutputFileCitation(text, i); ok {
+			builder.WriteString(text[last:i])
+			replacement, citationChanged, citationErrs := p.rewriteCodexOutputFileCitation(
+				ctx, req, principals, runtime, scopeKey, rewrittenTargets, text, i, baseOffset, citation,
+			)
+			builder.WriteString(replacement)
+			changed = changed || citationChanged
+			errs = append(errs, citationErrs...)
+			i, last = citation.end, citation.end
+			continue
+		}
 		if text[i] == '[' {
 			end, label, rawTarget, ok := markdown.ParseMarkdownLinkAt(text, i)
 			if ok {

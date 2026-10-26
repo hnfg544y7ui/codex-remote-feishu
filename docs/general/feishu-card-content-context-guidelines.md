@@ -1,7 +1,7 @@
 # Feishu Card Content Context Guidelines
 
 > Type: `general`
-> Updated: `2026-04-21`
+> Updated: `2026-10-26`
 > Summary: 补充“需求描述 -> 分层落点 -> Markdown 处理”的决策规范，明确这类代码应把格式职责放在 adapter 最后一跳渲染。
 
 ## 1. 文档定位
@@ -114,6 +114,8 @@ orchestrator / control / daemon 层负责表达业务语义与结构，不负责
 ### 4.7 final reply markdown 是特例，不外溢
 
 final reply 当前有专门的 markdown normalize 与 preview rewrite 链路。
+
+Codex 的 `:codex-file-citation{path="..." purpose="output"}` 属于文件产物引用，不能把它当作普通正文中的裸路径局部替换。预览 adapter 必须先识别并完整消费该引用，再使用原有文件解析、作用域授权和发布链路生成以文件名为标签的普通链接；不能让 Markdown 链接残留在 `path` 属性内部。代码示例、未知用途或格式不完整的引用保留原文；发布失败时也保留完整引用并沿用现有错误提示。
 
 这条能力只能服务 final answer / final card，不应直接复制成：
 
