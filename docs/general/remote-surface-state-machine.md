@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-23`
-> Summary: 共享后端增加显式确认的立即升级；维护派发屏障跨重连保留，活动任务和未知请求不自动重放。
+> Updated: `2026-10-26`
+> Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2176,7 +2176,8 @@ retained-offline overlay 额外规则：
 
 - 话题 surface 标识为 `feishu:<gateway>:topic:<chatID>~<rootMessageID>`。根消息必须来自群主聊天中新发送的 `/topic new [名称]` 文本，不能由旧卡回调或已有话题嵌套创建；同一根消息重复交付幂等。
 - 话题持有独立的会话选择、队列、附件和 pending request；不从 room 全局 workspace 或群主聊天复制 target。不同话题允许各选项目，但共享本群运行名额；创建不隐式改变 `/coworkers` 上限。名额不足时话题任务留在自己的队列，同一话题仍串行。
-- 话题创建者为固定控制者。实际 gateway/chat/root/native topic 与 surface 不匹配、话题尚未登记或已关闭时 fail closed；转发卡不能凭 payload 接管话题。话题内会话第一次绑定后不可切换，`/use` 不同 target、`/new`、`/follow`、模式切换和底层 route transition 不能绕过 pinned thread。绑定后的 `/detach` 和 `/workspace detach` 拒绝执行，网络中断不清除固定绑定。
+- 话题创建者为固定控制者。实际 gateway/chat/root/native topic 与 surface 不匹配、话题尚未登记或已关闭时 fail closed；转发卡不能凭 payload 接管话题。首次绑定后允许显式 `/use` 在空闲时切换同 backend/profile 的已有会话；运行、派发、排队、待确认、暂存输入、自动续跑或恢复中的话题拒绝改绑。开卡与最终确认之间新发生的任务也会重新拦截。选择已占用会话不发强踢卡。`/new`、`/follow`、模式切换、`/detach` 和 `/workspace detach` 仍不能绕过这条入口。
+- 话题切换使用 service 内存中的 exact from/to intent；只有经过 `/use` 的候选目标可越过底层 pinned guard。启动新 headless 时保留旧 attachment/claims/workspace/runtime refs 与旧 bound，候选仅放在 PendingHeadless。实例可用且再次通过空闲和目标 claim 检查后，通过显式 `RebindTopic(expectedOldThreadID, entry)` CAS 保存新目标，再一次提交 live route/claims；保存失败不释放旧 claims。普通 Put/ReplaceAll、恢复投影仍拒绝任意换绑或改变 owner/native/root/closed，切换不改变后端/配置档。失败/超时清除 intent；迟到失败接入释放候选 worker。未完成切换的普通持久化只保留旧 committed target，重启不会恢复候选或重放改绑意图。
 - `/topic close` 只接受空闲话题；运行、排队、headless launch 或待确认时拒绝，不能用关闭打断任务。关闭持久化为 tombstone，保留原会话绑定，后续输入及重复创建根消息不能自动恢复开放状态。
 - topic outgoing operation 固定 `reply_in_thread=true` 及 immutable root；首个飞书回执补全 native thread ID，已知输出 message ID 用于重启后的关联。话题发送失败不得 fallback 到普通群发送，回执路由验证或持久化失败不得被当作成功完成绑定。
 - root/native ID、owner、title、bound thread、closed 与有限的近期输出 ID 集合随 surface resume 保存；恢复以话题自身 target 为准，不能由 room 全局 workspace 重写。现有内存队列不是可靠持久队列，重启恢复绑定不构成对未知执行结果的自动重放授权。

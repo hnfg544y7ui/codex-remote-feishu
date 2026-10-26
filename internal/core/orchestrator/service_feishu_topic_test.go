@@ -147,8 +147,8 @@ func TestFeishuTopicPinnedConversationBlocksUseNewAndCoreRetarget(t *testing.T) 
 	topic.FeishuTopicID = "omt_pinned"
 	topic.FeishuTopicBoundThreadID = "original"
 	topic.SelectedThreadID = "original"
-	if events := svc.useThread(topic, "other", true); noticeByCode(events, "topic_conversation_pinned") == nil {
-		t.Fatalf("pinned use accepted: %#v", events)
+	if events := svc.useThread(topic, "other", true); noticeByCode(events, "thread_not_found") == nil || topic.SelectedThreadID != "original" || topic.FeishuTopicBoundThreadID != "original" {
+		t.Fatalf("missing target changed the established conversation: %#v", events)
 	}
 	for _, kind := range []control.ActionKind{control.ActionNewThread, control.ActionDetach, control.ActionWorkspaceDetach, control.ActionFollowLocal, control.ActionModeCommand} {
 		events := svc.ApplySurfaceAction(control.Action{Kind: kind, SurfaceSessionID: topic.SurfaceSessionID, GatewayID: "bot", ChatID: "oc_test", ActorUserID: "owner"})

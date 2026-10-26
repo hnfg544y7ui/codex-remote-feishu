@@ -21,10 +21,33 @@ func (s *Service) useThreadPreservingTargetPicker(surface *state.SurfaceConsoleR
 
 func (s *Service) useThreadWithOverlayCleanup(surface *state.SurfaceConsoleRecord, threadID string, allowCrossWorkspace bool, cleanup surfaceOverlayRouteCleanupOptions) []eventcontract.Event {
 	threadID = strings.TrimSpace(threadID)
-	if surfaceIsFeishuTopic(surface) && surface.FeishuTopicBoundThreadID != "" && surface.FeishuTopicBoundThreadID != threadID {
-		return topicPinnedNotice(surface)
+	if s.topicThreadSwitch(surface) != nil {
+		return topicThreadSwitchBusyNotice(surface)
+	}
+	if topicSwitchChangesThread(surface, threadID) {
+		if owner := s.threadClaimSurface(threadID); owner != nil && owner.SurfaceSessionID != surface.SurfaceSessionID {
+			return notice(surface, "thread_busy", "目标会话当前已被其他飞书会话占用，请选择其他会话。")
+		}
+		if blocked := s.beginTopicThreadSwitch(surface, threadID); len(blocked) != 0 {
+			return blocked
+		}
+		defer func() {
+			if pending := surface.PendingHeadless; pending == nil || pending.ThreadID != threadID {
+				delete(s.topicThreadSwitches, surface.SurfaceSessionID)
+			}
+		}()
 	}
 	target := s.resolveThreadTargetWithScope(surface, threadID, allowCrossWorkspace)
+	if s.topicThreadSwitch(surface) != nil && target.View != nil && !s.topicSwitchTargetBackendMatches(surface, target.View) {
+		return notice(surface, "topic_switch_backend_mismatch", "话题内只能通过 /use 切换同一后端的已有会话。其他后端请创建新话题。")
+	}
+	if s.topicThreadSwitch(surface) != nil && target.Mode == threadAttachReuseHeadless &&
+		target.Instance != nil && target.Instance.InstanceID == surface.AttachedInstanceID &&
+		!cwdBelongsToInstanceWorkspace(target.Instance, threadCWD(target.View)) {
+		// Retargeting the current worker would change the committed route's
+		// workspace before the new binding is durable. Prepare another worker.
+		target.Mode, target.Instance = threadAttachCreateHeadless, nil
+	}
 	return s.executeResolvedThreadTargetWithOverlayCleanup(surface, threadID, target, cleanup)
 }
 
@@ -93,17 +116,22 @@ func (s *Service) useAttachedVisibleThreadModeWithOverlayCleanup(surface *state.
 	}
 	prevThreadID := surface.SelectedThreadID
 	prevRouteMode := surface.RouteMode
-	if prevThreadID != threadID || prevRouteMode != routeMode {
-		clearAutoContinueRuntime(surface)
-	}
+	intent := s.topicThreadSwitch(surface)
 	if !s.transitionSurfaceRouteCore(surface, inst, surfaceRouteCoreState{
 		AttachedInstanceID: inst.InstanceID,
 		RouteMode:          routeMode,
 		SelectedThreadID:   threadID,
 		ThreadClaimPolicy:  surfaceRouteThreadClaimVisible,
 	}) {
+		if intent != nil {
+			return append(events, topicThreadSwitchFailureNotice(surface)...)
+		}
 		return append(events, notice(surface, "thread_busy", "目标会话当前已被其他飞书会话占用。")...)
 	}
+	if prevThreadID != threadID || prevRouteMode != routeMode {
+		clearAutoContinueRuntime(surface)
+	}
+	s.finishTopicThreadSwitch(surface, intent)
 	events = append(events, s.maybeSealPlanProposalForRouteChange(surface, "当前工作目标已切换到其他会话，之前的提案计划已失效。")...)
 	events = append(events, s.cleanupContextBoundSurfaceOverlays(surface, "当前工作目标已变化", cleanup)...)
 	events = append(events, s.discardStagedInputsForRouteChange(surface, prevThreadID, prevRouteMode, threadID, routeMode)...)
@@ -178,7 +206,11 @@ func (s *Service) attachSurfaceToKnownThreadWithOverlayCleanup(surface *state.Su
 	}
 	s.persistCurrentClaudeWorkspaceProfileSnapshot(surface)
 
-	events := s.prepareSurfaceForExecutionReattachWithOverlayCleanup(surface, cleanup)
+	intent := s.topicThreadSwitch(surface)
+	events := []eventcontract.Event{}
+	if intent == nil {
+		events = s.prepareSurfaceForExecutionReattachWithOverlayCleanup(surface, cleanup)
+	}
 	surface.Backend = instanceBackend
 	if blocked := s.restoreCurrentClaudeWorkspaceProfileSnapshot(surface); len(blocked) != 0 {
 		return append(events, blocked...)
@@ -232,8 +264,16 @@ func (s *Service) attachSurfaceToKnownThreadWithOverlayCleanup(surface *state.Su
 		SelectedThreadID:   view.ThreadID,
 		ThreadClaimPolicy:  surfaceRouteThreadClaimKnown,
 	}) {
+		if intent != nil {
+			return append(events, topicThreadSwitchFailureNotice(surface)...)
+		}
 		events = append(events, s.finalizeDetachedSurface(surface)...)
 		return append(events, attachSurfaceToKnownThreadThreadBusyNotice(surface, mode)...)
+	}
+	if intent != nil {
+		s.finishTopicThreadSwitch(surface, intent)
+		clearAutoContinueRuntime(surface)
+		events = append(events, s.cleanupContextBoundSurfaceOverlays(surface, "当前工作目标已变化", cleanup)...)
 	}
 	s.syncFeishuRoomWorkspaceBinding(surface, workspaceKey)
 
@@ -404,8 +444,12 @@ func (s *Service) startHeadlessForResolvedThreadWithModeAndOverlayCleanup(surfac
 		sourceInstanceID = view.Inst.InstanceID
 	}
 
-	events := s.prepareSurfaceForExecutionReattachWithOverlayCleanup(surface, cleanup)
-	if !s.claimWorkspace(surface, workspaceKey) {
+	intent := s.topicThreadSwitch(surface)
+	events := []eventcontract.Event{}
+	if intent == nil {
+		events = s.prepareSurfaceForExecutionReattachWithOverlayCleanup(surface, cleanup)
+	}
+	if intent == nil && !s.claimWorkspace(surface, workspaceKey) {
 		if s.surfaceUsesWorkspaceClaims(surface) {
 			if mode == startHeadlessModeHeadlessRestore {
 				return append(events, eventcontract.Event{

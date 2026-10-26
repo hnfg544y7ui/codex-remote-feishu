@@ -346,7 +346,10 @@ func (a *App) currentSurfaceResumeTargetAndWorkspaceLocked(surface *state.Surfac
 	if surface == nil {
 		return surfaceResumeTarget{}, "", false
 	}
-	snapshot := a.service.SurfaceSnapshot(surface.SurfaceSessionID)
+	if target, workspace, ok := a.committedPendingTopicSwitchTargetLocked(surface); ok {
+		return target, workspace, true
+	}
+	snapshot := a.surfaceResumeProjectionSnapshotLocked(surface)
 	workspaceKey := a.currentSurfaceResumeWorkspaceKeyLocked(surface, snapshot)
 	if strings.TrimSpace(surface.AttachedInstanceID) != "" {
 		target := surfaceResumeTarget{
@@ -364,6 +367,7 @@ func (a *App) currentSurfaceResumeTargetAndWorkspaceLocked(surface *state.Surfac
 		if target.ResumeThreadID != "" {
 			var thread *state.ThreadRecord
 			if inst := a.service.Instance(target.ResumeInstanceID); inst != nil {
+				target.ResumeHeadless = topicResumeTargetHeadless(surface, inst, target.ResumeHeadless)
 				if current := inst.Threads[target.ResumeThreadID]; current != nil {
 					thread = current
 					target.ResumeThreadCWD = state.ResolveWorkspaceClaimKey(thread.CWD)

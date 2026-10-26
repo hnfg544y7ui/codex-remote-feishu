@@ -108,6 +108,8 @@ func (s *Service) buildDesktopProjectPickerView(surface *state.SurfaceConsoleRec
 		return control.FeishuTargetPickerView{}, enabled, err
 	}
 	index := newDesktopProjectIndex(snapshot)
+	existingThreadsOnly := targetPickerExistingThreadsOnly(surface)
+	allowNewThread := record.AllowNewThread && !existingThreadsOnly
 	views := s.threadViewsVisibleInNormalList(surface, s.mergedThreadViews(surface))
 	projectOptions := make([]control.FeishuTargetPickerWorkspaceOption, 0, len(snapshot.Projects)+1)
 	for _, project := range snapshot.Projects {
@@ -157,7 +159,7 @@ func (s *Service) buildDesktopProjectPickerView(surface *state.SurfaceConsoleRec
 		}
 	}
 	newWorkspace := ""
-	if projectPresent && record.AllowNewThread {
+	if projectPresent && allowNewThread {
 		newWorkspace = s.desktopProjectNewThreadWorkspace(surface, selectedProject, index, entries)
 		if newWorkspace != "" {
 			sessions = append([]control.FeishuTargetPickerSessionOption{{
@@ -167,7 +169,7 @@ func (s *Service) buildDesktopProjectPickerView(surface *state.SurfaceConsoleRec
 			sessionWorkspaces[targetPickerNewThreadValue] = newWorkspace
 		}
 	}
-	if projectPresent {
+	if projectPresent && !existingThreadsOnly {
 		for _, entry := range entries {
 			if entry.worktreeBase && index.projectForWorkspace(entry.workspaceKey) == selectedProject {
 				sessions = append(sessions, control.FeishuTargetPickerSessionOption{
@@ -210,14 +212,18 @@ func (s *Service) buildDesktopProjectPickerView(surface *state.SurfaceConsoleRec
 	if !projectPresent {
 		messages = append(messages, control.FeishuTargetPickerMessage{Level: control.FeishuTargetPickerMessageWarning, Text: "项目已删除或归属已变化，请重新选择项目。"})
 	} else if len(sessions) == 0 {
-		messages = append(messages, control.FeishuTargetPickerMessage{Level: control.FeishuTargetPickerMessageInfo, Text: "当前项目没有可接管会话或可用目录，请选择其他项目，或从目录新建。"})
+		text := "当前项目没有可接管会话或可用目录，请选择其他项目，或从目录新建。"
+		if existingThreadsOnly {
+			text = "当前项目没有可接管的已有会话，请选择其他项目。"
+		}
+		messages = append(messages, control.FeishuTargetPickerMessage{Level: control.FeishuTargetPickerMessageInfo, Text: text})
 	}
 	return control.NormalizeFeishuTargetPickerView(control.FeishuTargetPickerView{
 		PickerID: record.PickerID, Title: "切换项目与会话", Source: record.Source,
 		CatalogFamilyID: record.CatalogFamilyID, CatalogVariantID: record.CatalogVariantID, CatalogBackend: record.CatalogBackend,
 		Stage: control.FeishuTargetPickerStageEditing, Page: control.FeishuTargetPickerPageTarget,
 		StageLabel: "切换", Question: "切到哪个项目 / 会话？", ProjectGrouped: true,
-		ShowWorkspaceSelect: true, ShowSessionSelect: true, AllowNewThread: record.AllowNewThread,
+		ShowWorkspaceSelect: true, ShowSessionSelect: true, AllowNewThread: allowNewThread,
 		WorkspacePlaceholder: "选择项目", SessionPlaceholder: "选择会话",
 		WorkspaceCursor: record.WorkspaceCursor, SessionCursor: record.SessionCursor,
 		WorkspaceSelectionValue: projectValue, SelectedWorkspaceKey: workspace, SelectedSessionValue: selectedSession,

@@ -138,6 +138,9 @@ func (s *Service) newTargetPickerRecord(surface *state.SurfaceConsoleRecord, sou
 	if !allowNewThread {
 		allowNewThread = targetPickerSourceDefaultsToAllowNewThread(source)
 	}
+	if targetPickerExistingThreadsOnly(surface) {
+		allowNewThread = false
+	}
 	selectedWorkspaceKey := preferredWorkspaceKey
 	if lockedWorkspaceKey != "" {
 		selectedWorkspaceKey = lockedWorkspaceKey
@@ -436,6 +439,12 @@ func (s *Service) dispatchTargetPickerConfirmed(surface *state.SurfaceConsoleRec
 	if surface == nil {
 		return nil
 	}
+	if targetPickerExistingThreadsOnly(surface) {
+		kind, _ := parseTargetPickerSessionValue(strings.TrimSpace(view.SelectedSessionValue))
+		if view.Page != control.FeishuTargetPickerPageTarget || kind != control.FeishuTargetPickerSessionThread {
+			return topicPinnedNotice(surface)
+		}
+	}
 	switch view.Page {
 	case control.FeishuTargetPickerPageLocalDirectory:
 		return s.confirmTargetPickerLocalDirectory(surface, flow, record, view)
@@ -571,6 +580,9 @@ func (s *Service) requireActiveTargetPicker(surface *state.SurfaceConsoleRecord,
 func (s *Service) buildTargetPickerView(surface *state.SurfaceConsoleRecord, record *activeTargetPickerRecord) (control.FeishuTargetPickerView, error) {
 	if surface == nil || record == nil {
 		return control.FeishuTargetPickerView{}, fmt.Errorf("目标选择器不存在")
+	}
+	if targetPickerExistingThreadsOnly(surface) {
+		record.AllowNewThread = false
 	}
 	stage := record.Stage
 	if stage == "" {

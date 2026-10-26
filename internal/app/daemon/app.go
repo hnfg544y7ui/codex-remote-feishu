@@ -259,6 +259,7 @@ func New(relayAddr, apiAddr string, gateway feishu.Gateway, serverIdentity agent
 		commandAnchorRecallDelay:    8 * time.Second,
 	}
 	app.service.SetPrimaryBotPermissionChecker(app)
+	app.service.SetTopicThreadRebindCommitter(app)
 	app.codexUpgradeRuntime.Inspect = func(ctx context.Context, opts codexupgrade.InspectOptions) (codexupgrade.Installation, error) {
 		return codexupgrade.Inspect(ctx, opts), nil
 	}

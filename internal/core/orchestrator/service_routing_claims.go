@@ -76,7 +76,7 @@ func (s *Service) surfaceCurrentWorkspaceKey(surface *state.SurfaceConsoleRecord
 	if surface == nil || !s.surfaceUsesWorkspaceClaims(surface) {
 		return ""
 	}
-	if pending := surface.PendingHeadless; pending != nil {
+	if pending := surface.PendingHeadless; pending != nil && s.topicThreadSwitch(surface) == nil {
 		if key := pendingHeadlessWorkspaceClaimKey(pending); key != "" {
 			surface.ClaimedWorkspaceKey = key
 			return key

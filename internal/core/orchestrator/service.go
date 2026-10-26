@@ -42,41 +42,43 @@ type PrimaryBotPermissionDecision struct {
 }
 
 type Service struct {
-	now                       func() time.Time
-	config                    Config
-	root                      *state.Root
-	renderer                  *renderer.Planner
-	nextQueueItemID           int
-	nextImageID               int
-	nextFileID                int
-	nextRequestCommandID      int
-	nextHeadlessID            int
-	nextAutoContinueEpisodeID int
-	nextShellBindingSequence  int
-	handoffUntil              map[string]time.Time
-	pausedUntil               map[string]time.Time
-	surfaceDispatchHolds      map[string]bool
-	abandoningUntil           map[string]time.Time
-	itemBuffers               map[string]*itemBuffer
-	threadRefreshes           map[string]bool
-	instanceClaims            map[string]*instanceClaimRecord
-	workspaceClaims           map[string]*workspaceClaimRecord
-	threadClaims              map[string]*threadClaimRecord
-	surfaceUIRuntime          map[string]*surfaceUIRuntimeRecord
-	turns                     *serviceTurnRuntime
-	pickers                   *servicePickerRuntime
-	catalog                   *serviceCatalogRuntime
-	progress                  *serviceProgressRuntime
-	activeNoticeCooldowns     map[string]time.Time
-	goalInterlocks            map[string]*GoalInterlockLease
-	goalInterlockByCommand    map[string]string
-	goalProbeByCommand        map[string]string
-	goalGetByCommand          map[string]string
-	goalPauseBackoff          map[string]time.Time
-	goalPauseNoticeAt         map[string]time.Time
-	goalUserCommands          map[string]goalUserCommand
-	pendingGoalFingerprints   map[string]pendingGoalFingerprint
-	renameCommands            map[string]renameCommandBinding
+	now                        func() time.Time
+	config                     Config
+	root                       *state.Root
+	renderer                   *renderer.Planner
+	nextQueueItemID            int
+	nextImageID                int
+	nextFileID                 int
+	nextRequestCommandID       int
+	nextHeadlessID             int
+	nextAutoContinueEpisodeID  int
+	nextShellBindingSequence   int
+	handoffUntil               map[string]time.Time
+	pausedUntil                map[string]time.Time
+	surfaceDispatchHolds       map[string]bool
+	abandoningUntil            map[string]time.Time
+	itemBuffers                map[string]*itemBuffer
+	threadRefreshes            map[string]bool
+	instanceClaims             map[string]*instanceClaimRecord
+	workspaceClaims            map[string]*workspaceClaimRecord
+	threadClaims               map[string]*threadClaimRecord
+	surfaceUIRuntime           map[string]*surfaceUIRuntimeRecord
+	turns                      *serviceTurnRuntime
+	pickers                    *servicePickerRuntime
+	catalog                    *serviceCatalogRuntime
+	progress                   *serviceProgressRuntime
+	activeNoticeCooldowns      map[string]time.Time
+	goalInterlocks             map[string]*GoalInterlockLease
+	goalInterlockByCommand     map[string]string
+	goalProbeByCommand         map[string]string
+	goalGetByCommand           map[string]string
+	goalPauseBackoff           map[string]time.Time
+	goalPauseNoticeAt          map[string]time.Time
+	goalUserCommands           map[string]goalUserCommand
+	pendingGoalFingerprints    map[string]pendingGoalFingerprint
+	renameCommands             map[string]renameCommandBinding
+	topicThreadSwitches        map[string]*topicThreadSwitch
+	topicThreadRebindCommitter TopicThreadRebindCommitter
 }
 
 type itemBuffer struct {

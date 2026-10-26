@@ -33,7 +33,7 @@ func (s *Service) surfaceCurrentWorkspaceKeyRaw(surface *state.SurfaceConsoleRec
 	if surface == nil || !surfaceUsesWorkspaceClaimsRaw(surface) {
 		return ""
 	}
-	if pending := surface.PendingHeadless; pending != nil {
+	if pending := surface.PendingHeadless; pending != nil && s.topicThreadSwitch(surface) == nil {
 		if key := pendingHeadlessWorkspaceClaimKey(pending); key != "" {
 			return key
 		}
@@ -51,11 +51,15 @@ func (s *Service) surfaceCurrentWorkspaceKeyRaw(surface *state.SurfaceConsoleRec
 }
 
 func (s *Service) transitionSurfaceRouteCore(surface *state.SurfaceConsoleRecord, inst *state.InstanceRecord, next surfaceRouteCoreState) bool {
-	if surfaceIsFeishuTopic(surface) && surface.FeishuTopicBoundThreadID != "" && (next.SelectedThreadID != "" && next.SelectedThreadID != surface.FeishuTopicBoundThreadID || next.RouteMode == state.RouteModeNewThreadReady) {
+	retargetTopic := topicSwitchChangesThread(surface, next.SelectedThreadID) && next.SelectedThreadID != ""
+	if surfaceIsFeishuTopic(surface) && surface.FeishuTopicBoundThreadID != "" && next.RouteMode == state.RouteModeNewThreadReady {
 		return false
 	}
 	next, inst, ok := s.normalizeSurfaceRouteCoreState(surface, inst, next)
 	if !ok || !s.canTransitionSurfaceRouteCore(surface, inst, next) {
+		return false
+	}
+	if retargetTopic && !s.commitTopicThreadSwitch(surface, inst, next) {
 		return false
 	}
 
@@ -77,6 +81,9 @@ func (s *Service) transitionSurfaceRouteCore(surface *state.SurfaceConsoleRecord
 	surface.SelectedThreadID = next.SelectedThreadID
 	surface.PreparedThreadCWD = next.PreparedThreadCWD
 	surface.PreparedFromThreadID = next.PreparedFromThreadID
+	if retargetTopic {
+		surface.FeishuTopicBoundThreadID = next.SelectedThreadID
+	}
 	if next.PreparedThreadCWD == "" {
 		surface.PreparedAt = time.Time{}
 	} else {

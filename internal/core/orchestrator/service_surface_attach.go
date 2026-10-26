@@ -355,7 +355,18 @@ func (s *Service) attachHeadlessInstance(surface *state.SurfaceConsoleRecord, in
 		if pending.AutoRestore {
 			mode = attachSurfaceToKnownThreadHeadlessRestore
 		}
+		intent := s.topicThreadSwitch(surface)
 		events := s.attachSurfaceToKnownThreadWithOverlayCleanup(surface, inst, view, mode, cleanup)
+		if intent != nil && surface.FeishuTopicBoundThreadID != pending.ThreadID {
+			// A rejected late attach must not strand the old topic behind the
+			// candidate launch or leave an unclaimed worker running.
+			s.consumeSurfacePendingHeadlessLaunch(surface, pending.InstanceID)
+			events = append(events, eventcontract.Event{
+				Kind: eventcontract.KindDaemonCommand, SurfaceSessionID: surface.SurfaceSessionID,
+				DaemonCommand: &control.DaemonCommand{Kind: control.DaemonCommandKillHeadless,
+					SurfaceSessionID: surface.SurfaceSessionID, InstanceID: pending.InstanceID},
+			})
+		}
 		return s.finishFailedAutoRestoreThreadConnect(surface, pending, events)
 	}
 	s.consumeSurfacePendingHeadlessLaunch(surface, pending.InstanceID)
@@ -451,9 +462,11 @@ func (s *Service) applyPendingHeadlessRuntimeToInstance(surface *state.SurfaceCo
 		inst.CodexAdmissionRef = admissionRef
 		inst.CodexConnectionContract = connection
 		inst.CodexThreadPolicy = threadPolicy
-		surface.CodexAdmissionRef = state.NormalizeCodexAdmissionRef(admissionRef)
-		surface.CodexConnectionContract = state.CloneCodexConnectionContract(connection)
-		surface.CodexThreadPolicy = state.CloneCodexThreadPolicy(threadPolicy)
+		if s.topicThreadSwitch(surface) == nil {
+			surface.CodexAdmissionRef = state.NormalizeCodexAdmissionRef(admissionRef)
+			surface.CodexConnectionContract = state.CloneCodexConnectionContract(connection)
+			surface.CodexThreadPolicy = state.CloneCodexThreadPolicy(threadPolicy)
+		}
 	case agentproto.BackendOpenCode:
 		admissionRef := state.NormalizeOpenCodeAdmissionRef(pending.OpenCodeAdmissionRef)
 		profileID := state.NormalizeOpenCodeProfileID(pending.OpenCodeProfileID)
@@ -463,7 +476,9 @@ func (s *Service) applyPendingHeadlessRuntimeToInstance(surface *state.SurfaceCo
 		inst.OpenCodeProfileID = profileID
 		inst.OpenCodeAdmissionRef = admissionRef
 		inst.OpenCodeRuntimeAccessMode = state.NormalizeOpenCodeRuntimeAccessMode(pending.OpenCodeRuntimeAccessMode)
-		surface.OpenCodeAdmissionRef = state.NormalizeOpenCodeAdmissionRef(admissionRef)
+		if s.topicThreadSwitch(surface) == nil {
+			surface.OpenCodeAdmissionRef = state.NormalizeOpenCodeAdmissionRef(admissionRef)
+		}
 	}
 }
 

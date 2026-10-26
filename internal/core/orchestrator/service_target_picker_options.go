@@ -147,6 +147,8 @@ func (s *Service) targetPickerSessionOptions(surface *state.SurfaceConsoleRecord
 }
 
 func (s *Service) targetPickerSessionOptionsWithViews(surface *state.SurfaceConsoleRecord, entry workspaceSelectionEntry, source control.TargetPickerRequestSource, allowNewThread bool, views []*mergedThreadView) []control.FeishuTargetPickerSessionOption {
+	existingThreadsOnly := targetPickerExistingThreadsOnly(surface)
+	allowNewThread = allowNewThread && !existingThreadsOnly
 	workspaceKey := normalizeWorkspaceClaimKey(entry.workspaceKey)
 	if workspaceKey == "" {
 		return nil
@@ -196,7 +198,7 @@ func (s *Service) targetPickerSessionOptionsWithViews(surface *state.SurfaceCons
 			})
 		}
 	}
-	if source == control.TargetPickerRequestSourceList && entry.worktreeBase {
+	if source == control.TargetPickerRequestSourceList && entry.worktreeBase && !existingThreadsOnly {
 		options = append(options, control.FeishuTargetPickerSessionOption{
 			Value:    targetPickerWorktreeCreateValue,
 			Kind:     control.FeishuTargetPickerSessionWorktree,
@@ -213,6 +215,10 @@ func (s *Service) targetPickerSessionOptionsWithViews(surface *state.SurfaceCons
 		})
 	}
 	return options
+}
+
+func targetPickerExistingThreadsOnly(surface *state.SurfaceConsoleRecord) bool {
+	return surfaceIsFeishuTopic(surface) && strings.TrimSpace(surface.FeishuTopicBoundThreadID) != ""
 }
 
 func (s *Service) defaultTargetPickerSessionValue(surface *state.SurfaceConsoleRecord, source control.TargetPickerRequestSource, workspaceKey string, options []control.FeishuTargetPickerSessionOption) string {

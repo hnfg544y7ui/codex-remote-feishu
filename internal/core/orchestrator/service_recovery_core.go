@@ -123,6 +123,9 @@ func (s *Service) consumeSurfacePendingHeadlessLaunch(surface *state.SurfaceCons
 		return nil
 	}
 	surface.PendingHeadless = nil
+	if intent := s.topicThreadSwitch(surface); intent != nil && intent.threadID == pending.ThreadID {
+		delete(s.topicThreadSwitches, surface.SurfaceSessionID)
+	}
 	return pending
 }
 

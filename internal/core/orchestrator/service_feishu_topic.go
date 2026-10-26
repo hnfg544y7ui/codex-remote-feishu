@@ -61,6 +61,9 @@ func (s *Service) blockTopicAction(surface *state.SurfaceConsoleRecord, action c
 		}
 	}
 	if surface.FeishuTopicBoundThreadID != "" {
+		if action.Kind == control.ActionConfirmKickThread && strings.TrimSpace(action.ThreadID) != surface.FeishuTopicBoundThreadID {
+			return topicPinnedNotice(surface)
+		}
 		switch action.Kind {
 		case control.ActionNewThread, control.ActionDetach, control.ActionWorkspaceDetach, control.ActionFollowLocal, control.ActionModeCommand, control.ActionAttachWorkspace, control.ActionAttachInstance:
 			return topicPinnedNotice(surface)
@@ -70,7 +73,7 @@ func (s *Service) blockTopicAction(surface *state.SurfaceConsoleRecord, action c
 }
 
 func topicPinnedNotice(surface *state.SurfaceConsoleRecord) []eventcontract.Event {
-	return notice(surface, "topic_conversation_pinned", "本话题已固定绑定一个会话。要使用其他会话，请在群主界面发送 `/topic new 名称`。")
+	return notice(surface, "topic_conversation_pinned", "话题空闲时可用 /use 切换已有会话；新建会话、切换后端或解除接管请使用新话题：在群主界面发送 /topic new 名称。")
 }
 
 func (s *Service) handleTopicCommand(surface *state.SurfaceConsoleRecord, action control.Action) []eventcontract.Event {
@@ -111,7 +114,7 @@ func (s *Service) handleTopicCommand(surface *state.SurfaceConsoleRecord, action
 		if topic.FeishuTopicClosed {
 			return notice(surface, "topic_closed", "这条消息创建的话题已关闭，请发送新的 `/topic new 名称`。")
 		}
-		return notice(topic, "topic_created", fmt.Sprintf("话题：%s\n请在本话题中发送 `/use` 选择项目和已有会话，或从选择器新建会话。首次选定后固定绑定。\n并行运行可在群主界面设置 `/primary on`、`/coworkers 2`。", topic.FeishuTopicTitle))
+		return notice(topic, "topic_created", fmt.Sprintf("话题：%s\n请在本话题中发送 `/use` 选择项目和已有会话，或首次绑定时新建会话。绑定后空闲时仍可用 /use 切换已有会话。\n并行运行可在群主界面设置 `/primary on`、`/coworkers 2`。", topic.FeishuTopicTitle))
 	case "close":
 		if !ref.IsTopic() {
 			return notice(surface, "topic_close_target", "请在要关闭的话题中发送 `/topic close`。")
