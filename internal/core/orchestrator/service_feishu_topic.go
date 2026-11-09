@@ -46,7 +46,9 @@ func (s *Service) blockTopicAction(surface *state.SurfaceConsoleRecord, action c
 	if surface.FeishuTopicClosed {
 		return notice(surface, "topic_closed", "这个话题已关闭。请在群主界面使用 `/topic new 名称` 创建新话题。")
 	}
-	if action.ActorUserID == "" || action.ActorUserID != surface.FeishuTopicOwnerID {
+	// Recall is a platform lifecycle notification, routed by its recorded
+	// message ID. It does not carry the task controller's identity.
+	if action.Kind != control.ActionMessageRecalled && (action.ActorUserID == "" || action.ActorUserID != surface.FeishuTopicOwnerID) {
 		return notice(surface, "topic_owner_required", "这个话题由其他成员创建，只有创建者可以向其发送任务或操作会话。")
 	}
 	if surface.FeishuTopicID == "" {

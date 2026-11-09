@@ -34,6 +34,9 @@ func TestParseMessageRecalledEventBuildsRecallAction(t *testing.T) {
 	if action.Kind != control.ActionMessageRecalled {
 		t.Fatalf("unexpected action kind: %#v", action)
 	}
+	if action.ActorUserID != "" {
+		t.Fatal("platform recall must not invent a task actor")
+	}
 	if action.GatewayID != "app-1" {
 		t.Fatalf("unexpected gateway id: %#v", action)
 	}

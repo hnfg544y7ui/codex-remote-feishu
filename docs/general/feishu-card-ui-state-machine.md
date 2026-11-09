@@ -1,8 +1,8 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-10-26`
-> Summary: 已绑定话题的会话选择器只展示已有会话；确认时重新检查空闲状态，异步失败保留原绑定及卡片反馈。
+> Updated: `2026-11-09`
+> Summary: 已绑定话题的会话选择器只展示已有会话；确认时重新检查空闲状态，异步失败保留原绑定及卡片反馈；撤回通知不再触发任务创建者身份错误。
 
 ## 1. 文档定位
 
@@ -1119,6 +1119,7 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
 
 ## 群话题会话卡片
 
+- 撤回属于平台消息生命周期事件，通过已登记的消息归属进入对应话题，不作为创建者发起的任务或卡片操作，也不替换当前操作者。正常话题内撤回排队消息或暂存附件继续更新原 pending input；正在执行的输入提示 `/stop`，已完成或未匹配消息静默忽略。跨 gateway/chat/root/native topic、关闭或尚未登记的话题继续受原入口校验约束。
 - `/topic` 是独立 terminal page family，菜单提供“话题会话”查询，不暴露可从 callback 创建话题的入口。`/topic new 名称` 必须是群主聊天的一条新文本；欢迎卡发往新 topic surface，与触发命令所在 room 的 launcher 分离。
 - 同一话题的选择器、历史、请求确认、进度和答复使用相同 immutable reply root，并设置线程回复。文件、图片与视频的直接发送路径同样携带 topic surface，不能绕过线程定位。线程回复失败不转为普通群 `create message`。
 - 首次发送成功回执须验证 chat/root/native topic 的一致性，补全 topic native ID 及已知输出 message ID 后保存关联；失败或未知结果不把卡片发布状态虚构成可执行。网络发送释放锁期间目标可能变化，迟到回执须重新验证固定 root 与 surface 后才写回。

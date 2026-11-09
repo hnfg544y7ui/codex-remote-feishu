@@ -1,8 +1,8 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-10-26`
-> Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标。
+> Updated: `2026-11-09`
+> Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标；消息撤回按消息归属处理，不要求任务操作者身份。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
 > 3. detached `/use`、headless exact-thread restore、workspace attach、startup resume、`/mode` backend switch、`/claudeprofile`、`/codexprofile`、`/opencodeprofile` 现在都会统一先判定 `attach visible compatible / reuse managed compatible / restart managed incompatible / fresh-start matching headless / reject`，而不是各自维护平行 continuation；
@@ -2171,6 +2171,8 @@ retained-offline overlay 额外规则：
 - 该实现不支持热接入当前桌面 App 的私有 stdio 后端。App 必须从 `CODEX_APP_SERVER_WS_URL` 环境重新启动；同一端点先按一个 Remote daemon 管理，跨独立 daemon 的同 thread claim 不协调。配置示例及本机隔离证据见 [共享 Codex 后端](../implemented/shared-codex-backend.md)。
 
 ## 10.5 飞书群话题独立会话
+
+- 平台 `ActionMessageRecalled` 通知由 gateway 按已登记的 message ID 定位话题，不依赖创建者的 `ActorUserID`，也不改写 surface 当前任务操作者。入口与核心仍校验 gateway/chat/root/native topic、登记状态、关闭状态及 native ID。撤回仅处理当前 surface 内对应的排队或暂存输入，已开始的任务保留原执行并提示 `/stop`，已完成或未匹配消息静默忽略；普通文字、命令、reaction 和卡片操作仍要求话题创建者身份。
 
 话题的 `ClaimedWorkspaceKey` 是独立项目选择元数据，不拥有 legacy `workspaceClaims` 的独占条目；legacy owner 的扫描、重建和释放排除话题。话题选择器不会因私聊或普通群持有项目而删除目录及新建会话选项。路由转换仍校验 instance/thread claim，已占用的实例不能复用，需要独立 headless context；具体会话占用仍拒绝。私聊和普通群的 workspace 独占规则不变。
 
