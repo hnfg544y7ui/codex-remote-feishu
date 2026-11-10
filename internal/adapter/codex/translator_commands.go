@@ -196,7 +196,7 @@ func (t *Translator) translateCommand(command agentproto.Command) ([][]byte, err
 		}
 		return [][]byte{append(bytes, '\n')}, nil
 	case agentproto.CommandThreadHistoryRead:
-		if t.shared != nil {
+		if t.shared != nil || (command.HistoryRead != nil && command.HistoryRead.LatestTurnOnly) {
 			return t.translateSharedHistoryRead(command)
 		}
 		requestID := t.NextRequest("thread-history-read")

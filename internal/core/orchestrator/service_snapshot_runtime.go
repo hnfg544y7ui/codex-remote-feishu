@@ -205,13 +205,6 @@ func (s *Service) BindPendingRemoteCommand(surfaceID, commandID string) {
 	s.bindPendingShellCommand(surfaceID, commandID)
 }
 
-func (s *Service) BindPendingShellCommand(surfaceID, commandID string) {
-	if strings.TrimSpace(commandID) == "" {
-		return
-	}
-	s.bindPendingShellCommand(surfaceID, commandID)
-}
-
 func (s *Service) BindPendingReviewStartCommand(surfaceID, commandID string) {
 	if strings.TrimSpace(commandID) == "" {
 		return
@@ -221,6 +214,9 @@ func (s *Service) BindPendingReviewStartCommand(surfaceID, commandID string) {
 }
 
 func (s *Service) HandleCommandDispatchFailure(surfaceID, commandID string, err error) []eventcontract.Event {
+	if binding, ok := s.turns.steerTargetProbes[commandID]; ok && binding.SurfaceID == surfaceID {
+		return s.failSteerTargetProbe(commandID, "当前执行轮次查询未成功发送，排队消息未变。请稍后重试 /steerall。")
+	}
 	if strings.HasPrefix(commandID, "relay-rename-") {
 		return s.handleRenameCommandDispatchFailure(surfaceID, commandID, err)
 	}
@@ -344,6 +340,9 @@ func (s *Service) HandleCommandAccepted(instanceID string, ack agentproto.Comman
 func (s *Service) HandleCommandRejected(instanceID string, ack agentproto.CommandAck) []eventcontract.Event {
 	if ack.CommandID == "" {
 		return nil
+	}
+	if binding, ok := s.turns.steerTargetProbes[ack.CommandID]; ok && binding.InstanceID == instanceID {
+		return s.failSteerTargetProbe(ack.CommandID, "Codex 未能查询当前执行轮次，排队消息未变。请稍后重试 /steerall。")
 	}
 	if strings.HasPrefix(ack.CommandID, "relay-rename-") {
 		return s.handleRenameCommandRejected(instanceID, ack)

@@ -585,6 +585,9 @@ func (s *Service) handleSteerAllCommand(surface *state.SurfaceConsoleRecord, act
 	}
 	inst, activeThreadID, activeTurnID, ok := s.activeSteerTarget(surface)
 	if !ok {
+		if events, handled := s.beginSteerTargetProbe(surface, ownerCardMessageID); handled {
+			return events
+		}
 		if ownerCardMessageID != "" {
 			return []eventcontract.Event{steerAllNoopOwnerCardEvent(surface.SurfaceSessionID, ownerCardMessageID)}
 		}

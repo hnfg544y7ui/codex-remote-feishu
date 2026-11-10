@@ -264,24 +264,26 @@ func (r *serviceCatalogRuntime) loadPersistedWorkspacesForBackend(backend agentp
 }
 
 type serviceTurnRuntime struct {
-	service       *Service
-	pendingRemote map[string]*remoteTurnBinding
-	pendingReview map[string]string
-	activeRemote  map[string]*remoteTurnBinding
-	pendingSteers map[string]*pendingSteerBinding
-	pendingShells map[string]*pendingShellBinding
-	compactTurns  map[string]*compactTurnBinding
+	service           *Service
+	pendingRemote     map[string]*remoteTurnBinding
+	pendingReview     map[string]string
+	activeRemote      map[string]*remoteTurnBinding
+	pendingSteers     map[string]*pendingSteerBinding
+	steerTargetProbes map[string]steerTargetProbe
+	pendingShells     map[string]*pendingShellBinding
+	compactTurns      map[string]*compactTurnBinding
 }
 
 func newServiceTurnRuntime(service *Service) *serviceTurnRuntime {
 	return &serviceTurnRuntime{
-		service:       service,
-		pendingRemote: map[string]*remoteTurnBinding{},
-		pendingReview: map[string]string{},
-		activeRemote:  map[string]*remoteTurnBinding{},
-		pendingSteers: map[string]*pendingSteerBinding{},
-		pendingShells: map[string]*pendingShellBinding{},
-		compactTurns:  map[string]*compactTurnBinding{},
+		service:           service,
+		pendingRemote:     map[string]*remoteTurnBinding{},
+		pendingReview:     map[string]string{},
+		activeRemote:      map[string]*remoteTurnBinding{},
+		pendingSteers:     map[string]*pendingSteerBinding{},
+		steerTargetProbes: map[string]steerTargetProbe{},
+		pendingShells:     map[string]*pendingShellBinding{},
+		compactTurns:      map[string]*compactTurnBinding{},
 	}
 }
 

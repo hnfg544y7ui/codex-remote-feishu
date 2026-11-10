@@ -6,6 +6,8 @@
 
 ## 1. 文档定位
 
+2026-11-10 `/steerall` 补全查询态：有候选但重连后缺少 turn ID 时，原命令卡显示只读查询进度；查询成功进入既有 requested/completed/failed 路径，失败、30 秒超时或会话漂移封成终态并保留队列。重复请求只提示原查询正在进行，不留下第二张永久 loading 卡。沿用当前 callback payload、命令来源与 daemon lifecycle 校验；文本入口追加反馈，不 PATCH 用户消息，不将“缺少当前轮次”显示为“没有排队消息”。
+
 这份文档描述的是 **当前代码已经实现** 的 Feishu 卡片 UI / callback 层行为。
 
 2026-08-11 #873 补充：Codex Profile 配置卡的可见入口是 `/codexprofile`；旧 `/codexprovider` 文本命令和 `codex_provider` 菜单 action 均拒绝解析，不再作为 hidden alias。配置卡以 canonical Profile catalog 为 read model，legacy Provider catalog 不再反向合成 Profile 候选；分页 `select_static` 会放入可用与不可用 Profile，不可用项在 label 上追加“不可用”，并在 notice 区显示用户可读原因。不可用 OAuth/API Profile 可被选中提交，但 submit 阶段会同卡拒绝，不会写入 `CodexProfileID`，也不会启动或重启实例。分页按钮走 `page_local_action + cursor` 并 inline replace 当前卡，submit 成功只写 canonical `CodexProfileID`。

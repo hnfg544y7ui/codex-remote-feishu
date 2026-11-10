@@ -43,6 +43,7 @@ func (s *Service) Tick(now time.Time) []eventcontract.Event {
 	}
 	var events []eventcontract.Event
 	events = append(events, s.tickRenameCommands(now)...)
+	events = append(events, s.tickSteerTargetProbes(now)...)
 	for surfaceID, until := range s.handoffUntil {
 		if now.Before(until) {
 			continue

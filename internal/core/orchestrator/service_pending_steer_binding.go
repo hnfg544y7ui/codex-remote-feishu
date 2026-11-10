@@ -11,6 +11,11 @@ func (s *Service) bindPendingSteer(key string, binding *pendingSteerBinding) {
 	s.turns.bindPendingSteer(key, binding)
 }
 
+// A steer may coexist with an unconfirmed prompt. Bind only the steer request.
+func (s *Service) BindPendingSteerCommand(surfaceID, commandID string) {
+	s.bindPendingSteerCommand(surfaceID, commandID)
+}
+
 func (s *Service) bindPendingSteerCommand(surfaceID, commandID string) bool {
 	if strings.TrimSpace(commandID) == "" {
 		return false

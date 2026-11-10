@@ -237,21 +237,27 @@ type Input struct {
 }
 
 type Command struct {
-	CommandID    string             `json:"commandId,omitempty"`
-	IssuedAt     time.Time          `json:"issuedAt,omitempty"`
-	Kind         CommandKind        `json:"kind"`
-	Origin       Origin             `json:"origin"`
-	Target       Target             `json:"target"`
-	Prompt       Prompt             `json:"prompt,omitempty"`
-	Overrides    PromptOverrides    `json:"overrides,omitempty"`
-	CodexResume  *CodexResumePolicy `json:"codexResume,omitempty"`
-	Request      Request            `json:"request,omitempty"`
-	ModelList    ModelListCommand   `json:"modelList,omitempty"`
-	MCP          MCPCommand         `json:"mcp,omitempty"`
-	Review       ReviewRequest      `json:"review,omitempty"`
-	Goal         GoalCommand        `json:"goal,omitempty"`
-	Name         string             `json:"name,omitempty"`
-	ShellCommand ShellCommand       `json:"shellCommand,omitempty"`
+	CommandID    string                    `json:"commandId,omitempty"`
+	IssuedAt     time.Time                 `json:"issuedAt,omitempty"`
+	Kind         CommandKind               `json:"kind"`
+	Origin       Origin                    `json:"origin"`
+	Target       Target                    `json:"target"`
+	Prompt       Prompt                    `json:"prompt,omitempty"`
+	Overrides    PromptOverrides           `json:"overrides,omitempty"`
+	CodexResume  *CodexResumePolicy        `json:"codexResume,omitempty"`
+	Request      Request                   `json:"request,omitempty"`
+	ModelList    ModelListCommand          `json:"modelList,omitempty"`
+	MCP          MCPCommand                `json:"mcp,omitempty"`
+	Review       ReviewRequest             `json:"review,omitempty"`
+	Goal         GoalCommand               `json:"goal,omitempty"`
+	Name         string                    `json:"name,omitempty"`
+	ShellCommand ShellCommand              `json:"shellCommand,omitempty"`
+	HistoryRead  *ThreadHistoryReadOptions `json:"historyRead,omitempty"`
+}
+
+// LatestTurnOnly reads one page of turn metadata, without conversation items.
+type ThreadHistoryReadOptions struct {
+	LatestTurnOnly bool `json:"latestTurnOnly,omitempty"`
 }
 
 // ShellCommand is a user-initiated command sent to a backend's native

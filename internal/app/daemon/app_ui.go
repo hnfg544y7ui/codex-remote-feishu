@@ -65,6 +65,12 @@ func (a *App) handleUIEventsLocked(ctx context.Context, events []eventcontract.E
 				event.Command.CommandID = a.nextCommandID()
 			}
 			instanceID := a.service.AttachedInstanceID(event.SurfaceSessionID)
+			if strings.HasPrefix(event.Command.CommandID, "relay-steer-") {
+				instanceID = a.service.SteerTargetCommandInstanceID(event.Command.CommandID)
+				if instanceID == "" {
+					continue
+				}
+			}
 			if strings.HasPrefix(event.Command.CommandID, "relay-schedule-") {
 				instanceID = a.service.ScheduledCommandInstanceID(event.Command.CommandID)
 				if instanceID == "" {
@@ -96,6 +102,8 @@ func (a *App) handleUIEventsLocked(ctx context.Context, events []eventcontract.E
 			)
 			if event.Command.Kind == agentproto.CommandReviewStart {
 				a.service.BindPendingReviewStartCommand(event.SurfaceSessionID, event.Command.CommandID)
+			} else if event.Command.Kind == agentproto.CommandTurnSteer {
+				a.service.BindPendingSteerCommand(event.SurfaceSessionID, event.Command.CommandID)
 			} else if event.Command.Kind == agentproto.CommandThreadShellCommand {
 				a.service.BindPendingShellCommand(event.SurfaceSessionID, event.Command.CommandID)
 			} else if !orchestrator.NonTurnAgentCommand(event.Command.Kind) {

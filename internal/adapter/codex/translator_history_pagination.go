@@ -13,6 +13,7 @@ import (
 // turn ownership. Each page has one outstanding request for this job.
 type historyReadJob struct {
 	commandID, threadID, detailTurnID string
+	latestTurnOnly                    bool
 	history                           agentproto.ThreadHistoryRecord
 	turnIDs, itemIDs, cursors         map[string]bool
 	items                             []agentproto.ThreadHistoryItemRecord
@@ -30,7 +31,8 @@ func (t *Translator) translateSharedHistoryRead(command agentproto.Command) ([][
 	}
 	job := &historyReadJob{
 		commandID: command.CommandID, threadID: command.Target.ThreadID, detailTurnID: command.Target.TurnID,
-		turnIDs: map[string]bool{}, itemIDs: map[string]bool{}, cursors: map[string]bool{},
+		latestTurnOnly: command.HistoryRead != nil && command.HistoryRead.LatestTurnOnly,
+		turnIDs:        map[string]bool{}, itemIDs: map[string]bool{}, cursors: map[string]bool{},
 	}
 	return t.requestHistoryPage(job, "thread/read", "")
 }
@@ -41,6 +43,9 @@ func (t *Translator) requestHistoryPage(job *historyReadJob, method, cursor stri
 		params["includeTurns"] = false
 	} else {
 		params["limit"], params["sortDirection"] = 50, "asc"
+		if job.latestTurnOnly {
+			params["limit"], params["sortDirection"] = 1, "desc"
+		}
 		if cursor != "" {
 			params["cursor"] = cursor
 		}
@@ -126,6 +131,12 @@ func (t *Translator) observeHistoryPage(requestID string, message map[string]any
 			}
 			job.turnIDs[turn.TurnID] = true
 			job.history.Turns = append(job.history.Turns, turn)
+		}
+		if job.latestTurnOnly {
+			if len(turns) > 1 {
+				return fail("latest-turn response contains multiple turns")
+			}
+			return t.finishHistoryRead(job, ""), true
 		}
 	} else {
 		items, err := parseHistoryPageItems(data, job.detailTurnID)

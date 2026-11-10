@@ -957,6 +957,10 @@ Codex headless 的 `/workspace list`、`/list`、`/use`、`/useall` 在接入 de
 
 当前 steering 入口的产品语义已经固定：
 
+`/steerall` 在当前 surface 确有排队输入、Codex thread 权威状态为 active，但重连后缺少当前 turn ID 时，先通过 `thread.history.read` 的 `historyRead.latestTurnOnly` 做有界只读核对：`thread/read(includeTurns=false)` 后查询 `thread/turns/list(limit=1, sortDirection=desc)`，不读取历史 items、不翻页，也不改变选择或 turn 归属。仅接受原 instance/thread 的唯一 `inProgress` turn；随后发送带 `expectedTurnId` 的既有 `turn/steer`，由后端拒绝已结束/切换的轮次。不从消息时间、最后一条输出或 thread ID 猜测 turn ID。
+
+查询绑定原 surface、actor、instance、thread 和触发时的候选消息 ID；返回时重新验证 claim 和上下文，只并入仍在原队列中的候选，新到达消息留在队列。重复触发不重复查询；30 秒超时、离线、查询/发送失败和原目标漂移均结束查询并给出反馈，不改排队消息。steer 与未确认的普通 prompt 分别绑定回执，查询不恢复、重放或接管原 prompt。只有确无候选时才提示“没有可并入的排队输入”；有候选但没有可确认轮次时明确说明继续排队。
+
 1. queued 点赞入口：
    1. 只有 `ThumbsUp` 才会触发。
    2. 只有 queued item 的主文本 `SourceMessageID` 能触发。

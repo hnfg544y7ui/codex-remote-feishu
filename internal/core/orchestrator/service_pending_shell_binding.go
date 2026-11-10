@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+func (s *Service) BindPendingShellCommand(surfaceID, commandID string) {
+	if strings.TrimSpace(commandID) == "" {
+		return
+	}
+	s.bindPendingShellCommand(surfaceID, commandID)
+}
+
 func (s *Service) bindPendingShell(key string, binding *pendingShellBinding) {
 	if binding != nil && binding.Sequence == 0 {
 		s.nextShellBindingSequence++

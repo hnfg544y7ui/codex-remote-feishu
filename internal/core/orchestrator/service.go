@@ -567,6 +567,8 @@ func (s *Service) ApplyAgentEvent(instanceID string, event agentproto.Event) []e
 	s.observeRemoteTurnActivity(instanceID, event)
 
 	switch event.Kind {
+	case agentproto.EventThreadHistoryRead:
+		return s.filterEventsForSurfaceVisibility(append(preface, s.applySteerTargetProbeResult(instanceID, event)...))
 	case agentproto.EventThreadFocused:
 		s.maybePromoteWorkspaceRoot(inst, event.CWD)
 		inst.ObservedFocusedThreadID = event.ThreadID
