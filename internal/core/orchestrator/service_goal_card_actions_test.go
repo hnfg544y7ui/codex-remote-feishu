@@ -88,7 +88,7 @@ func TestGoalRenderedConfirmationRejectsChangedContext(t *testing.T) {
 }
 
 func TestGoalStatusRendersCommandButtons(t *testing.T) {
-	for _, status := range []string{"active", "paused", "complete", "none"} {
+	for _, status := range []string{"active", "paused", "blocked", "complete", "none"} {
 		t.Run(status, func(t *testing.T) {
 			svc, surfaceID, instanceID := goalInterlockTestSetup(t)
 			var goal *agentproto.ThreadGoalUpdate

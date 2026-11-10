@@ -1,7 +1,7 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-11-09`
+> Updated: `2026-11-10`
 > Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标；消息撤回按消息归属处理，不要求任务操作者身份。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
@@ -2096,6 +2096,8 @@ retained-offline overlay 额外规则：
 2026-08-15 #896 补充：Codex Goal 用户控制面已接入现有命令卡体系。`/goal` 是 config-flow slash command（复用 `FeishuCatalogConfigView` / `FeishuPageView` / 菜单三态 / owner card 状态机）：bare `/goal` 发 `thread/goal/get`（`user_control` provenance）并回显 Goal 状态页；`/goal new|edit <目标> [--budget N]` 创建/编辑，`/goal pause|resume` 动态生效，`/goal clear` 先出确认卡、`--confirm` 后清除；无精确 selected thread / 非 Codex / Review/helper 会话 fail closed。用户动作携带 `user_control`，会撤销 queue interlock 的自动恢复所有权；状态页通过现有 `pageEvent` inline replace 刷新，不新建第二套卡片 carrier。
 
 2026-10-14 Goal 卡片入口：状态与清除确认按钮通过 `CommandCatalogButtonAction` 重放完整 `CommandText`，由 projector 生成对应命令动作与生命周期标记；修改操作带命令来源，取消/刷新仍走只读本地导航。确认命令携带绑定原上下文的 nonce；取消仅查询状态。按钮渲染修复不改变 Goal/队列互锁与用户控制权限。
+
+2026-11-10 Goal 状态卡：`active` 显示“暂停”，`paused` 显示“恢复”，`blocked` 显示“继续”，`complete` 显示“新建”。“恢复”和“继续”均重放 `/goal resume`，由用户明确请求 `thread/goal/set(status=active, purpose=user_control)`；blocked 不自动续跑，也不创建普通 prompt。点击后等待后端结果，失败显示错误，不提前宣称已恢复。
 
 2026-08-15 #896 review 修复补充：确认卡/编辑表单打开时在服务端暂存当前 thread 的 Goal fingerprint（createdAt/objective/budget），执行 `clear --confirm` / `new|edit` 前先与最新 thread Goal 比对，漂移则取消操作并出错误卡，避免外部 mutation 窗口内的误清/误改；goal 命令 dispatch 失败会清理 pending `goalUserCommands` 并回错误卡，不再静默丢弃；卡片入口触发的 loading 与结果卡通过 `MessageID + Patchable` 在同一 message 上 patch，不残留无按钮死卡；错误卡复用 config 命令 builder（非 sealed），失败原因不伪装成 no-goal 状态。
 

@@ -547,6 +547,8 @@ func goalStatusPage(surface *state.SurfaceConsoleRecord, goal *agentproto.Thread
 		buttons = append(buttons, goalCommandButton("暂停", "/goal pause"))
 	case "paused":
 		buttons = append(buttons, goalCommandButton("恢复", "/goal resume"))
+	case "blocked":
+		buttons = append(buttons, goalCommandButton("继续", "/goal resume"))
 	case "complete":
 		buttons = append(buttons, goalCommandButton("新建", "/goal new"))
 	}

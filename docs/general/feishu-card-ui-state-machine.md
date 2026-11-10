@@ -1,7 +1,7 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-11-09`
+> Updated: `2026-11-10`
 > Summary: 已绑定话题的会话选择器只展示已有会话；确认时重新检查空闲状态，异步失败保留原绑定及卡片反馈；撤回通知不再触发任务创建者身份错误。
 
 ## 1. 文档定位
@@ -19,6 +19,8 @@
 2026-08-15 #896 补充：`/goal` 是新增 config-flow slash command，完全复用现有命令卡体系：bare `/goal` 经现有命令解析与 freshness 校验，通过 `pageEvent` inline replace 回显 Goal 状态页；`/goal clear` 的确认/取消通过 `CommandText` 命令重放（`/goal clear --confirm`、`/goal`），不引入新 callback payload、不新增 owner 分类、不改 `daemon_lifecycle_id` stamping。状态页按钮均声明在 `FeishuCommandBinding` 上（`CommandID=goal`），走 `CommandCatalogButtonAction` 的命令重放路径，与 `/codexprofile` 等配置命令同一条路由，Goal 控制面不产生第二套卡片 carrier 或 freshness 规则。
 
 2026-08-15 #896 review 修复补充：确认卡/编辑表单打开时服务端暂存 Goal fingerprint，命令重放执行前比对、漂移 fail closed；goal 命令发送失败会清理 pending 并回错误卡；卡片入口触发的 loading 与结果卡通过 `MessageID + Patchable` 在同一 message 上 patch；错误页复用 config 命令 builder（非 sealed），失败原因不伪装成 no-goal 状态。
+
+2026-11-10 Goal blocked 恢复入口：状态卡为 `blocked` 显示“继续”，与 `paused` 的“恢复”一样重放 `/goal resume`。沿用既有命令来源、生命周期校验和同卡 loading/result 路径，不增加 callback schema 或 owner 类型；恢复成功后显示 active 的“暂停”，RPC 失败保留真实 Goal 状态并显示可刷新的错误卡。
 
 2026-10-12 自然语言 Goal 首版：可信用户的明确纯文本指令先转换为 typed `GoalIntent`，复用 `/goal` 的状态、错误、清除确认及 RPC loading/result 卡，不增加 MCP Goal 工具或卡片 owner 类型。清除仍须点击确认；打开确认或表单、查看 Goal 不改变队列互锁的自动恢复权限，真正发出用户修改命令才撤销该权限。暂停只控制 Goal 续跑，卡片不能声称已中断当前 turn。
 
