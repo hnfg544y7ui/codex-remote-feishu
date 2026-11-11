@@ -40,7 +40,8 @@ func PageElementsWithOptions(view control.FeishuPageView, daemonLifecycleID stri
 	} else {
 		elements = cardkit.AppendTextSections(elements, cloneNormalizedCardSections(view.SummarySections))
 	}
-	hasBusinessContent := len(bodySections) != 0
+	elements = cardkit.AppendTextSections(elements, view.AsyncQuestionReceiptSections)
+	hasBusinessContent := len(bodySections) != 0 || len(view.AsyncQuestionReceiptSections) != 0
 	for _, section := range view.Sections {
 		title := strings.TrimSpace(section.Title)
 		if title != "" {

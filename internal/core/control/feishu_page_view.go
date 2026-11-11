@@ -34,6 +34,7 @@ type FeishuPageView struct {
 	RelatedButtons                []CommandCatalogButton
 	SuppressDefaultRelatedButtons bool
 	AsyncQuestion                 *AsyncQuestionCardView
+	AsyncQuestionReceiptSections  []FeishuCardTextSection
 }
 
 func NormalizeFeishuPageView(view FeishuPageView) FeishuPageView {
@@ -101,6 +102,7 @@ func NormalizeFeishuPageView(view FeishuPageView) FeishuPageView {
 		RelatedButtons:                relatedButtons,
 		SuppressDefaultRelatedButtons: view.SuppressDefaultRelatedButtons,
 		AsyncQuestion:                 CloneAsyncQuestionCardView(view.AsyncQuestion),
+		AsyncQuestionReceiptSections:  cloneNormalizedFeishuCardSections(view.AsyncQuestionReceiptSections),
 	}
 }
 

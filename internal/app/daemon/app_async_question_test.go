@@ -71,10 +71,14 @@ func TestAsyncQuestionFastProbeAndAckKeepUnrelatedPromptBinding(t *testing.T) {
 	var decoded any
 	_ = json.Unmarshal(data, &decoded)
 	var id string
+	var hasAnswerReceipt bool
 	var walk func(any)
 	walk = func(v any) {
 		switch v := v.(type) {
 		case map[string]any:
+			if content, ok := v["content"].(string); v["tag"] == "plain_text" && ok && strings.Contains(content, "回答：网络") {
+				hasAnswerReceipt = true
+			}
 			if x, ok := v["async_question_id"].(string); ok {
 				id = x
 			}
@@ -116,6 +120,12 @@ func TestAsyncQuestionFastProbeAndAckKeepUnrelatedPromptBinding(t *testing.T) {
 	last := gateway.operations[len(gateway.operations)-1]
 	if last.Kind != feishu.OperationUpdateCard || last.MessageID != source.MessageID || last.AttentionUserID != "" {
 		t.Fatal("answer did not finish on its original card without another mention", last)
+	}
+	data, _ = json.Marshal(last.CardElements)
+	_ = json.Unmarshal(data, &decoded)
+	walk(decoded)
+	if last.CardTitle != "回答已接收" || !hasAnswerReceipt {
+		t.Fatal("confirmed answer was not displayed as plain text on the real projected receipt", last)
 	}
 	beforeDuplicate := len(sent)
 	app.HandleGatewayAction(context.Background(), action)

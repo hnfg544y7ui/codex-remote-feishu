@@ -18,3 +18,21 @@ func TestNormalizeAsyncQuestionPageDeepClonesOnlyQuestionMetadata(t *testing.T) 
 		t.Fatal("ordinary pages acquired an implicit question form")
 	}
 }
+
+func TestNormalizeAsyncQuestionPageDeepClonesAnswerReceipt(t *testing.T) {
+	input := FeishuPageView{PageID: "async-question", Sealed: true,
+		BodySections:                 []FeishuCardTextSection{{Lines: []string{"解释"}}},
+		AsyncQuestionReceiptSections: []FeishuCardTextSection{{Label: "你的回答", Lines: []string{"原始回答"}}}}
+	page := NormalizeFeishuPageView(input)
+	if len(page.AsyncQuestionReceiptSections) != 1 || len(page.BodySections) != 1 || page.AsyncQuestion != nil || !page.Sealed {
+		t.Fatal("read-only receipt was lost or acquired an implicit answer form")
+	}
+	page.AsyncQuestionReceiptSections[0].Label = "changed"
+	page.AsyncQuestionReceiptSections[0].Lines[0] = "truncated display"
+	if input.AsyncQuestionReceiptSections[0].Label != "你的回答" || input.AsyncQuestionReceiptSections[0].Lines[0] != "原始回答" {
+		t.Fatal("display adaptation changed the source receipt")
+	}
+	if NormalizeFeishuPageView(FeishuPageView{}).AsyncQuestionReceiptSections != nil {
+		t.Fatal("ordinary page acquired an implicit answer receipt")
+	}
+}

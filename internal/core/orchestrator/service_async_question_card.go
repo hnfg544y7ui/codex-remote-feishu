@@ -22,9 +22,16 @@ type asyncQuestionRecord struct {
 	ID, SourceKey, Fingerprint, SurfaceID, ActorID, InstanceID string
 	ThreadID, TurnID, ItemID, MessageID, ReplyToMessageID      string
 	Questions                                                  []agentproto.AsyncQuestion
+	SubmittedAnswers                                           []asyncQuestionAnswer
 	Text, Phase, Status, Answer, CommandID, QueueID            string
 	Revision                                                   int
 	CreatedAt, ExpiresAt, Deadline                             time.Time
+}
+
+type asyncQuestionAnswer struct {
+	QuestionItemID string `json:"questionItemId"`
+	Question       string `json:"question"`
+	Answer         string `json:"answer"`
 }
 
 var sensitiveAsyncQuestion = regexp.MustCompile(`(?i)密码|口令|私钥|密钥|password|passphrase|private[ _-]?key|api[ _-]?key|access[ _-]?token|secret`)
@@ -135,11 +142,28 @@ func (s *Service) asyncQuestionCard(q *asyncQuestionRecord, attention bool) even
 		TrackingKey: q.ID, ThemeKey: "system", Patchable: true, Interactive: editable, Sealed: !editable,
 		SuppressDefaultRelatedButtons: true}
 	body := q.Text
-	if editable && q.Phase != "continue" {
+	if (editable && q.Phase != "continue") || len(q.SubmittedAnswers) > 0 {
 		body = asyncQuestionIntro(q.Text, q.Questions)
 	}
 	if strings.TrimSpace(body) != "" {
 		view.BodySections = []control.FeishuCardTextSection{{Lines: []string{body}}}
+	}
+	if len(q.SubmittedAnswers) > 0 {
+		view.AsyncQuestionReceiptSections = asyncQuestionAnswerSections(q.SubmittedAnswers, editable && q.Phase != "continue")
+		switch q.Phase {
+		case "checking", "submitting":
+			view.Title = "回答提交中"
+		case "continue":
+			view.Title = "等待继续确认"
+		case "queued":
+			view.Title = "回答已排队"
+		case "answered":
+			view.Title = "回答已接收"
+		case "unknown":
+			view.Title = "回答状态待确认"
+		case "expired":
+			view.Title = "提问已失效"
+		}
 	}
 	if q.Status != "" {
 		view.NoticeSections = []control.FeishuCardTextSection{{Lines: []string{q.Status}}}
@@ -221,11 +245,12 @@ func (s *Service) handleAsyncQuestionAction(surface *state.SurfaceConsoleRecord,
 	if q.Phase == "continue" {
 		return notice(surface, "async_question_stale", "原轮次已结束，请点击“在原会话继续”。")
 	}
-	answer, err := formatAsyncQuestionAnswer(q.Questions, action.AsyncQuestionAnswers)
+	answer, submitted, err := formatAsyncQuestionAnswer(q.Questions, action.AsyncQuestionAnswers)
 	if err != nil {
 		return notice(surface, "async_question_invalid", err.Error())
 	}
 	q.Answer, q.Phase = answer, "checking"
+	q.SubmittedAnswers = submitted
 	q.Revision++
 	q.Status = "正在只读确认原轮次；回答尚未发送。"
 	q.CommandID, q.Deadline = "relay-async-question-probe-"+s.nextAgentCommandID(), s.now().Add(30*time.Second)
@@ -233,13 +258,8 @@ func (s *Service) handleAsyncQuestionAction(surface *state.SurfaceConsoleRecord,
 		Command: &agentproto.Command{CommandID: q.CommandID, Kind: agentproto.CommandThreadHistoryRead, Target: agentproto.Target{ThreadID: q.ThreadID}, HistoryRead: &agentproto.ThreadHistoryReadOptions{LatestTurnOnly: true}}}}
 }
 
-func formatAsyncQuestionAnswer(questions []agentproto.AsyncQuestion, values map[string]string) (string, error) {
-	type answer struct {
-		QuestionItemID string `json:"questionItemId"`
-		Question       string `json:"question"`
-		Answer         string `json:"answer"`
-	}
-	result := make([]answer, 0, len(questions))
+func formatAsyncQuestionAnswer(questions []agentproto.AsyncQuestion, values map[string]string) (string, []asyncQuestionAnswer, error) {
+	result := make([]asyncQuestionAnswer, 0, len(questions))
 	allowed := map[string]bool{}
 	total := 0
 	for i, question := range questions {
@@ -257,7 +277,7 @@ func formatAsyncQuestionAnswer(questions []agentproto.AsyncQuestion, values map[
 					}
 				}
 				if selected == "" {
-					return "", fmt.Errorf("选项无效，请重新选择。")
+					return "", nil, fmt.Errorf("选项无效，请重新选择。")
 				}
 				if text != "" {
 					text = selected + "\n补充：" + text
@@ -267,22 +287,22 @@ func formatAsyncQuestionAnswer(questions []agentproto.AsyncQuestion, values map[
 			}
 		}
 		if text == "" || len(text) > 5120 || len(values[textKey]) > 4096 || !utf8.ValidString(text) {
-			return "", fmt.Errorf("请回答每个问题；每个文本输入不超过 4096 字节。")
+			return "", nil, fmt.Errorf("请回答每个问题；每个文本输入不超过 4096 字节。")
 		}
 		total += len(text)
 		if total > 16384 {
-			return "", fmt.Errorf("回答过长，请缩短后提交。")
+			return "", nil, fmt.Errorf("回答过长，请缩短后提交。")
 		}
-		result = append(result, answer{question.ID, question.Title, text})
+		result = append(result, asyncQuestionAnswer{question.ID, question.Title, text})
 	}
 	for key := range values {
 		if !allowed[key] {
-			return "", fmt.Errorf("表单字段不匹配，请使用最新提问卡片。")
+			return "", nil, fmt.Errorf("表单字段不匹配，请使用最新提问卡片。")
 		}
 	}
 	data, err := json.Marshal(result)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return "<send_user_message_question_reply>\n" + string(data) + "\n</send_user_message_question_reply>", nil
+	return "<send_user_message_question_reply>\n" + string(data) + "\n</send_user_message_question_reply>", result, nil
 }

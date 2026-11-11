@@ -164,19 +164,21 @@ func (p *Projector) projectEventBase(chatID string, event eventcontract.Event) [
 			title = "页面"
 		}
 		theme := xutil.FirstNonEmpty(strings.TrimSpace(pageView.ThemeKey), cardThemeInfo)
-		elements := projectorpkg.PageElementsWithOptions(
-			pageView,
-			xutil.FirstNonEmpty(event.DaemonLifecycleID, event.Meta.DaemonLifecycleID),
-			projectorpkg.PageRenderOptions{MenuHomeVersion: p.menuHomeVersion},
-		)
-		return []Operation{newEventCardOperation(chatID, event, eventCardOperationSpec{
-			Title:                 title,
-			ThemeKey:              theme,
-			Elements:              elements,
-			MessageID:             pageView.MessageID,
-			UpdateMulti:           pageView.Patchable,
-			TemporarySessionLabel: pageView.TemporarySessionLabel,
-			ApplyReplyLane:        true,
+		return []Operation{fitAsyncQuestionReceiptPage(pageView, func(view control.FeishuPageView) Operation {
+			elements := projectorpkg.PageElementsWithOptions(
+				view,
+				xutil.FirstNonEmpty(event.DaemonLifecycleID, event.Meta.DaemonLifecycleID),
+				projectorpkg.PageRenderOptions{MenuHomeVersion: p.menuHomeVersion},
+			)
+			return newEventCardOperation(chatID, event, eventCardOperationSpec{
+				Title:                 title,
+				ThemeKey:              theme,
+				Elements:              elements,
+				MessageID:             view.MessageID,
+				UpdateMulti:           view.Patchable,
+				TemporarySessionLabel: view.TemporarySessionLabel,
+				ApplyReplyLane:        true,
+			})
 		})}
 	case eventcontract.RequestPayload:
 		requestView := control.NormalizeFeishuRequestView(payload.View)
