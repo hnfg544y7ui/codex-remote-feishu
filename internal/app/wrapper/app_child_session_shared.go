@@ -98,6 +98,14 @@ func newSharedCodexTransport(ctx context.Context, conn *websocket.Conn) *sharedC
 	conn.SetReadLimit(sharedBackendFrameLimit)
 	reader, writer := io.Pipe()
 	t := &sharedCodexTransport{conn: conn, reader: reader, writer: writer, done: make(chan struct{}), waitErr: make(chan error, 1)}
+	closeHandler := conn.CloseHandler()
+	conn.SetCloseHandler(func(code int, text string) error {
+		// The default handler sends a close reply, which makes concurrent
+		// writes fail with ErrCloseSent before ReadMessage returns. Publish
+		// the peer's explicit refusal first so startup can classify that write.
+		t.maintenanceClosed.Store(code == websocket.CloseTryAgainLater)
+		return closeHandler(code, text)
+	})
 	go t.readFrames()
 	go func() {
 		select {
@@ -122,7 +130,6 @@ func (t *sharedCodexTransport) readFrames() {
 	for {
 		kind, payload, err := t.conn.ReadMessage()
 		if err != nil {
-			t.maintenanceClosed.Store(websocket.IsCloseError(err, websocket.CloseTryAgainLater))
 			terminal = err
 			return
 		}

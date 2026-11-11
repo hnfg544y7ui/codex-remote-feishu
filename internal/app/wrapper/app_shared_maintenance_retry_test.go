@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -144,10 +145,47 @@ func TestSharedCodexStartupOtherCloseDoesNotReplayInitialize(t *testing.T) {
 }
 
 func TestSharedCodexStartupRetriesImmediateMaintenanceClose(t *testing.T) {
+	testSharedCodexStartupRetriesImmediateMaintenanceClose(t)
+}
+
+func TestSharedCodexStartupUnknownCloseDoesNotRetry(t *testing.T) {
+	var attempts atomic.Int32
+	url := sharedTestServer(t, func(conn *websocket.Conn) {
+		attempts.Add(1)
+		// A TCP close without an observed maintenance frame is ambiguous.
+	})
+	if session, err := sharedTestApp(url).launchCodexChildSession(context.Background(), nil, nil); err == nil {
+		stopChildSession(session, nil)
+		t.Fatal("unknown disconnect was accepted")
+	}
+	if attempts.Load() != 1 {
+		t.Fatal("unknown disconnect retried initialization")
+	}
+}
+
+func TestSharedCodexStartupRetriesImmediateMaintenanceCloseSingleProcessor(t *testing.T) {
+	previous := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(previous)
+	// A write can observe the close reply before ReadMessage has returned.
+	// One processor consistently exposes that ordering without adding sleeps.
+	testSharedCodexStartupRetriesImmediateMaintenanceClose(t)
+}
+
+func testSharedCodexStartupRetriesImmediateMaintenanceClose(t *testing.T) {
+	t.Helper()
 	var attempts atomic.Int32
 	url := sharedTestServer(t, func(conn *websocket.Conn) {
 		if attempts.Add(1) == 1 {
 			_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseTryAgainLater, "frozen"), time.Now().Add(time.Second))
+			// Complete the close handshake like the real owner. An immediate
+			// TCP close with unread initialize bytes can reset the connection
+			// and discard the 1013 frame, which is not a retryable refusal.
+			_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					break
+				}
+			}
 			return
 		}
 		if _, err := sharedBootstrapReply(conn); err != nil {
@@ -161,7 +199,7 @@ func TestSharedCodexStartupRetriesImmediateMaintenanceClose(t *testing.T) {
 	})
 	session, err := sharedTestApp(url).launchCodexChildSession(context.Background(), nil, nil)
 	if err != nil {
-		t.Fatalf("owner refused before reading initialize: %v", err)
+		t.Fatalf("owner refused before reading initialize: %#v", err)
 	}
 	defer stopChildSession(session, nil)
 	if attempts.Load() != 2 {
