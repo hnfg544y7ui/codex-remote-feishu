@@ -725,17 +725,18 @@ func (t *Translator) observeServer(raw []byte) (Result, error) {
 			lookupString(message, "params", "itemType"),
 		))
 		return Result{Events: []agentproto.Event{{
-			Kind:         agentproto.EventItemStarted,
-			ThreadID:     threadID,
-			TurnID:       turnID,
-			ItemID:       itemID,
-			ItemKind:     itemKind,
-			Status:       extractItemStatus(item),
-			TrafficClass: t.trafficClassForTurn(threadID, turnID),
-			Initiator:    t.initiatorForTurn(threadID, turnID),
-			Metadata:     extractItemMetadata(itemKind, item),
-			Exploration:  extractCommandExecutionExploration(itemKind, item),
-			FileChanges:  extractFileChangeRecords(itemKind, item),
+			Kind:           agentproto.EventItemStarted,
+			ThreadID:       threadID,
+			TurnID:         turnID,
+			ItemID:         itemID,
+			ItemKind:       itemKind,
+			Status:         extractItemStatus(item),
+			TrafficClass:   t.trafficClassForTurn(threadID, turnID),
+			Initiator:      t.initiatorForTurn(threadID, turnID),
+			Metadata:       extractItemMetadata(itemKind, item),
+			AsyncQuestions: extractAsyncQuestions(itemKind, itemID, item),
+			Exploration:    extractCommandExecutionExploration(itemKind, item),
+			FileChanges:    extractFileChangeRecords(itemKind, item),
 		}}}, nil
 	case "item/agentMessage/delta":
 		threadID := lookupString(message, "params", "threadId")

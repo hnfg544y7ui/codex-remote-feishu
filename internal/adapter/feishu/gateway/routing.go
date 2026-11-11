@@ -48,6 +48,11 @@ func ParseCardActionTriggerEvent(env RoutingEnv, event *larkcallback.CardActionT
 	if surfaceSessionID == "" {
 		return control.Action{}, false
 	}
+	if isAsyncQuestionCardActionKind(kind) {
+		return parseAsyncQuestionCardAction(event, control.Action{GatewayID: gatewayID,
+			SurfaceSessionID: surfaceSessionID, ChatID: chatID, ActorUserID: operatorID,
+			MessageID: messageID, Inbound: meta})
+	}
 
 	switch kind {
 	case cardActionKindAttachInstance:

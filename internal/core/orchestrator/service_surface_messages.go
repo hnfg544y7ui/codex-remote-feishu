@@ -16,6 +16,12 @@ func (s *Service) RecordPageTrackingMessage(surfaceID, trackingKey, messageID st
 	if messageID == "" || trackingKey == "" {
 		return
 	}
+	if question := s.turns.asyncQuestions[trackingKey]; question != nil && question.SurfaceID == surfaceID {
+		if question.MessageID == "" {
+			question.MessageID = messageID
+		}
+		return
+	}
 	if binding, ok := s.renameCommands[trackingKey]; ok && binding.SurfaceID == surfaceID {
 		binding.MessageID = messageID
 		s.renameCommands[trackingKey] = binding

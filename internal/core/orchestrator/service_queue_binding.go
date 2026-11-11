@@ -574,3 +574,11 @@ func (s *Service) remoteBindingSurfaceByCommand(commandID string) *state.Surface
 	})
 	return surface
 }
+
+func (s *Service) BindPendingReviewStartCommand(surfaceID, commandID string) {
+	if strings.TrimSpace(commandID) == "" {
+		return
+	}
+	surface := s.root.Surfaces[surfaceID]
+	s.bindPendingReviewStartCommand(surface, commandID)
+}

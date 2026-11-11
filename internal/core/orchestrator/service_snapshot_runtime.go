@@ -205,15 +205,10 @@ func (s *Service) BindPendingRemoteCommand(surfaceID, commandID string) {
 	s.bindPendingShellCommand(surfaceID, commandID)
 }
 
-func (s *Service) BindPendingReviewStartCommand(surfaceID, commandID string) {
-	if strings.TrimSpace(commandID) == "" {
-		return
-	}
-	surface := s.root.Surfaces[surfaceID]
-	s.bindPendingReviewStartCommand(surface, commandID)
-}
-
 func (s *Service) HandleCommandDispatchFailure(surfaceID, commandID string, err error) []eventcontract.Event {
+	if isAsyncQuestionCommand(commandID) {
+		return s.failAsyncQuestionDispatch(surfaceID, commandID)
+	}
 	if binding, ok := s.turns.steerTargetProbes[commandID]; ok && binding.SurfaceID == surfaceID {
 		return s.failSteerTargetProbe(commandID, "当前执行轮次查询未成功发送，排队消息未变。请稍后重试 /steerall。")
 	}
@@ -265,6 +260,9 @@ func (s *Service) HandleCommandDispatchFailure(surfaceID, commandID string, err 
 }
 
 func (s *Service) HandleCommandAccepted(instanceID string, ack agentproto.CommandAck) []eventcontract.Event {
+	if isAsyncQuestionCommand(ack.CommandID) {
+		return s.acknowledgeAsyncQuestion(instanceID, ack)
+	}
 	if ack.CommandID == "" {
 		return nil
 	}
@@ -338,6 +336,9 @@ func (s *Service) HandleCommandAccepted(instanceID string, ack agentproto.Comman
 }
 
 func (s *Service) HandleCommandRejected(instanceID string, ack agentproto.CommandAck) []eventcontract.Event {
+	if isAsyncQuestionCommand(ack.CommandID) {
+		return s.acknowledgeAsyncQuestion(instanceID, ack)
+	}
 	if ack.CommandID == "" {
 		return nil
 	}

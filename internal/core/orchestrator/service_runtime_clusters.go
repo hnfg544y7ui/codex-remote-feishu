@@ -270,6 +270,7 @@ type serviceTurnRuntime struct {
 	activeRemote      map[string]*remoteTurnBinding
 	pendingSteers     map[string]*pendingSteerBinding
 	steerTargetProbes map[string]steerTargetProbe
+	asyncQuestions    map[string]*asyncQuestionRecord
 	pendingShells     map[string]*pendingShellBinding
 	compactTurns      map[string]*compactTurnBinding
 }
@@ -282,6 +283,7 @@ func newServiceTurnRuntime(service *Service) *serviceTurnRuntime {
 		activeRemote:      map[string]*remoteTurnBinding{},
 		pendingSteers:     map[string]*pendingSteerBinding{},
 		steerTargetProbes: map[string]steerTargetProbe{},
+		asyncQuestions:    map[string]*asyncQuestionRecord{},
 		pendingShells:     map[string]*pendingShellBinding{},
 		compactTurns:      map[string]*compactTurnBinding{},
 	}

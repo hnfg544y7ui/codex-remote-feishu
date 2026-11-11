@@ -81,6 +81,7 @@ func PageElementsWithOptions(view control.FeishuPageView, daemonLifecycleID stri
 	if len(view.RelatedButtons) > 0 {
 		elements = appendCardFooterButtonGroup(elements, pageButtons(view.RelatedButtons, view.CatalogBackend, daemonLifecycleID))
 	}
+	elements = append(elements, asyncQuestionElements(view, daemonLifecycleID)...)
 	return elements
 }
 

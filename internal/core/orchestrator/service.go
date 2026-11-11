@@ -402,6 +402,8 @@ func (s *Service) ApplySurfaceAction(action control.Action) []eventcontract.Even
 	}
 	var events []eventcontract.Event
 	switch action.Kind {
+	case control.ActionAsyncQuestionSubmit, control.ActionAsyncQuestionContinue, control.ActionAsyncQuestionDefer:
+		events = s.handleAsyncQuestionAction(surface, action)
 	case control.ActionListInstances:
 		if s.surfaceIsHeadless(surface) {
 			events = s.openTargetPickerForAction(surface, action, "", nil, "", false)
@@ -568,6 +570,9 @@ func (s *Service) ApplyAgentEvent(instanceID string, event agentproto.Event) []e
 
 	switch event.Kind {
 	case agentproto.EventThreadHistoryRead:
+		if isAsyncQuestionCommand(event.CommandID) {
+			return s.filterEventsForSurfaceVisibility(append(preface, s.applyAsyncQuestionProbeResult(instanceID, event)...))
+		}
 		return s.filterEventsForSurfaceVisibility(append(preface, s.applySteerTargetProbeResult(instanceID, event)...))
 	case agentproto.EventThreadFocused:
 		s.maybePromoteWorkspaceRoot(inst, event.CWD)

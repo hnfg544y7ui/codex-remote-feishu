@@ -14,6 +14,9 @@ func isAsyncQuestionMessage(event agentproto.Event, itemKind string) bool {
 }
 
 func (s *Service) renderAsyncQuestionMessage(instanceID string, event agentproto.Event, text string) []eventcontract.Event {
+	if events, handled := s.createAsyncQuestionCard(instanceID, event, text); handled {
+		return append(s.flushPendingTurnText(instanceID, event.ThreadID, event.TurnID, false), events...)
+	}
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}

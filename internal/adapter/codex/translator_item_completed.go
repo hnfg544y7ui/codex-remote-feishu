@@ -24,17 +24,18 @@ func (t *Translator) observeItemCompleted(message map[string]any) Result {
 		itemKind = "reasoning_summary"
 	}
 	events = append(events, agentproto.Event{
-		Kind:         agentproto.EventItemCompleted,
-		ThreadID:     threadID,
-		TurnID:       turnID,
-		ItemID:       itemID,
-		ItemKind:     itemKind,
-		Status:       extractItemStatus(item),
-		TrafficClass: t.trafficClassForTurn(threadID, turnID),
-		Initiator:    t.initiatorForTurn(threadID, turnID),
-		Metadata:     metadata,
-		Exploration:  extractCommandExecutionExploration(itemKind, item),
-		FileChanges:  extractFileChangeRecords(itemKind, item),
+		Kind:           agentproto.EventItemCompleted,
+		ThreadID:       threadID,
+		TurnID:         turnID,
+		ItemID:         itemID,
+		ItemKind:       itemKind,
+		Status:         extractItemStatus(item),
+		TrafficClass:   t.trafficClassForTurn(threadID, turnID),
+		Initiator:      t.initiatorForTurn(threadID, turnID),
+		Metadata:       metadata,
+		AsyncQuestions: extractAsyncQuestions(itemKind, itemID, item),
+		Exploration:    extractCommandExecutionExploration(itemKind, item),
+		FileChanges:    extractFileChangeRecords(itemKind, item),
 	})
 	return Result{Events: events}
 }

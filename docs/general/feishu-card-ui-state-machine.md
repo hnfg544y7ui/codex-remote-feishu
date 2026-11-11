@@ -1,8 +1,8 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-11-10`
-> Summary: 已绑定话题的会话选择器只展示已有会话；确认时重新检查空闲状态，异步失败保留原绑定及卡片反馈；撤回通知不再触发任务创建者身份错误。
+> Updated: `2026-11-11`
+> Summary: 明确结构化异步提问的回答表单、原轮次确认与回调失效边界；已绑定话题只选择已有会话，撤回通知不触发任务创建者身份错误。
 
 ## 1. 文档定位
 
@@ -131,6 +131,7 @@
 
 | 交互面 | 当前 owner | 当前边界 |
 | --- | --- | --- |
+| 结构化 async question 回答卡 | `orchestrator-owned`，复用 `FeishuPageView.AsyncQuestion` | 使用临时问题 registry 和三种专用回调；不注册 native pending request，不阻塞原任务，不复用菜单会话或普通消息输入路由；见 4.3.1 |
 | `/menu` 首页 / 分组 / 返回 | `feishu-ui-owned (launcher)` | 当前由 Feishu UI controller 处理同一张命令菜单内的层级切换；首页仅保留分组导航入口，不再额外渲染“常用操作”区块；首页 breadcrumb 固定停在 `菜单首页`，不会再从 `/menu` 命令定义继承 `系统管理` 分组 breadcrumb 或回退按钮；首页分组按钮直接显示分组名，分组页才显示显式 `返回上一层`；headless 主链下像 `工作会话` 这种“分组根入口直接 handoff 到业务页”的情况，当前也通过 group-root command 元数据统一治理，不再靠 group id 特判；菜单导航状态当前通过 owner-card runtime 的 `command_menu + role=launcher` 记录，不再依赖旧 `Surface.MenuFlow` |
 | `show_all_workspaces` / `show_recent_workspaces` | `feishu-ui-owned` | headless 主链下当前只负责重新打开 `/workspace list` 切换卡；`/list` 这类旧入口只是 alias，不再决定新的主展示结构 |
 | `show_threads` / `show_all_threads` / `show_scoped_threads` | `feishu-ui-owned` | headless 主链下当前也只负责重新打开 `/workspace list` 切换卡；`vscode` 下会刷新当前实例的结构化 thread dropdown，不再维持旧分页 prompt；两条路径当前都会默认排除 `source=review` 的 detached review thread，不把 review session 当普通候选展示 |
@@ -241,6 +242,7 @@
 
 | `kind` | 关键字段 | 当前含义 |
 | --- | --- | --- |
+| `async_question_submit` / `async_question_continue` / `async_question_defer` | `async_question_id`、`async_question_revision`、`daemon_lifecycle_id` | 回答、显式续轮、稍后处理；问题卡 nonce 只用于查找服务端记录，原实例、会话、轮次和创建者不接受客户端指定；见 4.3.1 |
 | `attach_instance` | `instance_id` | VS Code instance 接管兼容入口；headless 旧卡回调只会触发拒绝 notice，不改变产品状态 |
 | `attach_workspace` | `workspace_key` | 接管指定工作区 |
 | `use_thread` | `thread_id`、`field_name`、`allow_cross_workspace` | 选择 thread；VS Code 结构化 thread dropdown 走 `field_name` + `form_value/option` 取值，其余按钮路径仍可直接带 `thread_id` |
@@ -457,6 +459,44 @@ MCP request 卡片当前新增的可视语义：
   - orchestrator 在投影后会立即自动派发一条结构化 unsupported response；在上游 `request.resolved` 到来之前，这张卡仍作为 pending request 保持 gate
   - 若这条自动派发被本地 Codex 拒绝，当前卡会继续保持 sealed，只把状态文案改成“自动回写失败，可使用 `/stop` 结束本轮”，不会错误退回交互态
 
+### 4.3.1 异步提问回答卡
+
+明确标记为 async 且携带合法 typed questions 的提问，复用 `FeishuPageView` 渲染“需要你回答”卡片。问题必须来自结构化协议字段，不从自然语言问号猜测，也不把异步提问伪装成同步 `request_user_input`：原任务继续执行，不新增 native RPC response 或 pending-request gate。无结构、结构损坏或超出预算的 legacy 提问保留原文本与 👍 插入回答方式，不产生不完整表单。
+
+卡片初次发到原话题及原轮次 reply lane，并且只 @ 一次服务端确认的实际任务发起者；不使用最近发言者、问题正文中的名字或 `@all`。后续提交进度修改原卡，不重复 @。涉及密码、口令、私钥、API key 或 token 的问题仅展示受控授权渠道提示，不渲染输入表单、不在群卡片收集凭据。
+
+三种动作均立即返回空 callback ACK，处理过程通过正常消息更新修改原 MessageID；不使用同步 `ReplaceCurrentCard`，避免查询或发送拖过平台时限，以及迟到的同步响应覆盖后端结果。校验失败的 notice 另行展示，不替换或销毁原表单。
+
+表单与 callback 的确定边界：
+
+- 一张表单最多 8 个问题，每题至多 20 个选项。标题至多 4096 UTF-8 bytes，选项至多 1024 bytes，标题与选项合计至多 8 KiB；解释正文至多 3000 bytes。超限不能通过截取一部分问题生成可提交卡。
+- 普通问题使用 `answer_0` 至 `answer_7` 文本输入；选项问题使用 `choice_0` 至 `choice_7` 单选字段，值为十进制选项索引，并可填写同序号 `answer_*` 补充说明。题目和选项使用 plain text，输入框不回填先前回答。
+- 待回答表单每题只显示一个独立标题，多题编号并分隔；下拉和文本输入均占整行，不使用左侧 label。补充输入以 placeholder 标明可选。正文只去除与结构化题目、选项完全相同的行，保留独立解释；默认待答卡不重复展示操作说明或“状态”标题，查询、失败、暂缓等实际状态仍可见。
+- “提交回答”使用现有 `form_action_type=submit` builder，一次提交所有问题；“稍后处理”不提交表单草稿。“在原会话继续”仅在服务端确认原轮次已结束或变化后出现，此时不再显示新的输入表单。
+- 三种 callback 仅携带 `kind`、opaque `async_question_id`、正整数 `async_question_revision` 和 `daemon_lifecycle_id`。actor、chat、message、surface 从已验证的飞书回调及既有路由环境解析；客户端伪造的 instance/thread 等目标字段没有授权效力。
+- gateway 只接受已知的 `answer_[0..7]` / `choice_[0..7]` 字段，每个字符串至多 4096 bytes、合计至多 16 KiB；非字符串、未知字段、越界或非标准选项索引拒绝。答案仅进入 `Action.AsyncQuestionAnswers`，不复制到 `Action.Text` / `Inputs`，不走自然语言命令解释或普通输入日志。服务端再次按原问题集合验证字段、必答项和选项范围。
+
+| 卡面动作 | control action | 服务端行为 |
+| --- | --- | --- |
+| 提交回答 | `ActionAsyncQuestionSubmit` | 核验 registry 后只读查询原 thread 的当前轮次；仅当原 turn 仍在执行且未被替换时向该 turn steer，等待后端 ACK 后才显示已接收 |
+| 在原会话继续 | `ActionAsyncQuestionContinue` | 使用已暂存的回答，显式加入原 thread 的正常后续输入队列；不将回答插入其他正在执行的新 turn |
+| 稍后处理 | `ActionAsyncQuestionDefer` | 仅更新卡片状态及 revision；原任务不受影响，过期时间不延长 |
+
+registry 保存服务端生成的 nonce，并绑定实际 actor、surface、已发送卡片 message、instance、thread、turn、源提问 item 和 revision；提交或续轮前重新核验会话绑定、可见性、在线状态及有效期。daemon lifecycle gate 仍先于业务操作；同一 daemon 下也不能凭旧 revision、其他成员或其他卡片 message 重放动作。记录自首次提问起 30 分钟过期，仅驻留内存；Remote 重启后旧卡失效，回答不会持久化为待重放命令。
+
+| 状态 | 卡面与推进边界 |
+| --- | --- |
+| `pending` / `deferred` | 可填写并提交；稍后处理保留交互能力 |
+| `checking` | 只读确认原轮次，回答尚未发送；卡片封存，查询失败或超时回到需重新填写状态 |
+| `submitting` | 已向原 turn 发出 steer，等待 ACK；按钮封存，禁止重复提交 |
+| `continue` | 原轮次已结束或变化，回答仍未发送；必须点击“在原会话继续”才能入正常队列 |
+| `queued` | 回答已进入原会话队列，等待后端接收；不提前宣称送达 |
+| `answered` | 后端已确认接收回答；不再提供回调按钮 |
+| `unknown` | 无法确认是否已接收；提示核对原会话，不自动重发，也不重新开放提交 |
+| `expired` / `sensitive` | 只读提示，不产生表单、回调或后端执行 |
+
+非交互、sealed、缺少 lifecycle 或数据不合规的 page 一律不生成 callback。相关回归覆盖实际 projector → JSON → gateway callback 的多题/选项往返、专用答案 DTO、非法字段与预算拒绝、只读卡片、deep clone；orchestrator 测试覆盖身份/绑定/旧卡拒绝、只读 probe → ACK、显式续轮、超时不重发、敏感问题与重启失效。
+
 ### 4.4 当前 surface 解析规则
 
 卡片 callback 回到哪个 surface，当前按下面顺序解析：
@@ -652,7 +692,7 @@ MCP request 卡片当前新增的可视语义：
   - 文本触发 `/history` 的首张 patchable history card 仍保持顶层 append；它属于 owner-card / history 混合路径，也不跟随 turn reply anchor
   - final reply（含 overflow continuation）继续 reply 到 turn anchor；later replay 若命中已记录的 reply anchor，也会优先回到原回复链
   - 非 final 的 assistant 普通文本（当前只限 `render.BlockAssistantMarkdown` / `render.BlockAssistantCode`）现在也会沿用当前 turn reply anchor；是否真正可见仍由 surface verbosity 过滤决定，quiet 下不会因为 reply thread 改动而强行变可见
-  - `delivery=async` 且携带非空 `questions` 的 App 异步提问立即作为非 final assistant 文本展示，独立标记 always-visible，quiet 也不隐藏；保留原话题及 turn reply anchor。正文提示发送回答后对该回答添加 👍，复用单条 queued steer，不伪造同步 request 卡或提前完成当前轮。
+  - `delivery=async` 的 App 异步提问独立标记 always-visible，quiet 也不隐藏；保留原话题及 turn reply anchor。合法 typed questions 使用 4.3.1 的回答卡：首次 append 并 @ 实际任务发起者一次，后续状态 patch 原卡；legacy 无结构或不合规载荷继续展示非 final assistant 文本，提示发送回答后添加 👍，复用单条 queued steer。两种路径都不伪造同步 request 卡、不提前完成或暂停当前轮。
   - detour 临时会话当前不再额外派生“进入临时会话”确认卡；而是直接把临时语义挂回原卡/原消息：
     - request prompt、提案计划卡、`turn_failed` notice、plan update、共享 progress card 与主 final reply card，会把 `临时会话 · 分支` / `临时会话 · 空白` 提升为卡片 header subtitle，并以 `lark_md` 加粗显示
     - 非 final assistant 普通文本不会为了 detour 再硬插前缀，继续保持原正文

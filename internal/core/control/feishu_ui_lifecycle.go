@@ -63,6 +63,14 @@ func ResolveFeishuFrontstageActionContract(action Action) FeishuFrontstageAction
 	if _, ok := FeishuUIIntentFromAction(action); ok {
 		contract.RejectsUnstampedCallback = true
 	}
+	if action.Kind == ActionAsyncQuestionSubmit || action.Kind == ActionAsyncQuestionContinue || action.Kind == ActionAsyncQuestionDefer {
+		contract.RejectsUnstampedCallback = true
+		// ACK the platform immediately. The captured page message is patched by
+		// normal delivery; native probes/ACKs must never delay the callback or be
+		// overwritten by a late synchronous replacement.
+		contract.CurrentCardMode = FeishuFrontstageCurrentCardNone
+		return contract
+	}
 	if action.Kind == ActionRenameCommand {
 		contract.RejectsUnstampedCallback = true
 	}

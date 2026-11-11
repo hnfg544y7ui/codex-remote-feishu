@@ -145,6 +145,9 @@ type Action struct {
 	SteerInputs              []agentproto.Input
 	Files                    []ActionFileAttachment
 	RequestAnswers           map[string][]string
+	AsyncQuestionID          string
+	AsyncQuestionRevision    int
+	AsyncQuestionAnswers     map[string]string
 	OptionID                 string
 	Request                  *ActionRequestResponse
 	RequestControl           *ActionRequestControl
