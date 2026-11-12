@@ -2184,6 +2184,7 @@ retained-offline overlay 额外规则：
 - `checking` 30 秒超时清空答案并返回可重新填写的 pending；`submitting` 超时、失败或断链进入 `unknown`，清空缓存且不自动重发，提示核对原会话。重复/旧 revision/错误 actor/message 的动作不能发送回答。pending/deferred/continue 30 分钟过期，切换绑定或离线时失效，Remote 重启后旧 nonce 失效；不暂停或取消原任务。终态 dedup 最多保留 24 小时，总 registry 上限 256，超限回到原文本方式。敏感问题仅提示使用受控授权渠道，不收集密码/密钥。三种卡片动作立即 ACK 飞书，状态通过正常原消息更新，不使用同步 callback replacement。
 - 完整校验后的规范化回答同时生成独立只读回执，与待发送 payload 分开；清空发送缓存不删除原卡上可读的选项与补充文字。回执跨 checking/submitting/continue/queued/answered/unknown/expired 状态保留，重填时明确标为上次提交且不自动填入表单；非法或旧 callback 不得替换回执。回执不参与 prompt/steer/queue 派发、持久化恢复或重发，只更新原 MessageID 的可见内容；摘要截断不改变实际发送的完整文本。仅后端 ACK 或正常队列的 running/completed 证据允许显示已接收。
 - 回执的 transport 预算独立于任务状态：发送适配层只对回执显示副本做摘要，保留重填/继续入口、原始问题、真实状态和 callback 身份；不能因新增回显触发通用尾部裁剪而让正常大小的问题卡丢失全部操作。源记录及原生输入保持完整。
+- 异步问题的敏感分类不使用内部 ID 或序列化 JSON；本机 SSH agent 签名授权、受控界面已完成配置与认证方式选择，沿用正常回答表单及原轮次 ACK 语义。明确索取凭据实际值、含糊的凭据字段仍进入既有 sealed `sensitive`，不能通过正文中的否定提示或另一条授权状态放行实际收集。确认回答只是用户报告状态，原任务仍须验证连接；不重开旧 sealed 卡，也不新增接管或授权状态容器。
 - 共享 WebSocket 断开不等价于后端 turn 完成。wrapper 不合成 `TurnCompleted`，发送明确的连接故障及后端状态未知；用户可 `/detach`、重选 `/use` 恢复订阅并核对实际状态，不能盲目自动继续旧请求。Remote 连接恢复受既有 pending timeout/manual escape 约束，不留下只能等待外部通知的永久 gate。
 - 该实现不支持热接入当前桌面 App 的私有 stdio 后端。App 必须从 `CODEX_APP_SERVER_WS_URL` 环境重新启动；同一端点先按一个 Remote daemon 管理，跨独立 daemon 的同 thread claim 不协调。配置示例及本机隔离证据见 [共享 Codex 后端](../implemented/shared-codex-backend.md)。
 

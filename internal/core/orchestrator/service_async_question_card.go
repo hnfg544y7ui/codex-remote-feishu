@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -33,8 +32,6 @@ type asyncQuestionAnswer struct {
 	Question       string `json:"question"`
 	Answer         string `json:"answer"`
 }
-
-var sensitiveAsyncQuestion = regexp.MustCompile(`(?i)密码|口令|私钥|密钥|password|passphrase|private[ _-]?key|api[ _-]?key|access[ _-]?token|secret`)
 
 func (s *Service) asyncQuestionContext(q *asyncQuestionRecord) bool {
 	surface, inst := s.root.Surfaces[q.SurfaceID], s.root.Instances[q.InstanceID]
@@ -128,7 +125,7 @@ func (s *Service) createAsyncQuestionCard(instanceID string, event agentproto.Ev
 		return nil, false
 	}
 	q.ReplyToMessageID, _ = s.replyAnchorForTurn(instanceID, event.ThreadID, event.TurnID)
-	if sensitiveAsyncQuestion.MatchString(text + string(encoded)) {
+	if asyncQuestionNeedsControlledAuth(text, questions) {
 		q.Phase, q.Status = "sensitive", "此问题涉及凭据，不在群卡片收集。请通过受控登录或授权渠道处理，再回到原会话确认；不要在群里发送密码或密钥。"
 		q.Text = "需要通过受控渠道补充授权或凭据。"
 	}
