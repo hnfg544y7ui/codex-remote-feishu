@@ -57,17 +57,24 @@ func InstallGlobal(ctx context.Context, version string, opts InstallOptions) err
 	npmCommand := xutil.FirstNonEmpty(strings.TrimSpace(opts.NPMCommand), defaultNPMCommand)
 	packageName := xutil.FirstNonEmpty(strings.TrimSpace(opts.PackageName), defaultPackageName)
 	packageSpec := packageName + "@" + version
-	if _, err := runCommand(ctx, npmCommand, "install", "-g", packageSpec); err != nil {
+	if _, err := runCommandWithEnv(ctx, opts.Env, npmCommand, "install", "-g", packageSpec); err != nil {
 		return fmt.Errorf("npm install %s failed: %w", packageSpec, err)
 	}
 	return nil
 }
 
 func runCommand(ctx context.Context, name string, args ...string) (string, error) {
+	return runCommandWithEnv(ctx, nil, name, args...)
+}
+
+func runCommandWithEnv(ctx context.Context, env []string, name string, args ...string) (string, error) {
 	if strings.TrimSpace(name) == "" {
 		return "", exec.ErrNotFound
 	}
 	cmd := execlaunch.CommandContext(ctx, name, args...)
+	if env != nil {
+		cmd.Env = append([]string{}, env...)
+	}
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		return string(output), nil

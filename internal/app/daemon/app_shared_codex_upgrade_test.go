@@ -3,9 +3,12 @@ package daemon
 import (
 	"context"
 	"errors"
+	"github.com/kxn/codex-remote-feishu/internal/app/codexprofile"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/kxn/codex-remote-feishu/internal/app/codexmanaged"
@@ -31,7 +34,7 @@ func TestSharedCodexUpgradeLookupUsesCapturedEnvironmentAndStableChannel(t *test
 	a.headlessRuntime.CodexRuntime.Channel = "alpha"
 	a.headlessRuntime.CodexRuntime.Version = "0.100.0"
 	a.managedCodex.latest = func(_ context.Context, opts codexmanaged.Options, actual []string) (string, error) {
-		if opts.Channel != "stable" || opts.Version != "" || !reflect.DeepEqual(actual, env) {
+		if opts.Channel != "stable" || opts.Version != "" || opts.UpgradeProxyMode != "system" || !reflect.DeepEqual(actual, env) {
 			t.Fatalf("shared lookup inherited private policy or lost model environment: %+v %v", opts, actual)
 		}
 		return "0.163.0", nil
@@ -44,6 +47,9 @@ func TestSharedCodexUpgradeLookupUsesCapturedEnvironmentAndStableChannel(t *test
 }
 
 func TestSharedCodexUpgradeLookupActuallyContactsCapturedProxy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows system mode reads Windows settings; covered with injected settings in upgradeproxy")
+	}
 	contacted := make(chan string, 1)
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contacted <- r.Method + " " + r.Host
@@ -81,7 +87,7 @@ func (o *ownerStub) Upgrade(_ context.Context, u sharedcodex.Upgrade) (sharedcod
 
 func enrolledSharedFixture(t *testing.T) (*App, *ownerStub) {
 	a := sharedCodexDaemonFixture(t)
-	o := &ownerStub{status: sharedcodex.Status{Generation: 1, Version: "0.162.1", PreviousVersion: "0.161.0", State: "running"}}
+	o := &ownerStub{status: sharedcodex.Status{Generation: 1, UpgradeProxySupported: true, Version: "0.162.1", PreviousVersion: "0.161.0", State: "running"}}
 	a.codexUpgradeRuntime.SharedOwner = func(_ string, endpoint string) (sharedcodex.Maintenance, error) {
 		if endpoint != a.headlessRuntime.CodexAppServerURL {
 			t.Fatal("wrong backend owner")
@@ -120,7 +126,7 @@ func TestSharedCodexUpgradeChecksActualOwnerRatherThanPrivateCLI(t *testing.T) {
 
 func TestSharedCodexUpgradeWithoutBindingsDoesNotRestartIdlePool(t *testing.T) {
 	a, o := enrolledSharedFixture(t)
-	tx := &codexupgraderuntime.Transaction{ID: "shared-1", CurrentVersion: "0.162.1", TargetVersion: "0.163.0"}
+	tx := &codexupgraderuntime.Transaction{ID: "shared-1", UpgradeProxyMode: "direct", CurrentVersion: "0.162.1", TargetVersion: "0.163.0"}
 	a.codexUpgradeRuntime.Active = tx
 	a.managedCodex.restart = func(context.Context, []string) error { t.Fatal("must not restart obsolete wrapper IDs"); return nil }
 	var result error
@@ -128,7 +134,7 @@ func TestSharedCodexUpgradeWithoutBindingsDoesNotRestartIdlePool(t *testing.T) {
 	if result != nil || a.codexUpgradeRuntime.Active != nil {
 		t.Fatalf("upgrade did not finish: %v", result)
 	}
-	if o.request.Version != tx.TargetVersion || o.request.ExpectedVersion != tx.CurrentVersion {
+	if o.request.Version != tx.TargetVersion || o.request.ExpectedVersion != tx.CurrentVersion || o.request.UpgradeProxyMode != "direct" {
 		t.Fatalf("unfrozen target: %+v", o.request)
 	}
 }
@@ -154,5 +160,45 @@ func TestSharedCodexUpgradeNeverRestartsClaudeOrOpenCode(t *testing.T) {
 		if a.codexUpgradeAffectsInstanceLocked(&state.InstanceRecord{Managed: true, Source: "headless", Backend: backend}) {
 			t.Fatalf("shared Codex upgrade affects %s", backend)
 		}
+	}
+}
+
+func TestSharedCodexUpgradeRejectsOwnerWithoutProxyCapability(t *testing.T) {
+	a, o := enrolledSharedFixture(t)
+	o.status.UpgradeProxySupported = false
+	if _, err := a.inspectSharedCodexInstallation(context.Background()); err == nil || !strings.Contains(err.Error(), "升级代理") {
+		t.Fatalf("unsupported owner accepted: %v", err)
+	}
+	if o.request.Version != "" {
+		t.Fatal("unsupported owner received maintenance")
+	}
+}
+
+func TestManagedCodexUpgradeProxyPolicyDoesNotChangeProbeEnvironment(t *testing.T) {
+	a, s := newManagedCodexTestApp(t)
+	cfg := config.DefaultAppConfig()
+	cfg.Upgrade.ProxyMode = "direct"
+	a.admin.loadConfig = func() (config.LoadedAppConfig, error) { return config.LoadedAppConfig{Config: cfg}, nil }
+	env := []string{"HTTPS_PROXY=http://model:4567", "CODEX_HOME=private"}
+	a.headlessRuntime.BaseEnv = env
+	release := codexmanaged.Release{Version: "0.163.0", Binary: "candidate"}
+	s.Candidate = &release
+	a.managedCodex.prepare = func(_ context.Context, _ string, opts codexmanaged.Options, actual []string) (codexmanaged.Release, error) {
+		if opts.UpgradeProxyMode != "direct" || !reflect.DeepEqual(actual, env) {
+			t.Fatalf("policy or runtime env lost: %+v %v", opts, actual)
+		}
+		return release, nil
+	}
+	a.runCodexCapabilityPreflight = func(_ context.Context, opts codexprofile.CapabilityPreflightOptions) (codexprofile.CapabilityPreflightObservation, error) {
+		if !reflect.DeepEqual(opts.Env, env) {
+			t.Fatalf("model proxy was replaced: %v", opts.Env)
+		}
+		return codexprofile.CapabilityPreflightObservation{CapabilitySet: codexprofile.CodexProfileCapabilitySetV1}, nil
+	}
+	if _, err := a.prepareManagedCodex(context.Background(), a.headlessRuntime, "0.163.0", true); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(a.headlessRuntime.BaseEnv, env) {
+		t.Fatal("native base env modified")
 	}
 }

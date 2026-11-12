@@ -15,6 +15,8 @@ type Options struct {
 	Channel     string `json:"channel,omitempty"`
 	Version     string `json:"version,omitempty"`
 	RetryFailed bool   `json:"-"`
+	// UpgradeProxyMode applies only to explicit update downloads, never native validation.
+	UpgradeProxyMode string `json:"-"`
 }
 
 // Release describes an immutable private installation. Components map relative

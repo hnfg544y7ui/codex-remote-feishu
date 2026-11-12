@@ -84,6 +84,13 @@ func (a *App) prepareManagedCodex(ctx context.Context, cfg HeadlessRuntimeConfig
 		opts.Version = target
 	}
 	opts.RetryFailed = retry
+	if target != "" {
+		mode, err := a.upgradeProxyMode()
+		if err != nil {
+			return codexmanaged.Release{}, err
+		}
+		opts.UpgradeProxyMode = mode
+	}
 	h := a.managedCodexStore()
 	release, err := h.prepare(ctx, managedCodexRoot(cfg), opts, cfg.BaseEnv)
 	if err != nil {
@@ -163,10 +170,14 @@ func (a *App) inspectManagedCodexInstallation(cfg HeadlessRuntimeConfig) (codexu
 func (a *App) configureManagedCodexUpgrade() {
 	cfg := a.managedCodexConfig()
 	if cfg.CodexAppServerURL != "" {
-		// Feishu may run without process proxy variables. Registry requests use
-		// the captured model environment, independent of the private CLI policy.
+		// Upgrade networking has its own live policy, independent of Feishu and
+		// model requests; the private CLI channel never selects a shared release.
 		a.codexUpgradeRuntime.LatestLookup = func(ctx context.Context) (string, error) {
-			return a.managedCodexStore().latest(ctx, codexmanaged.Options{Channel: "stable"}, cfg.BaseEnv)
+			mode, err := a.upgradeProxyMode()
+			if err != nil {
+				return "", err
+			}
+			return a.managedCodexStore().latest(ctx, codexmanaged.Options{Channel: "stable", UpgradeProxyMode: mode}, cfg.BaseEnv)
 		}
 		return
 	}
@@ -179,6 +190,12 @@ func (a *App) configureManagedCodexUpgrade() {
 		return a.inspectManagedCodexInstallation(cfg)
 	}
 	a.codexUpgradeRuntime.LatestLookup = func(ctx context.Context) (string, error) {
-		return a.managedCodexStore().latest(ctx, managedCodexOptions(cfg), cfg.BaseEnv)
+		mode, err := a.upgradeProxyMode()
+		if err != nil {
+			return "", err
+		}
+		opts := managedCodexOptions(cfg)
+		opts.UpgradeProxyMode = mode
+		return a.managedCodexStore().latest(ctx, opts, cfg.BaseEnv)
 	}
 }

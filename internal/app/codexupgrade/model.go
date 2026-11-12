@@ -69,4 +69,5 @@ type LatestVersionOptions struct {
 type InstallOptions struct {
 	NPMCommand  string
 	PackageName string
+	Env         []string
 }

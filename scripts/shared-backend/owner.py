@@ -92,6 +92,7 @@ class Owner:
         selected = self.selection or {}
         return dict(endpoint=self.config['endpoint'], version=selected.get('version', ''),
                     generation=self.generation, immediateUpgradeSupported=self.immediate_upgrade.supported,
+                    upgradeProxySupported=True,
                     previousVersion=selected.get('previous', {}).get('version', ''),
                     state=self.state, busy=self.busy, problem=problem, **self.runtime_env.status())
 
@@ -224,17 +225,23 @@ class Owner:
         self.state = 'running'
         self.runtime_env.publish()
 
-    async def prepare(self, version):
+    async def prepare(self, version, upgrade_proxy_mode=""):
+        if upgrade_proxy_mode not in ("", "system", "direct"):
+            raise RuntimeError("Invalid upgrade proxy mode")
         root = self.root / 'releases'
         runtime = await self.runtime_env.prepare(self.selection)
+        proxy_args = ('--upgrade-proxy-mode', upgrade_proxy_mode) if upgrade_proxy_mode else ()
         data = await self.command(self.config['remoteBinary'], 'codex-runtime', 'prepare', '--root', root,
-                                  '--version', version, '--retry-failed', env=runtime['environment'])
+                                  '--version', version, '--retry-failed', *proxy_args, env=runtime['environment'])
         release = json.loads(data)
         selected = prepared_bundle(root, version, release)
         target_runtime = await self.runtime_env.prepare(selected, snapshot=runtime['snapshot'])
         return await self.verify_selection(selected, runtime=target_runtime)
 
     async def upgrade(self, request):
+        proxy_mode = request.get('upgradeProxyMode', '')
+        if proxy_mode not in ('', 'system', 'direct'):
+            raise RuntimeError('Invalid upgrade proxy mode')
         if self.upgrade_lock.locked():
             raise RuntimeError('Another shared backend maintenance is running')
         async with self.upgrade_lock:
@@ -259,7 +266,7 @@ class Owner:
                     if selected.get('version') != target:
                         raise RuntimeError('Previous verified release changed')
                 else:
-                    selected = await self.prepare(target)  # Download before fencing clients.
+                    selected = await self.prepare(target, proxy_mode) if proxy_mode else await self.prepare(target)  # Download before fencing clients.
                 runtime = await self.runtime_env.prepare(selected)
                 selected = await self.verify_selection(selected, runtime=runtime)
                 # Fence the public gateway BEFORE inspecting native state. Every

@@ -14,7 +14,11 @@ type managedReleaseValidationError struct{ error }
 // Prepare downloads and validates a candidate without changing the active CLI.
 // A caller must test the app-server protocol before explicitly activating it.
 func Prepare(ctx context.Context, root string, opts Options, env []string) (Release, error) {
-	return prepareManaged(ctx, root, opts, managedOperationsWithEnv(env))
+	ops, err := managedUpgradeOperations(opts.UpgradeProxyMode, env)
+	if err != nil {
+		return Release{}, err
+	}
+	return prepareManaged(ctx, root, opts, ops)
 }
 
 func prepareManaged(ctx context.Context, root string, opts Options, ops managedOperations) (Release, error) {

@@ -10,6 +10,7 @@ import (
 	"github.com/kxn/codex-remote-feishu/internal/app/codexmanaged"
 	"github.com/kxn/codex-remote-feishu/internal/app/codexupgrade"
 	codexupgraderuntime "github.com/kxn/codex-remote-feishu/internal/app/daemon/codexupgraderuntime"
+	"github.com/kxn/codex-remote-feishu/internal/app/upgradeproxy"
 	"github.com/kxn/codex-remote-feishu/internal/core/eventcontract"
 	"github.com/kxn/codex-remote-feishu/internal/core/state"
 	"github.com/kxn/codex-remote-feishu/internal/xutil"
@@ -77,7 +78,12 @@ func (a *App) checkStandaloneCodexUpgrade(ctx context.Context, initiatorSurfaceI
 		lookup := a.codexUpgradeRuntime.LatestLookup
 		if lookup == nil {
 			lookup = func(ctx context.Context) (string, error) {
-				return codexupgrade.LookupLatestVersion(ctx, codexupgrade.LatestVersionOptions{})
+				client, err := a.upgradeHTTPClient()
+				if err != nil {
+					return "", err
+				}
+				defer client.CloseIdleConnections()
+				return codexupgrade.LookupLatestVersion(ctx, codexupgrade.LatestVersionOptions{HTTPClient: client})
 			}
 		}
 		latest, err := lookup(ctx)
@@ -137,6 +143,10 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 		return fmt.Errorf("current codex is already on %s", xutil.FirstNonEmpty(check.CurrentVersion, "the latest version"))
 	}
 
+	mode, err := a.upgradeProxyMode()
+	if err != nil {
+		return err
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.codexSourceSwitch != nil || a.codexUpgradeRuntime.Active != nil {
@@ -161,6 +171,7 @@ func (a *App) startStandaloneCodexUpgrade(ctx context.Context, req codexUpgradeS
 		Automatic:          req.Automatic,
 		Immediate:          req.Immediate,
 		ConfirmationToken:  req.ConfirmationToken,
+		UpgradeProxyMode:   mode,
 	}
 	if tx.Install.SourceKind == codexupgrade.SourceSharedBackend {
 		tx.SharedTargets = a.sharedCodexRecoveryTargetsLocked()
@@ -188,8 +199,12 @@ func (a *App) runStandaloneCodexUpgrade(tx *codexupgraderuntime.Transaction, onC
 	installFn := a.codexUpgradeRuntime.Install
 	if installFn == nil {
 		installFn = func(ctx context.Context, installation codexupgrade.Installation, version string) error {
+			env, err := upgradeproxy.Env(tx.UpgradeProxyMode, a.managedCodexConfig().BaseEnv)
+			if err != nil {
+				return err
+			}
 			return codexupgrade.InstallGlobal(ctx, version, codexupgrade.InstallOptions{
-				NPMCommand: installation.NPMCommand,
+				NPMCommand: installation.NPMCommand, Env: env,
 			})
 		}
 	}

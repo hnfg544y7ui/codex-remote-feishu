@@ -1,7 +1,7 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-11-11`
+> Updated: `2026-11-12`
 > Summary: 明确结构化异步提问的回答表单、原轮次确认与回调失效边界；已绑定话题只选择已有会话，撤回通知不触发任务创建者身份错误。
 
 ## 1. 文档定位
@@ -1129,6 +1129,12 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
 - pause/resume/delete 是实际任务状态变化，结果不得替换菜单 launcher 当作导航。任务权限使用原始 `DaemonCommand.ActorUserID`，不读取群内后来变化的 surface actor。
 - 旧卡 freshness 校验沿用统一 command catalog；本功能没有新增 callback 字段或第二套卡片协议。
 - 自然语言调用通过 loopback bearer MCP 绑定实际 turn；任务回报使用持久化原群地址，不引用虚构的消息 ID。
+
+## 升级网络设置卡
+
+`/upgrade` 根页包含“升级网络”；`/upgrade proxy` 使用现有 `page_local_action` 导航到设置页，展示当前代理方式和“使用系统代理 / 不使用代理”按钮。当前选项禁用，另一选项发送 `/upgrade proxy system|direct`，沿用现有 daemon lifecycle、surface 和 callback action 路由，不新增 callback family。系统代理作用于 Remote/Codex 的检查更新和下载，与飞书消息、模型请求和本地后端连接隔离。
+
+设置动作属于 execute，返回明确保存结果；只读导航属于 page，沿用当前卡原位替换。检查或升级期间仍能查看设置，但修改返回阻塞说明且不写配置；错误结果不吞掉页面返回入口。旧 daemon 卡不能修改设置。保存无需重启，不自动开始升级，也不改变原升级 owner card 或会话绑定。
 
 ## 托管 Codex 的升级与回退 owner card
 

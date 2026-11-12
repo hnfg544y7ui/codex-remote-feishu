@@ -35,6 +35,7 @@ type Status struct {
 	Busy                      bool           `json:"busy"`
 	Problem                   string         `json:"problem"`
 	ImmediateUpgradeSupported bool           `json:"immediateUpgradeSupported,omitempty"`
+	UpgradeProxySupported     bool           `json:"upgradeProxySupported,omitempty"`
 	ImmediatePlan             *ImmediatePlan `json:"immediatePlan,omitempty"`
 }
 
@@ -44,6 +45,7 @@ type Upgrade struct {
 	Rollback          bool   `json:"rollback"`
 	Immediate         bool   `json:"immediate,omitempty"`
 	ConfirmationToken string `json:"confirmationToken,omitempty"`
+	UpgradeProxyMode  string `json:"upgradeProxyMode,omitempty"`
 }
 
 // ImmediateMaintenance is optional: older enrolled owners and existing normal
@@ -150,6 +152,9 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 }
 
 func (c *Client) Upgrade(ctx context.Context, upgrade Upgrade) (Status, error) {
+	if upgrade.UpgradeProxyMode != "" && upgrade.UpgradeProxyMode != "system" && upgrade.UpgradeProxyMode != "direct" {
+		return Status{}, fmt.Errorf("invalid upgrade proxy mode")
+	}
 	if upgrade.Immediate && (upgrade.Rollback || !validImmediateToken(upgrade.ConfirmationToken)) {
 		return Status{}, fmt.Errorf("立即升级必须提供有效确认凭据，且不能同时回退")
 	}

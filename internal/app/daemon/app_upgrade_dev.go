@@ -22,7 +22,13 @@ type devUpgradeCheckRequest struct {
 }
 
 func (a *App) defaultDevManifestLookup(ctx context.Context) (install.DevManifest, install.DevManifestAsset, error) {
+	client, err := a.upgradeHTTPClient()
+	if err != nil {
+		return install.DevManifest{}, install.DevManifestAsset{}, err
+	}
+	defer client.CloseIdleConnections()
 	return install.ResolveDevManifest(ctx, install.DevManifestLookupOptions{
+		Client:      client,
 		Repository:  strings.TrimSpace(os.Getenv(config.CodexRemoteRepoEnv)),
 		ManifestURL: strings.TrimSpace(os.Getenv(config.CodexRemoteDevManifestURLEnv)),
 	})

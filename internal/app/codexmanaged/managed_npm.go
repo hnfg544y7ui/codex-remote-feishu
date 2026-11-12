@@ -49,7 +49,11 @@ func normalizeManagedOptions(opts Options) (Options, error) {
 
 // Latest checks metadata only. A pin does not contact the registry.
 func Latest(ctx context.Context, opts Options, env []string) (string, error) {
-	return latestManaged(ctx, opts, managedOperationsWithEnv(env))
+	ops, err := managedUpgradeOperations(opts.UpgradeProxyMode, env)
+	if err != nil {
+		return "", err
+	}
+	return latestManaged(ctx, opts, ops)
 }
 
 func latestManaged(ctx context.Context, opts Options, ops managedOperations) (string, error) {
@@ -92,7 +96,11 @@ func lookupManagedChannel(ctx context.Context, channel string, env []string) (st
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = proxyFromEnv(env)
 	defer transport.CloseIdleConnections()
-	response, err := (&http.Client{Timeout: 10 * time.Second, Transport: transport}).Do(req)
+	return lookupManagedChannelRequest(req, &http.Client{Timeout: 10 * time.Second, Transport: transport})
+}
+
+func lookupManagedChannelRequest(req *http.Request, client *http.Client) (string, error) {
+	response, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}

@@ -24,6 +24,7 @@ type Transaction struct {
 	Automatic          bool
 	Immediate          bool
 	ConfirmationToken  string
+	UpgradeProxyMode   string
 	RecoveryRequired   bool
 	SharedTargets      map[string]SharedClientTarget
 }

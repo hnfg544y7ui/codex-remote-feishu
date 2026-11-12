@@ -39,6 +39,7 @@ type LoadedAppConfig struct {
 
 type AppConfig struct {
 	Version        int                    `json:"version"`
+	Upgrade        UpgradeSettings        `json:"upgrade,omitempty"`
 	Relay          RelaySettings          `json:"relay"`
 	Admin          AdminSettings          `json:"admin"`
 	Tool           ToolSettings           `json:"tool,omitempty"`
@@ -168,6 +169,7 @@ func DefaultConfigPath() string {
 func DefaultAppConfig() AppConfig {
 	return AppConfig{
 		Version: currentConfigVersion,
+		Upgrade: UpgradeSettings{ProxyMode: UpgradeProxySystem},
 		Relay: RelaySettings{
 			ServerURL:  defaultRelayServerURL(defaultRelayListenPort),
 			ListenHost: defaultRelayListenHost,
@@ -225,6 +227,9 @@ func WriteAppConfig(path string, cfg AppConfig) error {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	if _, err := NormalizeUpgradeProxyMode(cfg.Upgrade.ProxyMode); err != nil {
 		return err
 	}
 	if err := ValidateCodexRuntimeSettings(cfg.Wrapper.CodexRuntime); err != nil {
@@ -296,6 +301,9 @@ func readConfigFile(path string) (AppConfig, error) {
 			return AppConfig{}, unsupportedLegacyConfigPathError(path)
 		}
 		return AppConfig{}, fmt.Errorf("parse json config %s: %w", path, err)
+	}
+	if _, err := NormalizeUpgradeProxyMode(cfg.Upgrade.ProxyMode); err != nil {
+		return AppConfig{}, fmt.Errorf("validate upgrade proxy %s: %w", path, err)
 	}
 	if err := ValidateCodexRuntimeSettings(cfg.Wrapper.CodexRuntime); err != nil {
 		return AppConfig{}, fmt.Errorf("validate codex runtime %s: %w", path, err)
@@ -384,6 +392,7 @@ func feishuAppEnabled(app FeishuAppConfig) bool {
 func (cfg AppConfig) normalized() AppConfig {
 	defaults := DefaultAppConfig()
 	cfg.Wrapper.CodexRuntime = cfg.Wrapper.CodexRuntime.normalized()
+	cfg.Upgrade.ProxyMode, _ = NormalizeUpgradeProxyMode(cfg.Upgrade.ProxyMode)
 
 	if cfg.Version <= 0 {
 		cfg.Version = defaults.Version

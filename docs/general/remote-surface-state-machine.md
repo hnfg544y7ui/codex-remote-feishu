@@ -1,7 +1,7 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-11-10`
+> Updated: `2026-11-12`
 > Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标；消息撤回按消息归属处理，不要求任务操作者身份。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
@@ -1585,6 +1585,12 @@ Remote release/local/dev 自升级沿用 `prepared -> switching -> observing -> 
 启动确认后只有助手推进持久化事务，发起控制端不再回写 `prepared` 快照。Windows 停服务前记录旧 daemon PID，即使任务停止时 PID 文件消失，也继续清理该 PID 对应的工作进程树。清理保护调用者子树，先停父进程，再复查残留或退出期间新增的工作进程；任何仍存活进程的访问或退出错误均阻止替换程序文件。
 
 该修复不改变 surface 的会话/队列归属，也不停止外部宿主管理的共享 Codex 后端。完成确认仍以新服务健康和 gateway 恢复为准；详细流程和 Windows 启动边界见 [本地自升级流程](local-self-upgrade-flow.md)。
+
+### 5.3.3 升级网络设置
+
+`/upgrade proxy` 只打开设置页；`/upgrade proxy system|direct` 保存 `config.json` 的 `upgrade.proxyMode`，默认 `system`。设置只影响 Remote/Codex 的检查更新与下载，不改变飞书、模型和 loopback 控制连接。Windows 的 `system` 读取当前系统代理；其他系统使用服务捕获的代理环境；`direct` 显式关闭升级请求的代理。
+
+修改前检查 Remote metadata/download、standalone/shared Codex 维护和来源切换。运行中的检查、下载、维护或 `prepared/switching/observing` 事务均拒绝修改；只读页面保持可访问。读取安装状态会短暂释放 daemon mutex，因此重新取得锁后还要复查 runtime busy 条件。设置保存后只对后续检查和下载生效，不重启服务，不释放或接管 surface/queue。配置读取或写入失败显示明确错误，禁止静默回退到其他网络模式。
 
 ### 5.4 daemon 重启恢复与 headless 生命周期
 

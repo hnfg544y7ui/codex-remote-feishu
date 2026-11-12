@@ -72,9 +72,16 @@ func (a *App) runPendingUpgradeStart(request upgradeStartRequest) {
 	}
 	var targetBinary string
 	var err error
+	client, clientErr := a.upgradeHTTPClient()
+	if clientErr != nil {
+		a.finishUpgradeStartFailure(request, fmt.Errorf("读取升级网络配置失败：%w", clientErr))
+		return
+	}
+	defer client.CloseIdleConnections()
 	switch stateValue.PendingUpgrade.Source {
 	case install.UpgradeSourceRelease:
 		targetBinary, err = install.EnsureReleaseBinary(ctx, install.ReleaseBinaryOptions{
+			Client:       client,
 			Repository:   strings.TrimSpace(os.Getenv(config.CodexRemoteRepoEnv)),
 			BaseURL:      strings.TrimSpace(os.Getenv(config.CodexRemoteBaseURLEnv)),
 			Version:      targetVersion,
@@ -95,6 +102,7 @@ func (a *App) runPendingUpgradeStart(request upgradeStartRequest) {
 			return
 		}
 		targetBinary, err = install.EnsureDevBinary(ctx, install.DevBinaryOptions{
+			Client:       client,
 			Manifest:     manifest,
 			Asset:        asset,
 			VersionsRoot: stateValue.VersionsRoot,

@@ -128,6 +128,32 @@ class UpgradeTests(unittest.IsolatedAsyncioTestCase):
         self.owner.stop.assert_not_awaited()
 
 
+    async def test_upgrade_proxy_policy_forwarded_and_invalid_rejected_before_maintenance(self):
+        self.assertTrue(self.owner.status()['upgradeProxySupported'])
+        with self.assertRaisesRegex(RuntimeError, 'proxy mode'):
+            await self.owner.upgrade(self.request(upgradeProxyMode='invalid'))
+        self.owner.prepare.assert_not_awaited()
+        self.owner.stop.assert_not_awaited()
+        self.assertFalse(self.owner.busy)
+        await self.owner.upgrade(self.request(upgradeProxyMode='direct'))
+        self.owner.prepare.assert_awaited_once_with('0.163.0', 'direct')
+
+    async def test_prepare_passes_proxy_flag_without_changing_native_runtime_environment(self):
+        self.owner.config['remoteBinary'] = 'remote'
+        native_env = {'HTTPS_PROXY': 'http://model:4567', 'CODEX_HOME': 'private'}
+        runtime = dict(environment=native_env, args=[], snapshot={'native': True})
+        self.owner.runtime_env.prepare = AsyncMock(return_value=runtime)
+        self.owner.command = AsyncMock(return_value='{}')
+        self.owner.verify_selection = AsyncMock(return_value=self.new)
+        with patch('owner.prepared_bundle', return_value=self.new):
+            await Owner.prepare(self.owner, '0.163.0', 'direct')
+        args = self.owner.command.await_args.args
+        self.assertEqual(args[-2:], ('--upgrade-proxy-mode', 'direct'))
+        self.assertIs(self.owner.command.await_args.kwargs['env'], native_env)
+        self.assertEqual(native_env['HTTPS_PROXY'], 'http://model:4567')
+        self.owner.verify_selection.assert_awaited_once_with(self.new, runtime=runtime)
+
+
 class ValidationTests(unittest.TestCase):
     def test_control_address_rejects_remote_and_url_credentials(self):
         for raw in ('http://192.0.2.1:1234', 'http://localhost:1234', 'http://u@127.0.0.1:1234', 'http://127.0.0.1:1234/path'):

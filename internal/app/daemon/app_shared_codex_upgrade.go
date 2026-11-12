@@ -29,6 +29,9 @@ func (a *App) inspectSharedCodexInstallation(ctx context.Context) (codexupgrade.
 	if status.Busy || status.State != "running" {
 		return codexupgrade.Installation{}, fmt.Errorf("共享后端正在维护或等待恢复，请稍后再检查")
 	}
+	if !status.UpgradeProxySupported {
+		return codexupgrade.Installation{}, fmt.Errorf("共享后端宿主尚不支持升级代理设置，请先更新宿主脚本")
+	}
 	if status.Generation == 0 {
 		return codexupgrade.Installation{}, fmt.Errorf("共享后端维护宿主需要更新后才能检查升级")
 	}
@@ -43,14 +46,14 @@ func (a *App) runSharedCodexUpgrade(ctx context.Context, tx *codexupgraderuntime
 	var before sharedcodex.Status
 	if err == nil {
 		before, err = c.Status(ctx)
-		if err == nil && (before.Generation == 0 || before.State != "running" || before.Busy || before.Version != tx.CurrentVersion) {
+		if err == nil && (before.Generation == 0 || before.State != "running" || before.Busy || before.Version != tx.CurrentVersion || !before.UpgradeProxySupported) {
 			err = fmt.Errorf("共享后端状态已经变化，请重新检查；宿主需要提供运行代次")
 		}
 	}
 	if err == nil {
 		var result sharedcodex.Status
 		result, err = c.Upgrade(ctx, sharedcodex.Upgrade{Version: tx.TargetVersion, ExpectedVersion: tx.CurrentVersion, Rollback: tx.Rollback,
-			Immediate: tx.Immediate, ConfirmationToken: tx.ConfirmationToken})
+			Immediate: tx.Immediate, ConfirmationToken: tx.ConfirmationToken, UpgradeProxyMode: tx.UpgradeProxyMode})
 		if err == nil && (result.State != "running" || result.Version != tx.TargetVersion) {
 			err = fmt.Errorf("共享后端未确认目标版本运行成功")
 		}

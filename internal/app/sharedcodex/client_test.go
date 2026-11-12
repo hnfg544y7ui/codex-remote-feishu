@@ -91,3 +91,10 @@ func TestEnrollmentRejectsRemoteAndUnboundOwners(t *testing.T) {
 		t.Fatal("missing owner enrollment accepted")
 	}
 }
+
+func TestInvalidUpgradeProxyModeIsRejectedBeforeTransport(t *testing.T) {
+	client := &Client{}
+	if _, err := client.Upgrade(context.Background(), Upgrade{Version: "0.163.0", ExpectedVersion: "0.162.1", UpgradeProxyMode: "invalid"}); err == nil {
+		t.Fatal("invalid proxy mode reached maintenance transport")
+	}
+}

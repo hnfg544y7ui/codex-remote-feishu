@@ -36,8 +36,9 @@ func parseUpgradeCommandText(text string) (parsedUpgradeCommand, error) {
 	parsed, err := upgradecontract.ParseCommandText(text)
 	if err == nil {
 		return parsedUpgradeCommand{
-			Mode:  parsed.Mode,
-			Track: install.ParseReleaseTrack(string(parsed.Track)),
+			Mode:      parsed.Mode,
+			Track:     install.ParseReleaseTrack(string(parsed.Track)),
+			ProxyMode: parsed.ProxyMode,
 		}, nil
 	}
 	if upgradecontract.IsInvalidTrackError(err) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/kxn/codex-remote-feishu/internal/app/codexmanaged"
 	"github.com/kxn/codex-remote-feishu/internal/app/codexprofile"
+	"github.com/kxn/codex-remote-feishu/internal/app/upgradeproxy"
 	relayruntime "github.com/kxn/codex-remote-feishu/internal/runtime"
 )
 
@@ -61,11 +62,22 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 	channel := flags.String("channel", "stable", "official channel: stable or alpha")
 	pin := flags.String("version", "", "exact official version; activate defaults to the prepared candidate")
 	retry := flags.Bool("retry-failed", false, "explicitly retry a previously failed release during preparation")
+	proxyMode := flags.String("upgrade-proxy-mode", "", "prepare download proxy: system or direct; native validation keeps its original environment")
 	if err := flags.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
+	}
+	if *proxyMode != "" {
+		if command != "prepare" {
+			return fmt.Errorf("upgrade-proxy-mode is only valid for prepare")
+		}
+		mode, err := upgradeproxy.Normalize(*proxyMode)
+		if err != nil {
+			return err
+		}
+		*proxyMode = mode
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments")
@@ -90,7 +102,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 		return writeJSON(stdout, state)
 	}
 	if command == "prepare" {
-		release, err := ops.prepare(ctx, absoluteRoot, codexmanaged.Options{Channel: *channel, Version: *pin, RetryFailed: *retry}, env)
+		release, err := ops.prepare(ctx, absoluteRoot, codexmanaged.Options{Channel: *channel, Version: *pin, RetryFailed: *retry, UpgradeProxyMode: *proxyMode}, env)
 		if err != nil {
 			return err
 		}

@@ -1,8 +1,8 @@
 # 本地自升级流程
 
 > Type: `general`
-> Updated: `2026-10-12`
-> Summary: 说明自升级事务、Windows 独立助手计划任务与启动确认、旧进程退出检查及助手接管后的日志写入边界。
+> Updated: `2026-11-12`
+> Summary: 说明自升级事务、Windows 独立助手接管，以及 Remote/Codex 升级专用系统代理或直连设置。
 
 ## 1. 这份文档回答什么问题
 
@@ -375,6 +375,19 @@ Windows 回归验收包含 `internal/runtime` 的真实父子进程退出测试�
 ### 10.4 `systemd_user` 下 helper 不是原 service 的一部分
 
 它会被放进独立 transient unit，而不是复用 `codex-remote.service` 本身。否则 stop 原 service 时，helper 也会被连带终止。
+
+### 10.1 升级网络设置
+
+飞书 `/upgrade` → `升级网络` 提供 `使用系统代理` 和 `不使用代理` 两个选项，也可分别发送 `/upgrade proxy system`、`/upgrade proxy direct`；`/upgrade proxy` 只查看设置。设置持久化在当前实例配置的 `upgrade.proxyMode`，未配置时默认为 `system`。
+
+- `system`：Windows 读取当前用户的系统代理设置；Linux/macOS 使用服务启动时保留的代理环境。Windows HTTP 请求按目标 URL 解析代理及绕过规则，重定向后的下载主机也重新判断，不依赖 daemon 中已清除的全局代理变量。
+- `direct`：升级专用 HTTP 客户端与 npm 下载环境明确禁用代理，不继承模型、终端或 npm 原有的代理配置。
+- 范围包括 Remote release/dev 元数据与下载、手动 Codex 版本检查及安装准备；模型调用、飞书收发、后端控制与 native 验证继续使用各自原有环境。私有 managed runtime 的自动预热策略不由此设置改写。
+- 保存后下次检查或下载生效，不重启服务。正在检查、下载、维护或切换来源时只允许查看，修改会明确提示等待当前操作完成；失败不会把已保存的模式切换到另一种模式。
+- 共享后端宿主必须明确公布升级代理能力，再由 Remote 把本次选择传给维护请求；旧宿主会得到需要更新宿主的提示，不会静默忽略直连设置。宿主只把选择应用于下载准备，不改正在运行的模型环境。
+- Windows PAC/WPAD 是按 URL 决定路由的。升级 HTTP 请求使用系统解析结果；无法安全表达为 npm 静态代理环境的配置会明确报错，避免把“使用系统代理”错误地当成直连。
+
+代理地址保存在操作系统或服务环境中，仓库不保存固定的本机地址。该菜单也不会修改 Windows 系统代理开关。
 
 ## 11. 常看路径
 

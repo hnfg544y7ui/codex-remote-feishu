@@ -178,3 +178,35 @@ func TestFlagsRejectInvalidInput(t *testing.T) {
 		}
 	}
 }
+
+func TestPrepareUpgradeProxyModeRetainsProbeEnvironment(t *testing.T) {
+	paths := testPaths(t)
+	release := codexmanaged.Release{Version: "0.163.0", Binary: "candidate"}
+	env := []string{"HTTPS_PROXY=http://model-proxy:1234", "CODEX_HOME=private"}
+	ops := operations{
+		prepare: func(_ context.Context, _ string, opts codexmanaged.Options, actual []string) (codexmanaged.Release, error) {
+			if opts.UpgradeProxyMode != "direct" || strings.Join(actual, ";") != strings.Join(env, ";") {
+				t.Fatalf("download lost explicit policy or native env: %+v %v", opts, actual)
+			}
+			return release, nil
+		},
+		inspect: func(string) (codexmanaged.State, error) { return codexmanaged.State{Candidate: &release}, nil },
+		probe: func(_ context.Context, opts codexprofile.CapabilityPreflightOptions) (codexprofile.CapabilityPreflightObservation, error) {
+			if strings.Join(opts.Env, ";") != strings.Join(env, ";") {
+				t.Fatalf("model environment changed: %v", opts.Env)
+			}
+			return codexprofile.CapabilityPreflightObservation{}, nil
+		},
+	}
+	if err := run(context.Background(), []string{"prepare", "--version", "0.163.0", "--upgrade-proxy-mode", "direct"}, &bytes.Buffer{}, &bytes.Buffer{}, "test", paths, env, ops); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUpgradeProxyModeInvalidOrNonPrepareDoesNotMutate(t *testing.T) {
+	for _, args := range [][]string{{"prepare", "--upgrade-proxy-mode", "invalid"}, {"activate", "--upgrade-proxy-mode", "direct"}, {"status", "--upgrade-proxy-mode", "system"}} {
+		if err := run(context.Background(), args, &bytes.Buffer{}, &bytes.Buffer{}, "test", testPaths(t), nil, operations{}); err == nil {
+			t.Fatalf("invalid arguments accepted: %v", args)
+		}
+	}
+}

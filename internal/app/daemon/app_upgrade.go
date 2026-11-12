@@ -32,13 +32,16 @@ type parsedDebugCommand struct {
 type upgradeCommandMode = upgradecontract.CommandMode
 
 type parsedUpgradeCommand struct {
-	Mode  upgradeCommandMode
-	Track install.ReleaseTrack
+	Mode      upgradeCommandMode
+	Track     install.ReleaseTrack
+	ProxyMode string
 }
 
 const (
 	upgradeCommandShowStatus  = upgradecontract.CommandShowStatus
 	upgradeCommandShowTrack   = upgradecontract.CommandShowTrack
+	upgradeCommandShowProxy   = upgradecontract.CommandShowProxy
+	upgradeCommandSetProxy    = upgradecontract.CommandSetProxy
 	upgradeCommandSetTrack    = upgradecontract.CommandSetTrack
 	upgradeCommandLatest      = upgradecontract.CommandLatest
 	upgradeCommandCodex       = upgradecontract.CommandCodex
@@ -57,7 +60,13 @@ type upgradeCheckRequest struct {
 }
 
 func (a *App) defaultReleaseLookup(ctx context.Context, track install.ReleaseTrack) (install.ReleaseInfo, error) {
+	client, err := a.upgradeHTTPClient()
+	if err != nil {
+		return install.ReleaseInfo{}, err
+	}
+	defer client.CloseIdleConnections()
 	return install.ResolveLatestRelease(ctx, install.ReleaseLookupOptions{
+		Client:         client,
 		Repository:     strings.TrimSpace(os.Getenv(config.CodexRemoteRepoEnv)),
 		ReleasesAPIURL: strings.TrimSpace(os.Getenv(config.CodexRemoteReleasesAPIURLEnv)),
 		Track:          track,
@@ -81,6 +90,10 @@ func (a *App) handleUpgradeDaemonCommand(command control.DaemonCommand) []eventc
 	parsed, err := parseUpgradeCommandText(command.Text)
 	if err != nil {
 		return upgradeUsageEvents(command.SurfaceSessionID, commandArgumentText(command.Text), err.Error())
+	}
+
+	if parsed.Mode == upgradeCommandShowProxy || parsed.Mode == upgradeCommandSetProxy {
+		return a.upgradeProxySettingsEventsLocked(command.SurfaceSessionID, parsed.ProxyMode)
 	}
 
 	stateValue, _, err := a.loadUpgradeStateLocked(true)

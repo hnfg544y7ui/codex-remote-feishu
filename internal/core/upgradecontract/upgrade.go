@@ -70,6 +70,8 @@ type CommandMode string
 const (
 	CommandShowStatus  CommandMode = "status"
 	CommandShowTrack   CommandMode = "track_show"
+	CommandShowProxy   CommandMode = "proxy_show"
+	CommandSetProxy    CommandMode = "proxy_set"
 	CommandSetTrack    CommandMode = "track_set"
 	CommandLatest      CommandMode = "latest"
 	CommandCodex       CommandMode = "codex"
@@ -79,8 +81,9 @@ const (
 )
 
 type ParsedCommand struct {
-	Mode  CommandMode
-	Track ReleaseTrack
+	Mode      CommandMode
+	Track     ReleaseTrack
+	ProxyMode string
 }
 
 type Presentation string
@@ -131,6 +134,8 @@ func ParseCommandText(text string) (ParsedCommand, error) {
 		switch fields[1] {
 		case "track":
 			return ParsedCommand{Mode: CommandShowTrack}, nil
+		case "proxy":
+			return ParsedCommand{Mode: CommandShowProxy}, nil
 		case "latest":
 			return ParsedCommand{Mode: CommandLatest}, nil
 		case "codex":
@@ -145,6 +150,12 @@ func ParseCommandText(text string) (ParsedCommand, error) {
 			return ParsedCommand{}, &ParseError{Code: ParseErrorUnsupportedSubcommand, Message: "不支持的 /upgrade 子命令。"}
 		}
 	case 3:
+		if fields[1] == "proxy" {
+			if fields[2] != "system" && fields[2] != "direct" {
+				return ParsedCommand{}, &ParseError{Code: ParseErrorUnsupportedSubcommand, Message: "升级代理只支持 system、direct。"}
+			}
+			return ParsedCommand{Mode: CommandSetProxy, ProxyMode: fields[2]}, nil
+		}
 		if fields[1] != "track" {
 			return ParsedCommand{}, &ParseError{Code: ParseErrorUnsupportedSubcommand, Message: "不支持的 /upgrade 子命令。"}
 		}
@@ -160,9 +171,9 @@ func ParseCommandText(text string) (ParsedCommand, error) {
 
 func PresentationForParsed(parsed ParsedCommand) (Presentation, bool) {
 	switch parsed.Mode {
-	case CommandShowStatus, CommandShowTrack:
+	case CommandShowStatus, CommandShowTrack, CommandShowProxy:
 		return PresentationPage, true
-	case CommandSetTrack, CommandLatest, CommandCodex, CommandCodexSource, CommandDev, CommandLocal:
+	case CommandSetProxy, CommandSetTrack, CommandLatest, CommandCodex, CommandCodexSource, CommandDev, CommandLocal:
 		return PresentationExecute, true
 	default:
 		return "", false
@@ -185,8 +196,18 @@ func RunsImmediately(text string) bool {
 func NormalizeMenuArgument(value string) (string, bool) {
 	mode := strings.ToLower(strings.TrimSpace(value))
 	switch mode {
-	case "latest", "local", "dev", "track", "codex-source":
+	case "latest", "local", "dev", "track", "proxy", "codex-source":
 		return mode, true
+	}
+
+	for _, prefix := range []string{"proxy_", "proxy-", "proxy "} {
+		if strings.HasPrefix(mode, prefix) {
+			value := strings.TrimPrefix(mode, prefix)
+			if value == "system" || value == "direct" {
+				return "proxy " + value, true
+			}
+			return "", false
+		}
 	}
 	for _, prefix := range []string{"track_", "track-", "track "} {
 		if !strings.HasPrefix(mode, prefix) {
@@ -219,7 +240,7 @@ type Definition struct {
 
 func BuildDefinition(policy CapabilityPolicy) Definition {
 	policy = NormalizeCapabilityPolicy(policy)
-	formHints := []string{"track", "latest", "codex-source"}
+	formHints := []string{"track", "latest", "proxy", "codex-source"}
 	examples := []string{"/upgrade", "/upgrade latest", "/upgrade codex-source"}
 	options := []Option{
 		{
@@ -244,13 +265,14 @@ func BuildDefinition(policy CapabilityPolicy) Definition {
 			Description: "选择 Remote 托管或既有 Codex；确认后重启本机 Remote 服务。",
 		},
 	}
+	options = append(options, Option{CommandText: "/upgrade proxy", MenuKey: "upgrade_proxy", Value: "proxy", Label: "升级网络", Description: "设置升级使用系统代理或直连。"})
 	if trackExample := preferredTrackExample(policy); trackExample != "" {
 		examples = append(examples, "/upgrade track "+trackExample)
 	}
 	for _, track := range policy.AllowedReleaseTracks {
 		options = append(options, trackOption(track))
 	}
-	description := "查看升级状态、查看或切换当前 release track；`/upgrade latest` 检查或继续 release 升级，`/upgrade codex-source` 选择 Codex 来源。"
+	description := "查看升级状态、查看或切换当前 release track；`/upgrade latest` 检查或继续 release 升级，`/upgrade proxy` 设置升级代理，`/upgrade codex-source` 选择 Codex 来源。"
 	if policy.AllowDevUpgrade {
 		formHints = append(formHints, "dev")
 		examples = append(examples, "/upgrade dev")
@@ -286,7 +308,7 @@ func BuildDefinition(policy CapabilityPolicy) Definition {
 
 func UsageSummary(policy CapabilityPolicy) string {
 	policy = NormalizeCapabilityPolicy(policy)
-	parts := []string{"`track`", "`latest`", "`codex-source`"}
+	parts := []string{"`track`", "`latest`", "`proxy [system|direct]`", "`codex-source`"}
 	if policy.AllowDevUpgrade {
 		parts = append(parts, "`dev`")
 	}
@@ -302,7 +324,7 @@ func UsageSyntax(policy CapabilityPolicy) string {
 	if len(policy.AllowedReleaseTracks) > 0 {
 		segments = append(segments, fmt.Sprintf("`/upgrade track [%s]`", strings.Join(trackStrings(policy.AllowedReleaseTracks), "|")))
 	}
-	segments = append(segments, "`/upgrade latest`", "`/upgrade codex-source`")
+	segments = append(segments, "`/upgrade latest`", "`/upgrade proxy [system|direct]`", "`/upgrade codex-source`")
 	if policy.AllowDevUpgrade {
 		segments = append(segments, "`/upgrade dev`")
 	}
