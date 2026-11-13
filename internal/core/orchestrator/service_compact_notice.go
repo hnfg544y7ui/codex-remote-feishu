@@ -44,6 +44,32 @@ func compactCompletionProgressTimelineItem(itemID string) control.ExecCommandPro
 	}
 }
 
+// A native start is progress, never a replayable completion notice. Manual
+// /compact already owns a foreground running card and must not create another.
+func (r *serviceProgressRuntime) renderCompactStarted(instanceID string, event agentproto.Event) []eventcontract.Event {
+	itemID := strings.TrimSpace(event.ItemID)
+	if itemID == "" || strings.TrimSpace(event.ThreadID) == "" || strings.TrimSpace(event.TurnID) == "" || r.service.compactBindingForTurn(instanceID, event.ThreadID, event.TurnID) != nil {
+		return nil
+	}
+	surface := r.service.surfaceForInitiator(instanceID, event)
+	if surface == nil || !r.service.surfaceAllowsProcessProgress(surface, instanceID, event.ThreadID, event.TurnID, event.ItemKind) {
+		return nil
+	}
+	progress := r.service.activeOrEnsureExecCommandProgress(surface, instanceID, event.ThreadID, event.TurnID)
+	for _, entry := range progress.Entries {
+		if entry.ItemID == itemID {
+			// Native item IDs are stable within a turn. A duplicate/late start cannot
+			// replace the same row, especially after its completion was observed.
+			return nil
+		}
+	}
+	progress.ItemID = itemID
+	execprogress.UpsertEntry(progress, state.ExecCommandProgressEntryRecord{
+		ItemID: itemID, Kind: "context_compaction", Label: "压缩", Summary: "正在压缩上下文…", Status: "running",
+	})
+	return r.service.emitExecCommandProgress(surface, progress, event.ThreadID, event.TurnID, false)
+}
+
 func (r *serviceProgressRuntime) renderCompactNotice(instanceID string, event agentproto.Event) []eventcontract.Event {
 	inst := r.service.root.Instances[instanceID]
 	if binding := r.service.compactBindingForTurn(instanceID, event.ThreadID, event.TurnID); binding != nil {

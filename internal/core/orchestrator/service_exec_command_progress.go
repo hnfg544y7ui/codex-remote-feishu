@@ -28,6 +28,8 @@ func (s *Service) handleProcessProgressItemStarted(instanceID string, event agen
 		return s.handleDelegatedTaskProgressUpdated(instanceID, event)
 	case "mcp_tool_call":
 		return s.handleMCPToolCallItemStarted(instanceID, event)
+	case "context_compaction":
+		return s.progress.renderCompactStarted(instanceID, event)
 	case "dynamic_tool_call":
 		return s.handleDynamicToolCallProgressStarted(instanceID, event)
 	default:

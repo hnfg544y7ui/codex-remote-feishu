@@ -1,8 +1,8 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-11-12`
-> Summary: 明确异步提问的回答表单、授权状态确认与实际凭据收集的区分，以及原轮次确认、回调失效边界。
+> Updated: `2026-11-13`
+> Summary: 明确异步提问的授权状态确认、回调失效边界，以及自动上下文压缩的开始与完成提示。
 
 ## 1. 文档定位
 
@@ -789,7 +789,7 @@ registry 保存服务端生成的 nonce，并绑定实际 actor、surface、已�
   - `mcp_tool_call` 会以 `MCP：server.tool` 的行级摘要进入同一张卡；完成态会补耗时，失败态会内联失败原因
   - `dynamic_tool_call` 会按 `tool + 参数` 的形式进入同一张卡；仅当前末尾连续出现同名 tool 时复用同一行并按首次出现顺序追加参数（例如 `fetch:first` -> `fetch:first second`）；失败态会在该组全部结束后落定
   - `file_change` 现在会以“修改 + 文件路径 + 绿色/红色 `+/-` 行数统计”的形式进入同一张卡；quiet 保持静默，normal 就会显示这一层文件行，verbose 则会在该文件行下面继续内联一个 diff fenced code block。这里仍是过程观察，不承担 final summary / authoritative diff 的最终审阅语义
-  - `context_compaction` 不再单独 append 一张 notice 卡；attached surface 命中 normal / verbose 时，会以 `整理：上下文已整理。` 单行并入共享过程卡
+  - `context_compaction` 不单独 append notice 卡：attached surface 在 normal / verbose / chatty 下收到真实 `item.started` 时，以 `压缩：正在压缩上下文…` 并入共享过程卡；`item.completed` 按同一 item ID 更新为 `压缩：上下文已压缩。`，沿用同一 active segment 的 message.patch 和限流。quiet 静默；显式 `/compact` 保留既有前台 owner-card，不重复创建过程行。无 surface 的开始事件不进入完成通知 replay；已有完成行收到重复或迟到的开始时不退回进行中。
   - 对没有用户可展示文本或图片结果的 `dynamic_tool_call`，当前实现保持静默，不再额外发“空结果”notice
   - 可见性当前分两层：`file_change` / `mcp_tool_call` / `context_compaction` 在 normal / verbose / chatty 可见，quiet 静默；`exec_command` / `web_search` / `dynamic_tool_call` 与 exploration 在 verbose / chatty 可见；reasoning 按上述四档独立投影。normal 继续保留 plan、final reply，以及会影响当前状态的共享过程项
   - 一旦首个非空 assistant 正文 delta 到达，orchestrator 就终结旧进度卡生命周期；文本即使尚未 flush 成可见块，后续工具也不会再 patch 文本之前的旧卡
@@ -1027,7 +1027,7 @@ Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/co
 - [internal/core/orchestrator/service_guardian_approved_notice_test.go](../../internal/core/orchestrator/service_guardian_approved_notice_test.go)
   - 已验证格式的自动审批通过通知保留原文状态和日志，不生成卡片、不切断共享过程卡，也不改变任务或 request gate。拒绝与未知格式继续显示“Codex 安全提醒”；这些 passive notice 没有新增 callback 或可执行动作。
 - [internal/core/orchestrator/service_compact_notice_test.go](../../internal/core/orchestrator/service_compact_notice_test.go)
-  - 锁定 `context_compaction` 已并入共享过程卡：attached normal / verbose 都会进入 `整理` 行，quiet 保持静默；无 surface 时的 replay 也只在 normal / verbose attach 下可见，并继续保持顶层 append-only
+  - 锁定 `context_compaction` 已并入共享过程卡：attached normal / verbose / chatty 的开始和完成更新同一 `压缩` 行，quiet 保持静默；无 surface 时仅保留既有完成 replay，attach 后可见完成状态，不补发过时的开始提示，并继续保持顶层 append-only
 - [internal/core/orchestrator/service_image_output_test.go](../../internal/core/orchestrator/service_image_output_test.go)
   - 锁定 `dynamic_tool_call` 只产出文字摘要 / 图片链接摘要，不再因图片 rich result 自动生成 `UIEventImageOutput`；`image_generation` 的真实图片输出会立即出站并切断当前 active shared-progress segment，空输出场景保持静默、不再补缺省 notice
 - [internal/core/orchestrator/service_target_picker_test.go](../../internal/core/orchestrator/service_target_picker_test.go)

@@ -1,7 +1,7 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-11-12`
+> Updated: `2026-11-13`
 > Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标；消息撤回按消息归属处理，不要求任务操作者身份。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
@@ -1431,6 +1431,7 @@ E3 Running
   -- remove instance --> 清 compact overlay；后续实例级移除语义继续按 detach / cleanup 处理，不再视为 compact 进行中
 
 `CompactRunning` overlay
+  -- `item.started(context_compaction)` --> 显式 `/compact` 保持既有 running owner-card；被动 compact 在 normal / verbose / chatty 的共享过程卡显示 `压缩：正在压缩上下文…`，不新建 compact overlay 或回调状态；quiet 静默，无 surface 时不缓存开始 replay
   -- `item.completed(context_compaction)` --> 若这是显式 `/compact` 的当前 turn，则直接把 compact owner-card patch 到 `completed`；若是被动 compact，则 quiet 保持静默，normal / verbose 继续并入共享过程卡
   -- turn.completed(remote_surface) --> 清 compact overlay；若前面没收到 compact item，则按 `turn.completed` 的最终状态 fallback 把 compact owner-card patch 到 `completed` 或 `failed`；随后继续 dispatchNext / finishSurfaceAfterWork
   -- compact 期间新文本 --> 先按普通 queued follow-up 入队，不立即派发
