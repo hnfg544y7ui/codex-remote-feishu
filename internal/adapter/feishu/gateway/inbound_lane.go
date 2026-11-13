@@ -455,13 +455,24 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 	chatType := xutil.StringValue(message.ChatType)
 	senderUserID := userIDFromMessage(event.Event.Sender)
 	gatewayID := strings.TrimSpace(env.GatewayID)
-	surfaceSessionID, nativeTopicID, topicRootID, routeErr := resolveInboundTopicSurface(env, message, senderUserID)
+	surfaceSessionID, nativeTopicID, topicRootID, knownTopic, routeErr := resolveInboundTopicSurface(env, message, senderUserID)
 	if routeErr != nil {
 		return PlannedInboundMessage{}, false, routeErr
 	}
 
 	inbound := InboundMetaFromMessageEvent(event)
-	if reason := groupMessageMentionGateReason(env, message, senderTypeFromMessageSender(event.Event.Sender)); reason != "" {
+	senderType := senderTypeFromMessageSender(event.Event.Sender)
+	reason := groupMessageMentionGateReason(env, message, senderType)
+	if knownTopic && strings.EqualFold(strings.TrimSpace(chatType), "group") && strings.EqualFold(senderType, "user") && senderUserID != "" && strings.TrimSpace(env.BotOpenID) != "" && len(message.Mentions) == 0 {
+		// Only the trusted registered topic for this gateway/chat/root owns this
+		// exception. Derived topic references and ordinary group replies still need
+		// the group's primary bot; mentions and bot senders keep their existing gate.
+		switch reason {
+		case "ignored_no_primary_gateway_lookup", "ignored_no_primary_gateway", "ignored_not_primary_gateway":
+			reason = ""
+		}
+	}
+	if reason != "" {
 		logInboundMessageIgnored(gatewayID, surfaceSessionID, inbound, message, reason)
 		return PlannedInboundMessage{}, false, nil
 	}

@@ -2203,6 +2203,7 @@ retained-offline overlay 额外规则：
 - topic outgoing operation 固定 `reply_in_thread=true` 及 immutable root；首个飞书回执补全 native thread ID，已知输出 message ID 用于重启后的关联。话题发送失败不得 fallback 到普通群发送，回执路由验证或持久化失败不得被当作成功完成绑定。
 - root/native ID、owner、title、bound thread、closed 与有限的近期输出 ID 集合随 surface resume 保存；恢复以话题自身 target 为准，不能由 room 全局 workspace 重写。现有内存队列不是可靠持久队列，重启恢复绑定不构成对未知执行结果的自动重放授权。
 - 空闲释放后的 topic on-demand recovery 接受文字和新 `ActionShowHistory`，普通群仍仅文字触发。启动恢复前复用 topic 权限与路由校验，并要求已建立 native ID、owner 和固定会话、持久化 ResumeThreadID 与 bound thread 相同；关闭、未绑定、路由不匹配的入口不得启动 worker。已有恢复 continuation 不被重复操作覆盖。历史 continuation 保留原 action，重新通过 ingress gate 后只查询原会话；异步卡片交付不丢弃 loading replacement。已封存的 page/detail 不触发恢复。
+- 入站先解析话题路由；仅持久化索引返回且通过 gateway/chat/root 校验的已知话题，允许身份明确的人类在没有任何 `@` 时绕过群主机器人条件。派生或未知话题不获得该标记，显式指向其他人的 mention、机器人发送者、身份缺失仍保留原 gate；话题创建者、关闭与会话绑定检查继续在 core ingress 生效。普通群和私聊不因该例外改变路由，群主机器人设置不写回、不跨主机同步。
 - 使用和限制见 [飞书群话题多会话](../implemented/feishu-topic-sessions.md)。主机器人权限与 `/coworkers` 仍是群级控制，不新增跨主机统一调度。
 
 ## 11. 待讨论取舍

@@ -6,6 +6,8 @@
 
 ## 1. 文档定位
 
+已登记话题内的人类普通消息和 `/use` 可不带 `@`，只在可信持久化映射匹配当前 gateway/chat/root 时放行；群主聊天仍要求主机器人或显式指向。该入站例外不新增卡片、回调或 owner 状态，不改变创建者与关闭话题的权限，也不会把“打开话题”解释为 `/primary on`。详情见 [飞书群话题多会话](../implemented/feishu-topic-sessions.md)。
+
 2026-11-10 `/steerall` 补全查询态：有候选但重连后缺少 turn ID 时，原命令卡显示只读查询进度；查询成功进入既有 requested/completed/failed 路径，失败、30 秒超时或会话漂移封成终态并保留队列。重复请求只提示原查询正在进行，不留下第二张永久 loading 卡。沿用当前 callback payload、命令来源与 daemon lifecycle 校验；文本入口追加反馈，不 PATCH 用户消息，不将“缺少当前轮次”显示为“没有排队消息”。
 
 这份文档描述的是 **当前代码已经实现** 的 Feishu 卡片 UI / callback 层行为。
