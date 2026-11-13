@@ -2195,7 +2195,8 @@ retained-offline overlay 额外规则：
 
 话题的 `ClaimedWorkspaceKey` 是独立项目选择元数据，不拥有 legacy `workspaceClaims` 的独占条目；legacy owner 的扫描、重建和释放排除话题。话题选择器不会因私聊或普通群持有项目而删除目录及新建会话选项。路由转换仍校验 instance/thread claim，已占用的实例不能复用，需要独立 headless context；具体会话占用仍拒绝。私聊和普通群的 workspace 独占规则不变。
 
-- 话题 surface 标识为 `feishu:<gateway>:topic:<chatID>~<rootMessageID>`。根消息必须来自群主聊天中新发送的 `/topic new [名称]` 文本，不能由旧卡回调或已有话题嵌套创建；同一根消息重复交付幂等。
+- 话题 surface 标识为 `feishu:<gateway>:topic:<chatID>~<rootMessageID>`。创建入口必须来自群主聊天中新发送的 `/topic new [名称]` 文本，不能由旧卡回调或已有话题嵌套创建。新入口由指定机器人另发真实名称的富文本标题消息作为根；原命令只指定机器人、名称和人类创建者，不作为新话题输出位置。旧版命令根身份原样保留。
+- daemon 在状态目录 `feishu-topic-creations/` 按 gateway/chat/命令 ID 保存 write-ahead 创建意图，校验创建者和名称，群发使用固定 UUID。标题回执保存成功才将 action 的根消息交给 core 创建话题；同命令重复或重启后只复用已确认根，不能把发送者改成机器人。标题发送释放 App.mu，重复入站看到 pending 记录时不得重发；超时、回执缺失、写盘失败和重启后 pending 均保持未知且不绑定，允许用户查看群消息后用新命令恢复，不降级到原命令根。回执不意味着 native topic 已建立，仍须欢迎卡线程回执及原有持久化校验。
 - 话题持有独立的会话选择、队列、附件和 pending request；不从 room 全局 workspace 或群主聊天复制 target。不同话题允许各选项目，但共享本群运行名额；创建不隐式改变 `/coworkers` 上限。名额不足时话题任务留在自己的队列，同一话题仍串行。
 - 话题创建者为固定控制者。实际 gateway/chat/root/native topic 与 surface 不匹配、话题尚未登记或已关闭时 fail closed；转发卡不能凭 payload 接管话题。首次绑定后允许显式 `/use` 在空闲时切换同 backend/profile 的已有会话；运行、派发、排队、待确认、暂存输入、自动续跑或恢复中的话题拒绝改绑。开卡与最终确认之间新发生的任务也会重新拦截。选择已占用会话不发强踢卡。`/new`、`/follow`、模式切换、`/detach` 和 `/workspace detach` 仍不能绕过这条入口。
 - 话题切换使用 service 内存中的 exact from/to intent；只有经过 `/use` 的候选目标可越过底层 pinned guard。启动新 headless 时保留旧 attachment/claims/workspace/runtime refs 与旧 bound，候选仅放在 PendingHeadless。实例可用且再次通过空闲和目标 claim 检查后，通过显式 `RebindTopic(expectedOldThreadID, entry)` CAS 保存新目标，再一次提交 live route/claims；保存失败不释放旧 claims。普通 Put/ReplaceAll、恢复投影仍拒绝任意换绑或改变 owner/native/root/closed，切换不改变后端/配置档。失败/超时清除 intent；迟到失败接入释放候选 worker。未完成切换的普通持久化只保留旧 committed target，重启不会恢复候选或重放改绑意图。
@@ -2205,6 +2206,7 @@ retained-offline overlay 额外规则：
 - 空闲释放后的 topic on-demand recovery 接受文字和新 `ActionShowHistory`，普通群仍仅文字触发。启动恢复前复用 topic 权限与路由校验，并要求已建立 native ID、owner 和固定会话、持久化 ResumeThreadID 与 bound thread 相同；关闭、未绑定、路由不匹配的入口不得启动 worker。已有恢复 continuation 不被重复操作覆盖。历史 continuation 保留原 action，重新通过 ingress gate 后只查询原会话；异步卡片交付不丢弃 loading replacement。已封存的 page/detail 不触发恢复。
 - 入站先解析话题路由；仅持久化索引返回且通过 gateway/chat/root 校验的已知话题，允许身份明确的人类在没有任何 `@` 时绕过群主机器人条件。派生或未知话题不获得该标记，显式指向其他人的 mention、机器人发送者、身份缺失仍保留原 gate；话题创建者、关闭与会话绑定检查继续在 core ingress 生效。普通群和私聊不因该例外改变路由，群主机器人设置不写回、不跨主机同步。
 - 使用和限制见 [飞书群话题多会话](../implemented/feishu-topic-sessions.md)。主机器人权限与 `/coworkers` 仍是群级控制，不新增跨主机统一调度。
+- 未 @ 且带 native topic ID 的未知话题先于群主机器人 gate 被忽略；room primary 不因群级默认权认领另一机器人话题。显式 @ 的未知话题仍可返回引导；无 native ID 的普通引用回复沿用原群级规则。
 
 ## 11. 待讨论取舍
 

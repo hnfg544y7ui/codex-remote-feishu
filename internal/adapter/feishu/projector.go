@@ -16,16 +16,18 @@ import (
 type OperationKind string
 
 const (
-	OperationSendText       OperationKind = "send_text"
-	OperationSendCard       OperationKind = "send_card"
-	OperationUpdateCard     OperationKind = "update_card"
-	OperationSendImage      OperationKind = "send_image"
-	OperationDeleteMessage  OperationKind = "delete_message"
-	OperationAddReaction    OperationKind = "add_reaction"
-	OperationRemoveReaction OperationKind = "remove_reaction"
+	OperationCreateTopicRoot OperationKind = "create_topic_root"
+	OperationSendText        OperationKind = "send_text"
+	OperationSendCard        OperationKind = "send_card"
+	OperationUpdateCard      OperationKind = "update_card"
+	OperationSendImage       OperationKind = "send_image"
+	OperationDeleteMessage   OperationKind = "delete_message"
+	OperationAddReaction     OperationKind = "add_reaction"
+	OperationRemoveReaction  OperationKind = "remove_reaction"
 )
 
 type Operation struct {
+	IdempotencyKey           string
 	Kind                     OperationKind
 	GatewayID                string
 	SurfaceSessionID         string

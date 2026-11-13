@@ -462,6 +462,12 @@ func PlanInboundMessageEvent(env InboundEnv, event *larkim.P2MessageReceiveV1) (
 
 	inbound := InboundMetaFromMessageEvent(event)
 	senderType := senderTypeFromMessageSender(event.Event.Sender)
+	if strings.EqualFold(strings.TrimSpace(chatType), "group") && nativeTopicID != "" && !knownTopic && len(message.Mentions) == 0 {
+		// A room primary does not own another bot's topic. Explicit mentions can
+		// still request guidance; ordinary quoted group messages keep their route.
+		logInboundMessageIgnored(gatewayID, surfaceSessionID, inbound, message, "ignored_unregistered_topic")
+		return PlannedInboundMessage{}, false, nil
+	}
 	reason := groupMessageMentionGateReason(env, message, senderType)
 	if knownTopic && strings.EqualFold(strings.TrimSpace(chatType), "group") && strings.EqualFold(senderType, "user") && senderUserID != "" && strings.TrimSpace(env.BotOpenID) != "" && len(message.Mentions) == 0 {
 		// Only the trusted registered topic for this gateway/chat/root owns this

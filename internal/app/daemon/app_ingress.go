@@ -295,6 +295,14 @@ func (a *App) handleActionLocked(ctx context.Context, action control.Action, opt
 			return nil
 		}
 	}
+	preparedTopicAction, topicErr := a.prepareNamedTopicLocked(ctx, action)
+	if topicErr != nil {
+		a.ensureSurfaceRouteForNotice(action)
+		a.handleUIEventsLocked(ctx, []eventcontract.Event{{Kind: eventcontract.KindNotice, GatewayID: action.GatewayID,
+			SurfaceSessionID: action.SurfaceSessionID, Notice: &control.Notice{Code: "topic_creation_failed", Text: topicErr.Error()}}})
+		return nil
+	}
+	action = preparedTopicAction
 	previousCoworkersLimit := (*int)(nil)
 	if action.Kind == control.ActionCoworkersCommand {
 		previousCoworkersLimit = a.service.FeishuRoomConcurrencyLimit(action.SurfaceSessionID)

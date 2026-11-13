@@ -34,6 +34,20 @@ func boundTopicInboundEnv(t *testing.T) InboundEnv {
 	return env
 }
 
+func TestRoomPrimaryDoesNotOwnUnregisteredNativeTopic(t *testing.T) {
+	env := boundTopicInboundEnv(t)
+	env.PrimaryGatewayForChat = func(string) string { return env.GatewayID }
+	env.ResolveTopicSurface = func(string, string, string) string { return "" }
+	event := boundTopicInboundEvent("text", `{"text":"/use"}`)
+	if plan, ok, err := PlanInboundMessageEvent(env, event); err != nil || ok || plan.Action != nil || plan.Queue != nil {
+		t.Fatal("room primary accepted another bot's unmentioned topic")
+	}
+	event.Event.Message.ThreadId = stringValueRef("")
+	if _, ok, err := PlanInboundMessageEvent(env, event); err != nil || !ok {
+		t.Fatal("ordinary quoted group reply lost its primary route")
+	}
+}
+
 func TestBoundTopicWithoutMentionRoutesAllInputsWithoutPrimary(t *testing.T) {
 	for _, primary := range []string{"other-gateway", "", "no-lookup"} {
 		t.Run(primary, func(t *testing.T) {

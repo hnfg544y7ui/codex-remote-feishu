@@ -22,6 +22,9 @@ func TestInboundTopicMessageRoutesAllInputTypes(t *testing.T) {
 			env := naturalGoalInboundEnv(func(_, _ string) {})
 			env.BotOpenID = "ou_bot"
 			env.PrimaryGatewayForChat = func(string) string { return "app-goal" }
+			env.ResolveTopicSurface = func(string, string, string) string {
+				return feishuidentity.TopicRef("app-goal", "oc_1", "om_root").SurfaceID()
+			}
 			env.DownloadImage = func(context.Context, string, string) (string, string, error) { return "image.png", "image/png", nil }
 			env.DownloadFile = func(context.Context, string, string, string) (string, error) { return "file.txt", nil }
 			ev := naturalGoalP2PEvent("om_input", "hello")
@@ -92,6 +95,9 @@ func TestInboundTopicSlashCommandKeepsNativeMetadata(t *testing.T) {
 	env := naturalGoalInboundEnv(func(_, _ string) {})
 	env.BotOpenID = "ou_bot"
 	env.PrimaryGatewayForChat = func(string) string { return "app-goal" }
+	env.ResolveTopicSurface = func(string, string, string) string {
+		return feishuidentity.TopicRef("app-goal", "oc_1", "om_root").SurfaceID()
+	}
 	ev := naturalGoalP2PEvent("om_input", "/status")
 	ev.Event.Message.ChatType = stringValueRef("group")
 	ev.Event.Message.ChatId = stringValueRef("oc_1")

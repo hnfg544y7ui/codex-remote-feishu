@@ -168,6 +168,9 @@ func (g *LiveGateway) Apply(ctx context.Context, operations []Operation) error {
 }
 
 func (g *LiveGateway) applyOne(ctx context.Context, operation *Operation) error {
+	if operation.Kind == OperationCreateTopicRoot {
+		return g.createNamedTopicRoot(ctx, operation)
+	}
 	if handled, err := g.applyTopicOperation(ctx, operation); handled {
 		return err
 	}

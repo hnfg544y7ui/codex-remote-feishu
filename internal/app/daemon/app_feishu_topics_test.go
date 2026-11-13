@@ -142,7 +142,7 @@ func TestTopicPersistenceFailurePreventsIngressDispatch(t *testing.T) {
 		GatewayID: "app-1", ChatID: "oc_room", ActorUserID: "ou_owner", MessageID: "om_root", Value: "new topic", Text: "/topic new topic"})
 	surfaceID := feishuidentity.TopicRef("app-1", "oc_room", "om_root").SurfaceID()
 	surface := app.topicSurfaceLocked(surfaceID)
-	if surface == nil || !surface.FeishuTopicClosed || gateway.calls != 0 {
+	if surface != nil || gateway.calls != 1 || len(gateway.captured) != 1 || gateway.captured[0].Kind == feishu.OperationCreateTopicRoot {
 		t.Fatalf("persist failure dispatched: surface=%#v calls=%d", surface, gateway.calls)
 	}
 	if len(app.service.ActiveRemoteTurns()) != 0 || len(app.service.PendingRemoteTurns()) != 0 {
