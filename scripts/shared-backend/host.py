@@ -69,7 +69,7 @@ def handler(owner, loop, token):
                     raise ValueError('Invalid request size')
                 self.connection.settimeout(5)
                 request = json.loads(self.rfile.read(length))
-                if not isinstance(request, dict) or set(request) - {'version', 'expectedVersion', 'rollback', 'immediate', 'confirmationToken'}:
+                if not isinstance(request, dict) or set(request) - {'version', 'expectedVersion', 'rollback', 'immediate', 'confirmationToken', 'upgradeProxyMode'}:
                     raise ValueError('Invalid maintenance request')
                 if 'rollback' in request and type(request['rollback']) is not bool:
                     raise ValueError('Invalid rollback request')

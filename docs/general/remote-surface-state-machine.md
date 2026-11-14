@@ -1,7 +1,7 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-11-13`
+> Updated: `2026-11-14`
 > Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标；消息撤回按消息归属处理，不要求任务操作者身份。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
@@ -1590,6 +1590,8 @@ Remote release/local/dev 自升级沿用 `prepared -> switching -> observing -> 
 ### 5.3.3 升级网络设置
 
 `/upgrade proxy` 只打开设置页；`/upgrade proxy system|direct` 保存 `config.json` 的 `upgrade.proxyMode`，默认 `system`。设置只影响 Remote/Codex 的检查更新与下载，不改变飞书、模型和 loopback 控制连接。Windows 的 `system` 读取当前系统代理；其他系统使用服务捕获的代理环境；`direct` 显式关闭升级请求的代理。
+
+共享宿主 HTTP 升级入口必须允许并原样转发客户端的 `upgradeProxyMode`；声明支持却在请求白名单拒绝该字段属于协议错误。非法模式继续由执行层在维护锁和原生操作前拒绝；未知字段与立即升级预览的执行字段限制保持不变。
 
 修改前检查 Remote metadata/download、standalone/shared Codex 维护和来源切换。运行中的检查、下载、维护或 `prepared/switching/observing` 事务均拒绝修改；只读页面保持可访问。读取安装状态会短暂释放 daemon mutex，因此重新取得锁后还要复查 runtime busy 条件。设置保存后只对后续检查和下载生效，不重启服务，不释放或接管 surface/queue。配置读取或写入失败显示明确错误，禁止静默回退到其他网络模式。
 
