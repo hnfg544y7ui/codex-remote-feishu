@@ -1,7 +1,7 @@
 # 共享 Codex 后端版本维护
 
 > Type: `implemented`
-> Updated: `2026-11-12`
+> Updated: `2026-11-14`
 > Summary: 共享宿主维护、立即升级与恢复边界；升级网络策略独立于模型代理，显式协商宿主支持。
 
 ## 使用入口
@@ -17,6 +17,8 @@
 `/upgrade` → “升级网络”支持“使用系统代理”和“不使用代理”（`/upgrade proxy system|direct`），持久化在 `config.json` 的 `upgrade.proxyMode`，默认 `system`。检查和下载使用独立 transport；Windows 按当前用户系统代理设置解析，其他平台使用服务保存的代理环境，`direct` 明确禁用代理。不更改飞书、模型和本机维护控制的网络设置。
 
 共享宿主 `/v1/status` 必须报告 `upgradeProxySupported: true`；新 Remote 在不支持时明确提示更新宿主脚本，在任何维护操作前拒绝执行，不假设旧宿主会处理新字段。`/v1/upgrade` 的 `upgradeProxyMode` 只允许 `system` 或 `direct`；宿主在锁、立即升级确认消费和后台任务操作前验证。旧客户端省略此字段时保留旧宿主下载行为。
+
+HTTP 入口的升级请求白名单与客户端 JSON 保持一致，允许并原样传递 `upgradeProxyMode`，不能仅声明能力却在入口拒绝该字段。未知字段仍拒绝；立即升级预览仅接受目标与预期版本，不接受升级执行字段。回归通过真实 HTTP 入口覆盖两种代理模式、旧客户端请求及非法字段在维护前被拒绝的边界。
 
 宿主将策略传给 `codex-runtime prepare --upgrade-proxy-mode <模式>`。CLI 仅在 metadata 与 npm 下载阶段应用该策略，原生 CLI 校验、能力探测和候选启动继续使用原模型环境；策略不写入 CLI 选择状态。npm 显式覆盖代理配置，避免用户 `.npmrc` 覆盖“不使用代理”。Windows PAC/WPAD 可用于 HTTP 检查；npm 无法安全表达按 URL 选择代理时明确返回错误，不静默直连。切换设置无需重启；维护期间禁止改变设置。
 
