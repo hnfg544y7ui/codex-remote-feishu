@@ -71,6 +71,32 @@ class EnvironmentTests(unittest.TestCase):
         self.assertNotIn('NOTIFY_SOCKET', result)
         self.assertEqual(result['CODEX_CLI_PATH'], '/selected/codex')
 
+    def test_browser_access_context_follows_verified_app_and_clears_stale_base(self):
+        browser = {'BROWSER_USE_ACCESS_PIPE_PATH': 'synthetic-browser-pipe',
+                   'BROWSER_USE_ACCESS_EXECUTOR_ID': 'synthetic-browser-executor',
+                   'BROWSER_USE_ACCESS_VERIFYING_IDENTITY': 'synthetic-browser-identity'}
+        base = dict.fromkeys(browser, 'stale-browser-context')
+        self.env.update(browser, OTHER_SECRET='never-forward')
+        with patch.object(app_windows, 'discover', return_value=self.snapshot) as discover:
+            snapshot = app.discover({'mode': 'windows'})
+        self.assertTrue(set(browser).issubset(discover.call_args.args[1]))
+        result = app.compose(base, self.config, snapshot, '/selected/codex')
+        self.assertEqual({key: result.get(key) for key in browser}, browser)
+        self.assertNotIn('OTHER_SECRET', result)
+        for snapshot in (None, dict(self.snapshot, environment={})):
+            result = app.compose(base, self.config, snapshot, '/selected/codex')
+            self.assertTrue(all(key not in result for key in browser))
+        self.assertEqual(set(base.values()), {'stale-browser-context'})
+
+    def test_browser_access_context_rotation_changes_refresh_fingerprint(self):
+        for key in ('BROWSER_USE_ACCESS_PIPE_PATH', 'BROWSER_USE_ACCESS_EXECUTOR_ID',
+                    'BROWSER_USE_ACCESS_VERIFYING_IDENTITY'):
+            with self.subTest(key=key):
+                original = app.fingerprint(self.snapshot)
+                self.env[key] = 'rotated-synthetic-browser-context'
+                self.assertNotEqual(original, app.fingerprint(self.snapshot))
+                self.env.pop(key)
+
     def test_current_app_external_node_is_accepted_but_old_base_node_is_ignored(self):
         node = self.root / 'current-app-cache-node'
         node.touch()
