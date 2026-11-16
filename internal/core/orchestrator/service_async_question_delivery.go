@@ -134,6 +134,10 @@ func (s *Service) continueAsyncQuestion(surface *state.SurfaceConsoleRecord, q *
 func (s *Service) tickAsyncQuestions(now time.Time) []eventcontract.Event {
 	var events []eventcontract.Event
 	for id, q := range s.turns.asyncQuestions {
+		if q.NeedsProjection && q.MessageID != "" {
+			q.NeedsProjection = false
+			events = append(events, s.asyncQuestionCard(q, false))
+		}
 		terminal := q.Phase == "answered" || q.Phase == "expired" || q.Phase == "unknown" || q.Phase == "sensitive"
 		if terminal {
 			if now.Sub(q.CreatedAt) > 24*time.Hour {

@@ -1,7 +1,7 @@
 package codex
 
 import (
-	"strconv"
+	"encoding/json"
 	"strings"
 	"unicode/utf8"
 
@@ -45,7 +45,9 @@ func extractAsyncQuestions(itemKind, itemID string, item map[string]any) []agent
 			if strings.TrimSpace(itemID) == "" {
 				return nil
 			}
-			id = "async:" + itemID + ":" + strconv.Itoa(index)
+			// Match the identity emitted by desktop question replies exactly.
+			encoded, _ := json.Marshal([]any{"request_user_input_async", itemID, index})
+			id = string(encoded)
 		}
 		if !validAsyncQuestionText(id, maxAsyncQuestionID) || seen[id] {
 			return nil

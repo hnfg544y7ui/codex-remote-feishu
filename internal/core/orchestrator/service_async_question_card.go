@@ -22,6 +22,8 @@ type asyncQuestionRecord struct {
 	ThreadID, TurnID, ItemID, MessageID, ReplyToMessageID      string
 	Questions                                                  []agentproto.AsyncQuestion
 	SubmittedAnswers                                           []asyncQuestionAnswer
+	ExternalAnswers                                            map[string]string
+	NeedsProjection                                            bool
 	Text, Phase, Status, Answer, CommandID, QueueID            string
 	Revision                                                   int
 	CreatedAt, ExpiresAt, Deadline                             time.Time
@@ -167,7 +169,7 @@ func (s *Service) asyncQuestionCard(q *asyncQuestionRecord, attention bool) even
 	}
 	if editable {
 		view.AsyncQuestion = &control.AsyncQuestionCardView{ID: q.ID, Revision: q.Revision, CanSubmit: q.Phase != "continue", CanContinue: q.Phase == "continue"}
-		for _, question := range q.Questions {
+		for _, question := range remainingAsyncQuestions(q) {
 			view.AsyncQuestion.Questions = append(view.AsyncQuestion.Questions, control.AsyncQuestionCardQuestion{ID: question.ID, Title: question.Title, Options: append([]string(nil), question.Options...)})
 		}
 	}
@@ -242,12 +244,12 @@ func (s *Service) handleAsyncQuestionAction(surface *state.SurfaceConsoleRecord,
 	if q.Phase == "continue" {
 		return notice(surface, "async_question_stale", "原轮次已结束，请点击“在原会话继续”。")
 	}
-	answer, submitted, err := formatAsyncQuestionAnswer(q.Questions, action.AsyncQuestionAnswers)
+	answer, submitted, err := formatAsyncQuestionAnswer(remainingAsyncQuestions(q), action.AsyncQuestionAnswers)
 	if err != nil {
 		return notice(surface, "async_question_invalid", err.Error())
 	}
 	q.Answer, q.Phase = answer, "checking"
-	q.SubmittedAnswers = submitted
+	q.SubmittedAnswers = append(externalAsyncQuestionReceipts(q), submitted...)
 	q.Revision++
 	q.Status = "正在只读确认原轮次；回答尚未发送。"
 	q.CommandID, q.Deadline = "relay-async-question-probe-"+s.nextAgentCommandID(), s.now().Add(30*time.Second)

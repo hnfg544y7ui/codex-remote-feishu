@@ -901,6 +901,7 @@ func (s *Service) ApplyAgentEvent(instanceID string, event agentproto.Event) []e
 		events = append(events, compactEvents...)
 		return s.filterEventsForSurfaceVisibility(events)
 	case agentproto.EventItemStarted:
+		preface = append(preface, s.resolveExternalAsyncQuestions(instanceID, event)...)
 		if s.maybeApplyReviewLifecycleItem(instanceID, event) {
 			return s.filterEventsForSurfaceVisibility(preface)
 		}
@@ -918,6 +919,7 @@ func (s *Service) ApplyAgentEvent(instanceID string, event agentproto.Event) []e
 		s.progress.recordTurnFileChangeSnapshot(instanceID, event)
 		return s.filterEventsForSurfaceVisibility(preface)
 	case agentproto.EventItemCompleted:
+		preface = append(preface, s.resolveExternalAsyncQuestions(instanceID, event)...)
 		if s.maybeApplyReviewLifecycleItem(instanceID, event) {
 			return s.filterEventsForSurfaceVisibility(preface)
 		}

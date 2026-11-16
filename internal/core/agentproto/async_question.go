@@ -7,3 +7,10 @@ type AsyncQuestion struct {
 	Title   string   `json:"title"`
 	Options []string `json:"options,omitempty"`
 }
+
+// AsyncQuestionAnswer is an accepted native user-message reply, not a command
+// to submit an answer or a native RPC response.
+type AsyncQuestionAnswer struct {
+	QuestionItemID string `json:"questionItemId"`
+	Answer         string `json:"answer"`
+}

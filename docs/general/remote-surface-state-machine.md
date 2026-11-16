@@ -1,7 +1,7 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-11-14`
+> Updated: `2026-11-16`
 > Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标；消息撤回按消息归属处理，不要求任务操作者身份。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
@@ -2182,6 +2182,7 @@ retained-offline overlay 额外规则：
 - turn 归属由本连接的请求 ID 与成功响应内 turn ID 建立；通知先于响应时有界缓存（128 帧/1 MiB、15 秒），竞态、超限或归属无法证明均明确失败并关闭连接。其他客户端在已订阅 thread 上运行的 turn 投影为 `local_ui`，不消费 Remote pending owner；不同 thread 的通知不投影。
 - native 工具/审批只有已证明属于本连接 Remote turn 的请求才能进入飞书；外部请求和对应 resolved 广播不进入可回答 gate。已处理或已 resolved 的请求不能重复回答。已有同 thread writer 仲裁仍成立：两端交替运行，不支持同 thread 同时运行两个 turn。
 - App 的 `agentMessage(delivery=async, questions 非空)` 是异步提问通知，不是 native RPC request。合法 typed questions 在 item 完成时渲染“需要你回答”的 page-owner 卡片，首次精准 @ 实际任务发起者，后续修改同卡不重复 @。不等 turn 结束、不标记最终回复、不创建 pending request 或 capture gate；quiet 模式仍展示提问。无结构或超预算的提问保留文本＋单条回答 `ThumbsUp` 的旧入口，不提交部分问题。外部审批归属规则不变。
+- 其他客户端通过原生 `userMessage` 提交的结构化异步回答，由 typed `asyncQuestionAnswers` 事件同步到同 instance/thread/question ID 的卡片。无显式 ID 的问题沿用原生工具调用与题目索引编码，不另造本地身份。完整回答封存表单，部分回答显示只读回执并仅保留剩余输入；重复通知、其他 thread/instance、助手文本和内部 helper 不改变该卡。取消尚未发送的检查命令并拒绝其迟到结果；不合成 steer、队列项或 ACK，不触碰独立 native pending-request gate。初次交付的竞态通过待投影标记及 tick 收敛，敏感/终态不重新开放。
 - 回答卡的唯一服务端记录绑定 actor、surface、已交付 MessageID、instance、thread、原 turn、源 item、nonce、revision；提交校验当前绑定、claim、在线、可见性和 daemon lifecycle，禁止重定向到其他会话。`pending/deferred -> checking` 先执行 bounded latest-turn 只读查询，原 turn 仍 active/inProgress 才 `submitting -> answered` 定向 steer；后端 ACK 前不称接收成功。专用 command correlation 不绑定普通 pending turn/steer，不消费或重排其他消息。
 - 若原 turn 已结束或变化，进入 `continue`，普通回答暂留内存，用户必须点击“在原会话继续”，才以 frozen original-thread 队列项进入正常队尾；不消耗 staged files，不走自然语言 Goal 解释，不自动插入另一个 active turn。`queued` 观察自己的 queue ID，只有 running/completed 才标记 answered。其他 native pending request、capture、合同刷新或 headless 准备期间，保留 Continue 按钮与未入队状态，待用户解决后重试。
 - `checking` 30 秒超时清空答案并返回可重新填写的 pending；`submitting` 超时、失败或断链进入 `unknown`，清空缓存且不自动重发，提示核对原会话。重复/旧 revision/错误 actor/message 的动作不能发送回答。pending/deferred/continue 30 分钟过期，切换绑定或离线时失效，Remote 重启后旧 nonce 失效；不暂停或取消原任务。终态 dedup 最多保留 24 小时，总 registry 上限 256，超限回到原文本方式。敏感问题仅提示使用受控授权渠道，不收集密码/密钥。三种卡片动作立即 ACK 飞书，状态通过正常原消息更新，不使用同步 callback replacement。

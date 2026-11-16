@@ -19,7 +19,7 @@ func TestAsyncQuestionNotificationPreservesDeliveryWithoutCreatingRPCRequest(t *
 	if event.Kind != agentproto.EventItemCompleted || event.RequestID != "" || event.RequestPrompt != nil || event.Metadata["messageDelivery"] != "async" || event.Metadata["hasAsyncQuestions"] != true {
 		t.Fatalf("async question was lost or converted to an RPC request: %+v", event)
 	}
-	want := []agentproto.AsyncQuestion{{ID: "async:call-question:0", Title: "是否允许升级？", Options: []string{"允许", "暂不"}}}
+	want := []agentproto.AsyncQuestion{{ID: `["request_user_input_async","call-question",0]`, Title: "是否允许升级？", Options: []string{"允许", "暂不"}}}
 	if !reflect.DeepEqual(event.AsyncQuestions, want) {
 		t.Fatalf("typed questions lost their source identity: got %#v, want %#v", event.AsyncQuestions, want)
 	}
@@ -47,7 +47,7 @@ func TestAsyncQuestionTypedIdentitySurvivesStartedCompletedAndJSON(t *testing.T)
 	want := []agentproto.AsyncQuestion{
 		{ID: "opaque question id", Title: "First", Options: []string{"One", "Two"}},
 		{ID: `["request_user_input_async","call-a",1]`, Title: "Second"},
-		{ID: "async:source-item:2", Title: "Third"},
+		{ID: `["request_user_input_async","source-item",2]`, Title: "Third"},
 	}
 	tr := NewTranslator("inst")
 	tr.currentThreadID = "selected-before-notification"

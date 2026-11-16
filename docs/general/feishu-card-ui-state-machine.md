@@ -1,7 +1,7 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-11-13`
+> Updated: `2026-11-16`
 > Summary: 明确异步提问的授权状态确认、回调失效边界，以及自动上下文压缩的开始与完成提示。
 
 ## 1. 文档定位
@@ -462,6 +462,10 @@ MCP request 卡片当前新增的可视语义：
   - 若这条自动派发被本地 Codex 拒绝，当前卡会继续保持 sealed，只把状态文案改成“自动回写失败，可使用 `/stop` 结束本轮”，不会错误退回交互态
 
 ### 4.3.1 异步提问回答卡
+
+跨端回答以原生 `userMessage` 中完整的 `send_user_message_question_reply` 结构为准，按 instance、thread 和 questionItemId 精确关联；不从普通聊天、助手正文或工具输出猜测回答。无显式问题 ID 时使用原生 `["request_user_input_async", sourceItemId, index]` 编码，与 App 回执及飞书提交使用同一身份。其他端已回答的问题在原卡显示只读回执，全部回答后封存卡片；部分回答只保留未回答问题的输入，旧 revision 不能再提交已答问题。该同步不发后端命令，不消费或重排消息队列，不重复 @。未发送的本地 probe 可被原生回执取消，已发送或已入队的回答仍遵循原有 ACK/队列确认路径，敏感或已封存卡片不被重新开放。
+
+原生回答早于飞书初次消息交付时保留待投影标记，取得真实 MessageID 后通过 tick 补上同卡只读更新；重复 started/completed 通知不重复 patch。重启前的旧生命周期卡片仍按既有失效规则处理，不从历史文本重建可交互表单。
 
 明确标记为 async 且携带合法 typed questions 的提问，复用 `FeishuPageView` 渲染“需要你回答”卡片。问题必须来自结构化协议字段，不从自然语言问号猜测，也不把异步提问伪装成同步 `request_user_input`：原任务继续执行，不新增 native RPC response 或 pending-request gate。无结构、结构损坏或超出预算的 legacy 提问保留原文本与 👍 插入回答方式，不产生不完整表单。
 

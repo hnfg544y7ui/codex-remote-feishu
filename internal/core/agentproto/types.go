@@ -126,6 +126,7 @@ type Event struct {
 	Problem              *ErrorInfo                    `json:"problem,omitempty"`
 	RequestPrompt        *RequestPrompt                `json:"requestPrompt,omitempty"`
 	AsyncQuestions       []AsyncQuestion               `json:"asyncQuestions,omitempty"`
+	AsyncQuestionAnswers []AsyncQuestionAnswer         `json:"asyncQuestionAnswers,omitempty"`
 	MCPOAuthLogin        *MCPOAuthLoginEvent           `json:"mcpOAuthLogin,omitempty"`
 	MCPToolProgress      *MCPToolCallProgress          `json:"mcpToolProgress,omitempty"`
 	ApprovalReview       *AutoApprovalReview           `json:"approvalReview,omitempty"`
