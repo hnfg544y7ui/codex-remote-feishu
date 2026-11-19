@@ -77,6 +77,7 @@ type Service struct {
 	goalUserCommands           map[string]goalUserCommand
 	pendingGoalFingerprints    map[string]pendingGoalFingerprint
 	renameCommands             map[string]renameCommandBinding
+	threadSettingsCommands     map[string]threadSettingsCommandBinding
 	topicThreadSwitches        map[string]*topicThreadSwitch
 	topicThreadRebindCommitter TopicThreadRebindCommitter
 }
@@ -672,6 +673,8 @@ func (s *Service) ApplyAgentEvent(instanceID string, event agentproto.Event) []e
 		return s.filterEventsForSurfaceVisibility(append(preface, s.applyRenameCommandResult(instanceID, event)...))
 	case agentproto.EventThreadSettingsUpdated:
 		return s.filterEventsForSurfaceVisibility(append(preface, s.applyThreadSettingsUpdate(instanceID, event)...))
+	case agentproto.EventThreadSettingsSetResult:
+		return s.filterEventsForSurfaceVisibility(append(preface, s.applyThreadSettingsCommandResult(instanceID, event)...))
 	case agentproto.EventCapabilityStateUpdated:
 		return s.filterEventsForSurfaceVisibility(append(preface, s.applyCapabilityStateUpdate(instanceID, event)...))
 	case agentproto.EventThreadsSnapshot:

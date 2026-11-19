@@ -88,7 +88,7 @@ func commandConfigBaseSummarySections(view FeishuCatalogConfigView) []FeishuCard
 		return sections
 	case FeishuCommandModel:
 		sections := promptValueCardSections(view)
-		if value := strings.TrimSpace(view.OverrideExtraValue); value != "" {
+		if value := strings.TrimSpace(view.OverrideExtraValue); value != "" && !view.SharedThreadSettings {
 			sections = append(sections, singleValueCardSection("附带推理覆盖", value))
 		}
 		return sections
@@ -100,6 +100,20 @@ func commandConfigBaseSummarySections(view FeishuCatalogConfigView) []FeishuCard
 }
 
 func promptValueCardSections(view FeishuCatalogConfigView) []FeishuCardTextSection {
+	if view.SharedThreadSettings {
+		fallback := "尚未读取"
+		if view.CommandID == FeishuCommandReasoning {
+			fallback = "自动"
+		}
+		value := commandDisplayValue(view.EffectiveValue, fallback)
+		if view.SharedThreadSettingsPending {
+			value = "尚未读取"
+		}
+		return []FeishuCardTextSection{
+			singleValueCardSection("会话当前设置", value),
+			singleValueCardSection("同步范围", "当前会话的 ChatGPT 应用与飞书；修改在后续轮次生效。"),
+		}
+	}
 	currentLabel := "下条消息"
 	if view.UsesLocalRequestedOverrides {
 		currentLabel = sharedAuthorityCurrentValueLabel(view.EffectiveValueSource)

@@ -31,12 +31,13 @@ type ThreadGoalUpdate struct {
 }
 
 type ThreadSettingsUpdate struct {
-	ThreadID        string `json:"threadId,omitempty"`
-	ModelProviderID string `json:"modelProviderId,omitempty"`
-	Model           string `json:"model,omitempty"`
-	ReasoningEffort string `json:"reasoningEffort,omitempty"`
-	ApprovalPolicy  string `json:"approvalPolicy,omitempty"`
-	Sandbox         string `json:"sandbox,omitempty"`
+	ThreadID           string `json:"threadId,omitempty"`
+	ModelProviderID    string `json:"modelProviderId,omitempty"`
+	Model              string `json:"model,omitempty"`
+	ReasoningEffort    string `json:"reasoningEffort,omitempty"`
+	ReasoningEffortSet bool   `json:"reasoningEffortSet,omitempty"`
+	ApprovalPolicy     string `json:"approvalPolicy,omitempty"`
+	Sandbox            string `json:"sandbox,omitempty"`
 }
 
 func NormalizeThreadLifecycleAction(value string) ThreadLifecycleAction {
@@ -135,17 +136,18 @@ func NormalizeThreadSettingsUpdate(update *ThreadSettingsUpdate) *ThreadSettings
 		return nil
 	}
 	normalized := &ThreadSettingsUpdate{
-		ThreadID:        strings.TrimSpace(update.ThreadID),
-		ModelProviderID: strings.TrimSpace(update.ModelProviderID),
-		Model:           strings.TrimSpace(update.Model),
-		ReasoningEffort: strings.TrimSpace(update.ReasoningEffort),
-		ApprovalPolicy:  strings.TrimSpace(update.ApprovalPolicy),
-		Sandbox:         strings.TrimSpace(update.Sandbox),
+		ThreadID:           strings.TrimSpace(update.ThreadID),
+		ModelProviderID:    strings.TrimSpace(update.ModelProviderID),
+		Model:              strings.TrimSpace(update.Model),
+		ReasoningEffort:    strings.TrimSpace(update.ReasoningEffort),
+		ReasoningEffortSet: update.ReasoningEffortSet,
+		ApprovalPolicy:     strings.TrimSpace(update.ApprovalPolicy),
+		Sandbox:            strings.TrimSpace(update.Sandbox),
 	}
 	if normalized.ThreadID == "" {
 		return nil
 	}
-	if normalized.ModelProviderID == "" && normalized.Model == "" && normalized.ReasoningEffort == "" && normalized.ApprovalPolicy == "" && normalized.Sandbox == "" {
+	if normalized.ModelProviderID == "" && normalized.Model == "" && normalized.ReasoningEffort == "" && !normalized.ReasoningEffortSet && normalized.ApprovalPolicy == "" && normalized.Sandbox == "" {
 		return nil
 	}
 	return normalized

@@ -421,7 +421,7 @@ func (s *Service) modelCatalogRefreshEvents(surface *state.SurfaceConsoleRecord)
 
 func NonTurnAgentCommand(kind agentproto.CommandKind) bool {
 	switch kind {
-	case agentproto.CommandModelList, agentproto.CommandThreadNameSet, agentproto.CommandThreadHistoryRead:
+	case agentproto.CommandModelList, agentproto.CommandThreadNameSet, agentproto.CommandThreadHistoryRead, agentproto.CommandThreadSettingsSet:
 		return true
 	default:
 		return false

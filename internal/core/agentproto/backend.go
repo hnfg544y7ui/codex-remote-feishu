@@ -98,6 +98,9 @@ func EffectiveCapabilitiesForBackend(backend Backend, caps Capabilities) Capabil
 	if caps.ModelCatalog {
 		base.ModelCatalog = true
 	}
+	if NormalizeBackend(backend) == BackendCodex && caps.SharedThreadSettings {
+		base.SharedThreadSettings = true
+	}
 	if caps.ResumeByThreadID {
 		base.ResumeByThreadID = true
 	}

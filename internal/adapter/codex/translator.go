@@ -23,6 +23,7 @@ type Translator struct {
 	pendingReviewStart         map[string]pendingReviewStart
 	pendingReviewThreads       map[string]pendingReviewThread
 	pendingThreadNameSet       map[string]pendingThreadNameSet
+	pendingThreadSettingsSet   map[string]pendingThreadSettingsSet
 	pendingChildRestartRestore map[string]pendingChildRestartRestore
 	pendingInternalThreadSet   map[string]bool
 	pendingInternalTurnSet     map[string]bool
@@ -156,6 +157,7 @@ func NewTranslator(instanceID string) *Translator {
 		pendingReviewStart:         map[string]pendingReviewStart{},
 		pendingReviewThreads:       map[string]pendingReviewThread{},
 		pendingThreadNameSet:       map[string]pendingThreadNameSet{},
+		pendingThreadSettingsSet:   map[string]pendingThreadSettingsSet{},
 		pendingChildRestartRestore: map[string]pendingChildRestartRestore{},
 		pendingInternalThreadSet:   map[string]bool{},
 		pendingInternalTurnSet:     map[string]bool{},

@@ -63,22 +63,39 @@ func (t *Translator) observeThreadGoalCleared(message map[string]any) Result {
 
 func (t *Translator) observeThreadSettingsUpdated(message map[string]any) Result {
 	params := lookupMap(message, "params")
-	settings := lookupMap(params, "settings")
+	settings := lookupMap(params, "threadSettings")
+	if len(settings) == 0 {
+		settings = lookupMap(params, "settings")
+	}
 	if len(settings) == 0 {
 		settings = params
 	}
+	_, effortSet := settings["effort"]
+	_, legacySet := settings["reasoningEffort"]
+	_, snakeSet := settings["reasoning_effort"]
 	update := agentproto.NormalizeThreadSettingsUpdate(&agentproto.ThreadSettingsUpdate{
-		ThreadID:        xutil.LookupStringFromAny(params["threadId"]),
-		ModelProviderID: xutil.FirstNonEmpty(xutil.LookupStringFromAny(settings["modelProvider"]), xutil.LookupStringFromAny(settings["modelProviderId"])),
-		Model:           xutil.FirstNonEmpty(xutil.LookupStringFromAny(settings["model"]), xutil.LookupStringFromAny(settings["modelId"])),
-		ReasoningEffort: xutil.FirstNonEmpty(xutil.LookupStringFromAny(settings["reasoningEffort"]), xutil.LookupStringFromAny(settings["reasoning_effort"])),
-		ApprovalPolicy:  xutil.LookupStringFromAny(settings["approvalPolicy"]),
-		Sandbox:         xutil.FirstNonEmpty(xutil.LookupStringFromAny(settings["sandbox"]), lookupString(settings, "sandboxPolicy", "type")),
+		ThreadID:           xutil.LookupStringFromAny(params["threadId"]),
+		ModelProviderID:    xutil.FirstNonEmpty(xutil.LookupStringFromAny(settings["modelProvider"]), xutil.LookupStringFromAny(settings["modelProviderId"])),
+		Model:              xutil.FirstNonEmpty(xutil.LookupStringFromAny(settings["model"]), xutil.LookupStringFromAny(settings["modelId"])),
+		ReasoningEffort:    xutil.FirstNonEmpty(xutil.LookupStringFromAny(settings["reasoningEffort"]), xutil.LookupStringFromAny(settings["reasoning_effort"])),
+		ReasoningEffortSet: effortSet || legacySet || snakeSet,
+		ApprovalPolicy:     xutil.LookupStringFromAny(settings["approvalPolicy"]),
+		Sandbox:            xutil.FirstNonEmpty(xutil.LookupStringFromAny(settings["sandbox"]), lookupString(settings, "sandboxPolicy", "type")),
 	})
+	if update != nil {
+		if effortSet {
+			update.ReasoningEffort = strings.TrimSpace(xutil.LookupStringFromAny(settings["effort"]))
+		}
+	}
 	if update == nil {
 		return Result{}
 	}
 	t.mergeObservedThread(update.ThreadID, update.ModelProviderID, update.Model, update.ReasoningEffort)
+	if update.ReasoningEffortSet {
+		observed := t.observedThreads[update.ThreadID]
+		observed.ReasoningEffort = update.ReasoningEffort
+		t.observedThreads[update.ThreadID] = observed
+	}
 	return Result{Events: []agentproto.Event{{
 		Kind:           agentproto.EventThreadSettingsUpdated,
 		ThreadID:       update.ThreadID,

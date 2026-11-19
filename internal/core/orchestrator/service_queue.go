@@ -104,7 +104,10 @@ func (s *Service) enqueueQueueItemWithTarget(surface *state.SurfaceConsoleRecord
 	codexThreadPolicy := s.freezeCodexThreadPolicyForPrompt(surface)
 	openCodeAdmissionRef := s.freezeOpenCodeAdmissionRefForPrompt(surface)
 	var routeAdjustmentEvents []eventcontract.Event
-	adjustment := s.maybeStartNewThreadForCodexModelGroupSwitch(surface, inst, dispatchPlan, routeMode, overrides, frozenOverride, codexThreadPolicy)
+	var adjustment codexPromptRouteAdjustment
+	if !s.queueItemUsesSharedThreadSettings(surface, inst, &state.QueueItemRecord{CodexConnectionContract: codexConnectionContract}, dispatchPlan) {
+		adjustment = s.maybeStartNewThreadForCodexModelGroupSwitch(surface, inst, dispatchPlan, routeMode, overrides, frozenOverride, codexThreadPolicy)
+	}
 	if adjustment.Applied {
 		dispatchPlan = adjustment.DispatchPlan
 		threadID = dispatchPlan.ExecutionThreadID
@@ -453,8 +456,13 @@ func (s *Service) promptSendCommandAndGuardEventsFromQueueItem(surface *state.Su
 		return nil, nil
 	}
 	dispatchPlan := queuedItemPromptDispatchPlan(item)
-	overrides, guard := s.sanitizePromptOverridesForDispatch(surface, dispatchPlan, item.FrozenOverride)
 	inst := s.root.Instances[surface.AttachedInstanceID]
+	useThreadSettings := s.queueItemUsesSharedThreadSettings(surface, inst, item, dispatchPlan)
+	frozenOverride := item.FrozenOverride
+	if useThreadSettings {
+		frozenOverride.Model, frozenOverride.ReasoningEffort = "", ""
+	}
+	overrides, guard := s.sanitizePromptOverridesForDispatch(surface, dispatchPlan, frozenOverride)
 	backend := s.promptConfigBackend(inst, surface)
 	planModeOverride := frozenPlanModeOverrideValue(item.FrozenPlanMode)
 	if !state.BackendAcceptsFeishuPlanOverride(backend) {
@@ -473,12 +481,18 @@ func (s *Service) promptSendCommandAndGuardEventsFromQueueItem(surface *state.Su
 			Inputs: item.Inputs,
 		},
 		Overrides: agentproto.PromptOverrides{
-			Model:           overrides.Model,
-			ReasoningEffort: overrides.ReasoningEffort,
-			AccessMode:      overrides.AccessMode,
-			PlanMode:        planModeOverride,
+			UseThreadSettings: useThreadSettings,
+			Model:             overrides.Model,
+			ReasoningEffort:   overrides.ReasoningEffort,
+			AccessMode:        overrides.AccessMode,
+			PlanMode:          planModeOverride,
 		},
 		CodexResume: CodexResumePolicyForThread(item.CodexConnectionContract, item.CodexThreadPolicy, codexResumeTargetThread(inst, dispatchPlan)),
+	}
+	if useThreadSettings && command.CodexResume != nil {
+		command.CodexResume.Model, command.CodexResume.ReasoningEffort = "", ""
+		command.CodexResume.ModelMode = agentproto.CodexThreadValueDefault
+		command.CodexResume.ReasoningMode = agentproto.CodexThreadValueDefault
 	}
 	if item.ScheduledRunID != "" {
 		// Preserve this run's identity across an event batch that can release the

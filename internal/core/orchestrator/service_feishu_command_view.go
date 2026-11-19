@@ -51,7 +51,11 @@ func (s *Service) buildConfigCommandViewState(
 
 	var summary control.PromptRouteSummary
 	if flow.UsesPromptSummary() {
-		summary = s.resolveNextPromptSummary(inst, surface, "", "", state.ModelConfigRecord{})
+		settingsThread := ""
+		if surface != nil && (flow.CommandID == control.FeishuCommandModel || flow.CommandID == control.FeishuCommandReasoning) && s.sharedThreadSettingsReadable(surface, inst, surface.SelectedThreadID) {
+			settingsThread = surface.SelectedThreadID
+		}
+		summary = s.resolveNextPromptSummary(inst, surface, settingsThread, "", state.ModelConfigRecord{})
 	}
 
 	view.Config.CurrentValue = s.resolveConfigFlowValue(ctx, surface, summary, flow.CurrentValueKey)
@@ -60,6 +64,16 @@ func (s *Service) buildConfigCommandViewState(
 	view.Config.OverrideValue = s.resolveConfigFlowValue(ctx, surface, summary, flow.OverrideValueKey)
 	view.Config.OverrideExtraValue = s.resolveConfigFlowValue(ctx, surface, summary, flow.OverrideExtraValueKey)
 	view.Config.UsesLocalRequestedOverrides = summary.UsesLocalRequestedOverrides
+	if surface != nil && (flow.CommandID == control.FeishuCommandModel || flow.CommandID == control.FeishuCommandReasoning) {
+		view.Config.SharedThreadSettings = s.sharedThreadSettingsSelected(surface, inst)
+		view.Config.SharedThreadSettingsPending = view.Config.SharedThreadSettings && s.sharedObservedThreadSettings(surface, inst, surface.SelectedThreadID) == nil
+		if view.Config.SharedThreadSettings {
+			view.Config.OverrideValue, view.Config.OverrideExtraValue = "", ""
+			if view.Config.SharedThreadSettingsPending {
+				view.Config.EffectiveValue, view.Config.EffectiveValueSource = "", ""
+			}
+		}
+	}
 	view.Config.PlanModeOverrideSet = summary.PlanModeOverrideSet
 	view.Config.PlanModeUsesLocalRequested = summary.PlanModeUsesLocalRequested
 	switch flow.CommandID {

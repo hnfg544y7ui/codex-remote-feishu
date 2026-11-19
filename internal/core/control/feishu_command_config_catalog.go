@@ -172,20 +172,44 @@ func reasoningPageViewFromCommandConfigView(view FeishuCatalogConfigView) Feishu
 	if view.Sealed {
 		return sealedCommandPageViewForDefinition(def, view, bodySections, noticeSections)
 	}
+	selected := strings.TrimSpace(view.OverrideValue)
+	defaultChoice := "clear"
+	if view.SharedThreadSettings {
+		defaultChoice = ""
+		selected = strings.TrimSpace(view.EffectiveValue)
+		if view.SharedThreadSettingsPending {
+			selected, defaultChoice = "", ""
+		}
+	}
 	return commandConfigPageView(def, view, bodySections, noticeSections, []CommandCatalogSection{{
 		Title: "立即应用",
 		Entries: []CommandCatalogEntry{{
-			Buttons: choiceButtonsFromOptions(reasoningOptionsForConfigView(view), strings.TrimSpace(view.OverrideValue), "clear"),
+			Buttons: choiceButtonsFromOptions(reasoningOptionsForConfigView(view), selected, defaultChoice),
 		}},
 	}})
 }
 
 func reasoningOptionsForConfigView(view FeishuCatalogConfigView) []FeishuCommandOption {
+	var options []FeishuCommandOption
 	if len(view.FormOptions) != 0 {
-		return reasoningOptionsFromFormOptions(view.FormOptions)
+		options = reasoningOptionsFromFormOptions(view.FormOptions)
+	} else {
+		backend := agentproto.NormalizeBackend(view.CatalogBackend)
+		options = ReasoningOptionsForBackend(backend)
 	}
-	backend := agentproto.NormalizeBackend(view.CatalogBackend)
-	return ReasoningOptionsForBackend(backend)
+	if view.SharedThreadSettings {
+		sharedOptions := make([]FeishuCommandOption, 0, len(options))
+		for _, option := range options {
+			// Native 0.170 treats effort:null as no change, not a reset.
+			if option.Value == "clear" {
+				continue
+			}
+			option.Description = "更新当前共享会话的推理强度，在后续轮次生效。"
+			sharedOptions = append(sharedOptions, option)
+		}
+		options = sharedOptions
+	}
+	return options
 }
 
 func reasoningOptionsFromFormOptions(options []CommandCatalogFormFieldOption) []FeishuCommandOption {
@@ -269,7 +293,7 @@ func modelPageViewFromCommandConfigView(view FeishuCatalogConfigView) FeishuPage
 	manualEntry := CommandCatalogEntry{
 		Form: FeishuCommandFormWithDefault(FeishuCommandModel, strings.TrimSpace(view.FormDefaultValue)),
 	}
-	if strings.TrimSpace(view.OverrideValue) != "" || strings.TrimSpace(view.OverrideExtraValue) != "" {
+	if !view.SharedThreadSettings && (strings.TrimSpace(view.OverrideValue) != "" || strings.TrimSpace(view.OverrideExtraValue) != "") {
 		manualEntry.Buttons = append(manualEntry.Buttons, choiceCommandButton("清除覆盖", "/model clear", false, ""))
 	}
 	sections = append(sections, CommandCatalogSection{
@@ -340,6 +364,9 @@ func modelPresetForm(view FeishuCatalogConfigView) *CommandCatalogForm {
 		return nil
 	}
 	defaultValue := strings.TrimSpace(view.OverrideValue)
+	if view.SharedThreadSettings {
+		defaultValue = strings.TrimSpace(view.EffectiveValue)
+	}
 	if !commandCatalogFormOptionExists(options, defaultValue) {
 		defaultValue = ""
 	}

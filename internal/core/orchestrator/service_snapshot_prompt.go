@@ -193,6 +193,12 @@ func (s *Service) resolvePromptConfig(inst *state.InstanceRecord, surface *state
 		override = settings.PromptOverride
 	}
 	override = state.NormalizePromptOverrideForBackend(backend, compactPromptOverride(override))
+	sharedSettings := s.sharedThreadSettingsReadable(surface, inst, threadID)
+	if sharedSettings {
+		// Existing shared threads have one native settings authority. A bot or
+		// surface default must not project itself as a competing model choice.
+		override.Model, override.ReasoningEffort = "", ""
+	}
 	baseModel, baseEffort, baseAccess := s.resolveBasePromptConfig(inst, surface, threadID, cwd)
 	if agentproto.NormalizeBackend(backend) == agentproto.BackendClaude {
 		override.Model = ""
@@ -204,7 +210,7 @@ func (s *Service) resolvePromptConfig(inst *state.InstanceRecord, surface *state
 	} else if agentproto.NormalizeBackend(backend) == agentproto.BackendCodex {
 		if profile, ok := s.surfaceCodexProfileSummary(surface); ok {
 			profile = normalizeCodexProfileSummary(profile)
-			if profile.Kind == state.CodexProfileKindAPI {
+			if profile.Kind == state.CodexProfileKindAPI && !sharedSettings {
 				if model := strings.TrimSpace(profile.Model); model != "" {
 					baseModel = configValue{Value: model, Source: "profile"}
 				}
@@ -222,7 +228,7 @@ func (s *Service) resolvePromptConfig(inst *state.InstanceRecord, surface *state
 	effectiveModel := baseModel
 	if override.Model != "" {
 		effectiveModel = configValue{Value: override.Model, Source: "surface_override"}
-	} else if effectiveModel.Value == "" {
+	} else if effectiveModel.Value == "" && !sharedSettings {
 		if defaultValue := defaultPromptModelForBackend(backend); defaultValue != "" {
 			effectiveModel = configValue{Value: defaultValue, Source: "surface_default"}
 		}
@@ -230,7 +236,7 @@ func (s *Service) resolvePromptConfig(inst *state.InstanceRecord, surface *state
 	effectiveEffort := baseEffort
 	if override.ReasoningEffort != "" {
 		effectiveEffort = configValue{Value: override.ReasoningEffort, Source: "surface_override"}
-	} else if effectiveEffort.Value == "" {
+	} else if effectiveEffort.Value == "" && !sharedSettings {
 		if defaultValue := defaultPromptReasoningEffortForBackend(backend); defaultValue != "" {
 			effectiveEffort = configValue{Value: defaultValue, Source: "surface_default"}
 		}
@@ -302,18 +308,24 @@ func (s *Service) resolveBasePromptConfig(inst *state.InstanceRecord, surface *s
 	}
 	backend := s.promptConfigBackend(inst, surface)
 	claudeHeadless := agentproto.NormalizeBackend(backend) == agentproto.BackendClaude
+	sharedReadable := s.sharedThreadSettingsReadable(surface, inst, threadID)
+	sharedSettings := s.sharedObservedThreadSettings(surface, inst, threadID)
 	if thread := inst.Threads[threadID]; thread != nil {
 		if cwd == "" {
 			cwd = thread.CWD
 		}
-		if thread.ExplicitModel != "" {
+		if sharedSettings != nil {
+			model = configValue{Value: strings.TrimSpace(sharedSettings.Model), Source: "thread"}
+		} else if !sharedReadable && thread.ExplicitModel != "" {
 			model = configValue{Value: thread.ExplicitModel, Source: "thread"}
-		} else if thread.ThreadSettings != nil && strings.TrimSpace(thread.ThreadSettings.Model) != "" {
+		} else if !sharedReadable && thread.ThreadSettings != nil && strings.TrimSpace(thread.ThreadSettings.Model) != "" {
 			model = configValue{Value: strings.TrimSpace(thread.ThreadSettings.Model), Source: "thread"}
 		}
-		if thread.ExplicitReasoningEffort != "" {
+		if sharedSettings != nil && (sharedSettings.ReasoningEffortSet || sharedSettings.ReasoningEffort != "") {
+			effort = configValue{Value: strings.TrimSpace(sharedSettings.ReasoningEffort), Source: "thread"}
+		} else if !sharedReadable && thread.ExplicitReasoningEffort != "" {
 			effort = configValue{Value: thread.ExplicitReasoningEffort, Source: "thread"}
-		} else if thread.ThreadSettings != nil && strings.TrimSpace(thread.ThreadSettings.ReasoningEffort) != "" {
+		} else if !sharedReadable && thread.ThreadSettings != nil && strings.TrimSpace(thread.ThreadSettings.ReasoningEffort) != "" {
 			effort = configValue{Value: strings.TrimSpace(thread.ThreadSettings.ReasoningEffort), Source: "thread"}
 		}
 		if claudeHeadless {
@@ -323,10 +335,10 @@ func (s *Service) resolveBasePromptConfig(inst *state.InstanceRecord, surface *s
 		}
 	}
 	if defaults, ok := s.resolveWorkspaceDefaults(inst, surface, cwd); ok {
-		if model.Value == "" && defaults.Model != "" {
+		if model.Value == "" && defaults.Model != "" && !sharedReadable {
 			model = configValue{Value: defaults.Model, Source: "workspace_default"}
 		}
-		if effort.Value == "" && defaults.ReasoningEffort != "" {
+		if effort.Value == "" && defaults.ReasoningEffort != "" && !sharedReadable {
 			effort = configValue{Value: defaults.ReasoningEffort, Source: "workspace_default"}
 		}
 		if !claudeHeadless && defaults.AccessMode != "" {

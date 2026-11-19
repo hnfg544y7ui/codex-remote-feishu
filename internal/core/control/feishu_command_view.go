@@ -28,6 +28,8 @@ type FeishuCatalogConfigView struct {
 	OverrideValue               string
 	OverrideExtraValue          string
 	UsesLocalRequestedOverrides bool
+	SharedThreadSettings        bool
+	SharedThreadSettingsPending bool
 	PlanModeOverrideSet         bool
 	PlanModeUsesLocalRequested  bool
 	FormDefaultValue            string

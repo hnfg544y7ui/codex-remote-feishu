@@ -69,11 +69,16 @@ func (a *App) bootstrapSharedResume(childStdin io.Writer, childStdout io.Reader,
 				if err != nil {
 					return nil, sharedBootstrapScopeProblem(err, threadID)
 				}
-				// Startup resume registers only a protocol subscription. Unexpected
-				// actions must fail closed, rather than vanish before relay startup.
-				if len(observed.Events)+len(observed.OutboundToChild)+len(observed.OutboundToParent)+len(observed.ResolvedCommandResponses) != 0 {
-					return nil, sharedBootstrapScopeProblem(fmt.Errorf("unexpected actions in startup resume response"), threadID)
+				// Defer only this response's read-only model snapshot to the normal
+				// stdout path after hello. Other actions must still fail closed.
+				settingsReplay, err := sharedBootstrapSettingsReplay(observed, threadID)
+				if err != nil {
+					return nil, sharedBootstrapScopeProblem(err, threadID)
 				}
+				if replay.Len()+len(settingsReplay) > sharedBootstrapReplayLimit {
+					return nil, sharedBootstrapScopeProblem(fmt.Errorf("shared resume replay buffer exceeded limit"), threadID)
+				}
+				replay.Write(settingsReplay)
 				return io.MultiReader(bytes.NewReader(replay.Bytes()), reader), nil
 			}
 			replay.Write(line)

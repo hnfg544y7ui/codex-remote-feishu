@@ -27,6 +27,7 @@ type Capabilities struct {
 	RequestRespond       bool `json:"requestRespond,omitempty"`
 	SessionCatalog       bool `json:"sessionCatalog,omitempty"`
 	ModelCatalog         bool `json:"modelCatalog,omitempty"`
+	SharedThreadSettings bool `json:"sharedThreadSettings,omitempty"`
 	ResumeByThreadID     bool `json:"resumeByThreadID,omitempty"`
 	RequiresCWDForResume bool `json:"requiresCWDForResume,omitempty"`
 	VSCodeMode           bool `json:"vscodeMode,omitempty"`

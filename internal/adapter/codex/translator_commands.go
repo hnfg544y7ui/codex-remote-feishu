@@ -34,6 +34,8 @@ func (t *Translator) TranslateCommand(command agentproto.Command) ([][]byte, err
 
 func (t *Translator) translateCommand(command agentproto.Command) ([][]byte, error) {
 	switch command.Kind {
+	case agentproto.CommandThreadSettingsSet:
+		return t.translateThreadSettingsSet(command)
 	case agentproto.CommandThreadNameSet:
 		return t.translateThreadNameSet(command)
 	case agentproto.CommandPromptSend:
@@ -401,7 +403,7 @@ func (t *Translator) translatePromptSendResumeOrDirect(command agentproto.Comman
 		return t.translatePromptSendThreadStart(command, false)
 	}
 	delete(t.pendingLocalTurnByThread, command.Target.ThreadID)
-	if t.currentThreadID == "" || command.Target.ThreadID != t.currentThreadID {
+	if t.currentThreadID == "" || command.Target.ThreadID != t.currentThreadID || t.usesSharedThreadSettings(command) {
 		requestID := t.NextRequest("thread-resume")
 		t.pendingThreadResume[requestID] = pendingThreadResume{
 			ThreadID: command.Target.ThreadID,
@@ -424,6 +426,9 @@ func (t *Translator) translatePromptSendResumeOrDirect(command agentproto.Comman
 			"cwd":      pathcanon.Native(choose(command.Target.CWD, t.knownThreadCWD[command.Target.ThreadID])),
 		}
 		applyCodexResumePolicyToThreadParams(params, command.CodexResume)
+		if t.usesSharedThreadSettings(command) {
+			stripThreadModelOverrides(params)
+		}
 		t.applySharedResumeHistoryPolicy(params)
 		t.recordCodexPolicyForThread(command.Target.ThreadID, command.CodexResume)
 		payload := map[string]any{
@@ -532,6 +537,9 @@ func (t *Translator) directTurnStart(threadID string, command agentproto.Command
 	setDefault(template, "attachments", []any{})
 	applyCodexResumePolicyToTurnStart(template, command.CodexResume)
 	applyPromptOverridesToTurnStart(template, command.Overrides)
+	if t.usesSharedThreadSettings(command) {
+		applySharedThreadTurnSettings(template, command.Overrides)
+	}
 	t.recordCodexPolicyForThread(threadID, command.CodexResume)
 	requestID := t.NextRequest("turn-start")
 	payload := map[string]any{

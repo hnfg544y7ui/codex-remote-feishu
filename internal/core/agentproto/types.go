@@ -45,6 +45,7 @@ const (
 	EventThreadGoalCommandResult         EventKind = "thread.goal.command.result"
 	EventThreadNameCommandResult         EventKind = "thread.name.command.result"
 	EventThreadSettingsUpdated           EventKind = "thread.settings.updated"
+	EventThreadSettingsSetResult         EventKind = "thread.settings.set.result"
 	EventCapabilityStateUpdated          EventKind = "capability.state.updated"
 	EventProcessChildRestartUpdated      EventKind = "process.child.restart.updated"
 	EventConfigObserved                  EventKind = "config.observed"
@@ -220,6 +221,7 @@ const (
 	CommandThreadGoalClear     CommandKind = "thread.goal.clear"
 	CommandThreadRead          CommandKind = "thread.read"
 	CommandThreadNameSet       CommandKind = "thread.name.set"
+	CommandThreadSettingsSet   CommandKind = "thread.settings.set"
 )
 
 type InputKind string
@@ -239,22 +241,30 @@ type Input struct {
 }
 
 type Command struct {
-	CommandID    string                    `json:"commandId,omitempty"`
-	IssuedAt     time.Time                 `json:"issuedAt,omitempty"`
-	Kind         CommandKind               `json:"kind"`
-	Origin       Origin                    `json:"origin"`
-	Target       Target                    `json:"target"`
-	Prompt       Prompt                    `json:"prompt,omitempty"`
-	Overrides    PromptOverrides           `json:"overrides,omitempty"`
-	CodexResume  *CodexResumePolicy        `json:"codexResume,omitempty"`
-	Request      Request                   `json:"request,omitempty"`
-	ModelList    ModelListCommand          `json:"modelList,omitempty"`
-	MCP          MCPCommand                `json:"mcp,omitempty"`
-	Review       ReviewRequest             `json:"review,omitempty"`
-	Goal         GoalCommand               `json:"goal,omitempty"`
-	Name         string                    `json:"name,omitempty"`
-	ShellCommand ShellCommand              `json:"shellCommand,omitempty"`
-	HistoryRead  *ThreadHistoryReadOptions `json:"historyRead,omitempty"`
+	CommandID         string                    `json:"commandId,omitempty"`
+	IssuedAt          time.Time                 `json:"issuedAt,omitempty"`
+	Kind              CommandKind               `json:"kind"`
+	Origin            Origin                    `json:"origin"`
+	Target            Target                    `json:"target"`
+	Prompt            Prompt                    `json:"prompt,omitempty"`
+	Overrides         PromptOverrides           `json:"overrides,omitempty"`
+	CodexResume       *CodexResumePolicy        `json:"codexResume,omitempty"`
+	Request           Request                   `json:"request,omitempty"`
+	ModelList         ModelListCommand          `json:"modelList,omitempty"`
+	MCP               MCPCommand                `json:"mcp,omitempty"`
+	Review            ReviewRequest             `json:"review,omitempty"`
+	Goal              GoalCommand               `json:"goal,omitempty"`
+	Name              string                    `json:"name,omitempty"`
+	ThreadSettingsSet *ThreadSettingsSetCommand `json:"threadSettingsSet,omitempty"`
+	ShellCommand      ShellCommand              `json:"shellCommand,omitempty"`
+	HistoryRead       *ThreadHistoryReadOptions `json:"historyRead,omitempty"`
+}
+
+// Nil fields are unchanged. Mutations require nonempty values; native effort
+// reset is unsupported even though observed settings can contain a null effort.
+type ThreadSettingsSetCommand struct {
+	Model           *string `json:"model,omitempty"`
+	ReasoningEffort *string `json:"effort,omitempty"`
 }
 
 // LatestTurnOnly reads one page of turn metadata, without conversation items.
@@ -356,10 +366,11 @@ type Prompt struct {
 }
 
 type PromptOverrides struct {
-	Model           string `json:"model,omitempty"`
-	ReasoningEffort string `json:"reasoningEffort,omitempty"`
-	AccessMode      string `json:"accessMode,omitempty"`
-	PlanMode        string `json:"planMode,omitempty"`
+	UseThreadSettings bool   `json:"useThreadSettings,omitempty"`
+	Model             string `json:"model,omitempty"`
+	ReasoningEffort   string `json:"reasoningEffort,omitempty"`
+	AccessMode        string `json:"accessMode,omitempty"`
+	PlanMode          string `json:"planMode,omitempty"`
 }
 
 type Request struct {

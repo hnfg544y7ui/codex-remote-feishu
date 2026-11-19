@@ -92,6 +92,12 @@ func (a *App) handleUIEventsLocked(ctx context.Context, events []eventcontract.E
 					continue
 				}
 			}
+			if event.Command.Kind == agentproto.CommandThreadSettingsSet {
+				instanceID = a.service.ThreadSettingsCommandInstanceID(event.Command.CommandID)
+				if instanceID == "" {
+					continue
+				}
+			}
 			snapshot := a.service.SurfaceSnapshot(event.SurfaceSessionID)
 			a.debugf(
 				"dispatch prepare: surface=%s instance=%s command=%s kind=%s selectedThread=%s route=%s promptThread=%s promptCreate=%t pending=%s active=%s sourceMessage=%s",

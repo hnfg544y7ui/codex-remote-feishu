@@ -38,6 +38,16 @@ func (s *Service) surfaceSettingFeedbackEvents(surface *state.SurfaceConsoleReco
 }
 
 func (s *Service) applyPromptOverrideChange(surface *state.SurfaceConsoleRecord, action control.Action, inst *state.InstanceRecord, mutate func(*state.ModelConfigRecord), build func(control.PromptRouteSummary) surfaceSettingFeedback) []eventcontract.Event {
+	if (action.Kind == control.ActionModelCommand || action.Kind == control.ActionReasoningCommand) && s.sharedThreadSettingsSelected(surface, inst) {
+		if !s.sharedThreadSettingsEnabled(surface, inst) {
+			text := "共享会话的连接或控制权尚未就绪，设置未修改。请重新连接并接管目标会话后再试。"
+			if commandCardOwnsInlineResult(action) {
+				return s.inlineCommandCardEvents(surface, action, control.FeishuCatalogConfigView{Sealed: true, StatusKind: "error", StatusText: text})
+			}
+			return notice(surface, "thread_settings_unavailable", text)
+		}
+		return s.requestSharedThreadSettings(surface, action, inst, mutate)
+	}
 	s.applySurfaceCapabilitySettingsMutation(surface, func(record *state.BotCapabilitySettingsRecord) {
 		override := record.PromptOverride
 		mutate(&override)

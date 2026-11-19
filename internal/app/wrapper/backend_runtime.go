@@ -3,6 +3,7 @@ package wrapper
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -267,11 +268,12 @@ func mapOpenCodeResolvedCommandResponses(responses []acpadapter.ResolvedCommandR
 }
 
 type codexBackendRuntime struct {
-	sharedBackend       bool
-	sharedInitialResume string
-	mu                  sync.Mutex
-	translator          *codex.Translator
-	shellCommand        *shellCommandRuntime
+	sharedBackend        bool
+	sharedThreadSettings bool
+	sharedInitialResume  string
+	mu                   sync.Mutex
+	translator           *codex.Translator
+	shellCommand         *shellCommandRuntime
 }
 
 func (r *codexBackendRuntime) SharedBackend() bool { return r.sharedBackend }
@@ -286,8 +288,11 @@ func (r *codexBackendRuntime) Backend() agentproto.Backend {
 }
 
 func (r *codexBackendRuntime) Capabilities() agentproto.Capabilities {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	capabilities := agentproto.DefaultCapabilitiesForBackend(agentproto.BackendCodex)
 	capabilities.ModelCatalog = true
+	capabilities.SharedThreadSettings = r.sharedBackend && r.sharedThreadSettings
 	return capabilities
 }
 
@@ -331,6 +336,9 @@ func (r *codexBackendRuntime) ObserveServer(line []byte) (runtimeObserveResult, 
 func (r *codexBackendRuntime) TranslateCommand(command agentproto.Command) (runtimeCommandResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if command.Kind == agentproto.CommandThreadSettingsSet && (!r.sharedBackend || !r.sharedThreadSettings) {
+		return runtimeCommandResult{}, fmt.Errorf("shared thread settings require a verified shared Codex 0.170.0 or newer")
+	}
 	translatedCommand := command
 	cleanup := func(bool) {}
 	if command.Kind == agentproto.CommandThreadShellCommand {

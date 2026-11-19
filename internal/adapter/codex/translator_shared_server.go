@@ -102,12 +102,19 @@ func (t *Translator) observeSharedResponse(raw []byte, message map[string]any) (
 		return Result{Suppress: true}, nil
 	}
 	delete(t.shared.requests, key)
+	var settingsEvents []agentproto.Event
 	if jsonrpcutil.ExtractErrorMessage(message) == "" {
 		switch request.method {
 		case "thread/start", "thread/resume", "thread/fork":
 			threadID := lookupString(message, "result", "thread", "id")
 			if threadID == "" {
 				return Result{Suppress: true}, fmt.Errorf("shared backend %s response has no thread id; reconnect this client", request.method)
+			}
+			if request.method == "thread/resume" {
+				if request.threadID != "" && threadID != request.threadID {
+					return Result{Suppress: true}, fmt.Errorf("shared backend thread/resume returned another thread; reconnect this client")
+				}
+				settingsEvents = t.projectSharedResumeSettings(message)
 			}
 			if request.initiator.Kind == agentproto.InitiatorInternalHelper {
 				t.shared.threads[threadID] = true
@@ -136,6 +143,7 @@ func (t *Translator) observeSharedResponse(raw []byte, message map[string]any) (
 	if err != nil {
 		return result, err
 	}
+	result.Events = append(settingsEvents, result.Events...)
 	t.recordSharedOutbound(result.OutboundToCodex, request.initiator)
 	buffered := t.shared.buffered
 	t.shared.buffered, t.shared.bufferedBytes = nil, 0

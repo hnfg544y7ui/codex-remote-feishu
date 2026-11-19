@@ -41,7 +41,7 @@ func TestSharedCodexStartupSubscribesExactThreadWithoutStartingTurn(t *testing.T
 		if err := conn.WriteJSON(map[string]any{"method": "turn/started", "params": map[string]any{"threadId": "desktop-current-thread", "turn": map[string]any{"id": "desktop-current-turn"}}}); err != nil {
 			return
 		}
-		if err := conn.WriteJSON(map[string]any{"id": resume["id"], "result": map[string]any{"thread": map[string]any{"id": "desktop-current-thread"}}}); err != nil {
+		if err := conn.WriteJSON(map[string]any{"id": resume["id"], "result": map[string]any{"thread": map[string]any{"id": "desktop-current-thread"}, "model": "latest-native-model", "reasoningEffort": nil}}); err != nil {
 			return
 		}
 		for {
@@ -71,7 +71,7 @@ func TestSharedCodexStartupSubscribesExactThreadWithoutStartingTurn(t *testing.T
 	}
 	reader := bufio.NewReader(session.stdout)
 	var projected []agentproto.Event
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 2; i++ {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
 			t.Fatal(err)
@@ -89,6 +89,12 @@ func TestSharedCodexStartupSubscribesExactThreadWithoutStartingTurn(t *testing.T
 		return e.Kind == agentproto.EventTurnStarted && e.ThreadID == "desktop-current-thread" && e.TurnID == "desktop-current-turn" && e.Initiator.Kind == agentproto.InitiatorLocalUI
 	}) {
 		t.Fatalf("existing desktop turn not projected after subscription: %#v", projected)
+	}
+	if !batchHasEvent(projected, func(e agentproto.Event) bool {
+		return e.Kind == agentproto.EventThreadSettingsUpdated && e.ThreadID == "desktop-current-thread" && e.ThreadSettings != nil &&
+			e.ThreadSettings.Model == "latest-native-model" && e.ThreadSettings.ReasoningEffortSet && e.ThreadSettings.ReasoningEffort == ""
+	}) {
+		t.Fatalf("startup snapshot not projected on normal stdout path: %#v", projected)
 	}
 	if frame, _, err := app.runtime.(*codexBackendRuntime).BuildSharedStartupResumeFrame(); err != nil || len(frame) != 0 {
 		t.Fatal("startup subscription was replayed twice")

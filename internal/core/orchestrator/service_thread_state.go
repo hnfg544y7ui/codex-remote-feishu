@@ -105,7 +105,11 @@ func (s *Service) applyThreadSettingsUpdate(instanceID string, event agentproto.
 		return nil
 	}
 	thread := s.ensureThread(inst, update.ThreadID)
+	if sharedThreadProjectionCapable(inst) {
+		update = mergeSharedThreadSettings(thread.ThreadSettings, update)
+	}
 	thread.ThreadSettings = agentproto.CloneThreadSettingsUpdate(update)
+	s.projectSharedThreadModelSettings(inst, thread, update)
 	if strings.TrimSpace(event.PlanMode) != "" {
 		applyObservedPlanMode(thread, event.PlanMode)
 	}

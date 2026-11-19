@@ -260,6 +260,12 @@ func (a *App) Run(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer
 
 	var client *relayws.Client
 	var activeChild *childSession
+	// Launch completes native initialize and discovers runtime capabilities.
+	// Snapshot hello only afterwards; early problems are buffered by reporter.
+	activeChild, err = a.runtime.Launch(ctx, a, rawLogger, problems.Emit)
+	if err != nil {
+		return 1, err
+	}
 	connectedOnce := false
 	client = relayws.NewClient(a.config.RelayServerURL, a.relayHello(), relayws.ClientCallbacks{
 		OnWelcome: func(_ context.Context, welcome agentproto.Welcome) error {
@@ -449,10 +455,6 @@ func (a *App) Run(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer
 	problems.SetClient(client)
 	client.SetRawLogger(rawLogger)
 
-	activeChild, err = a.runtime.Launch(ctx, a, rawLogger, problems.Emit)
-	if err != nil {
-		return 1, err
-	}
 	startChildSessionIO(ctx, activeChild, stdout, stderr, writeCh, a.runtime, client, commandResponses, turnTracker, &activeChildGeneration, 1, errCh, a.debugf, rawLogger, problems.Emit)
 
 	go func() {

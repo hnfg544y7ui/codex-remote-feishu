@@ -13,73 +13,6 @@ import (
 	"github.com/kxn/codex-remote-feishu/internal/xutil"
 )
 
-func (s *Service) findAttachedSurface(instanceID string) *state.SurfaceConsoleRecord {
-	for _, surface := range s.root.Surfaces {
-		if surface.AttachedInstanceID == instanceID {
-			return surface
-		}
-	}
-	return nil
-}
-
-func (s *Service) findAttachedSurfaces(instanceID string) []*state.SurfaceConsoleRecord {
-	var surfaces []*state.SurfaceConsoleRecord
-	for _, surface := range s.root.Surfaces {
-		if surface.AttachedInstanceID == instanceID {
-			surfaces = append(surfaces, surface)
-		}
-	}
-	return surfaces
-}
-
-func (s *Service) SurfaceSnapshot(surfaceID string) *control.Snapshot {
-	surface := s.root.Surfaces[surfaceID]
-	if surface == nil {
-		return nil
-	}
-	return s.buildSnapshot(surface)
-}
-
-func (s *Service) AttachedInstanceID(surfaceID string) string {
-	surface := s.root.Surfaces[surfaceID]
-	if surface == nil {
-		return ""
-	}
-	return surface.AttachedInstanceID
-}
-
-func (s *Service) SurfaceChatID(surfaceID string) string {
-	surface := s.root.Surfaces[surfaceID]
-	if surface == nil {
-		return ""
-	}
-	return surface.ChatID
-}
-
-func (s *Service) SurfaceGatewayID(surfaceID string) string {
-	surface := s.root.Surfaces[surfaceID]
-	if surface == nil {
-		return ""
-	}
-	return surface.GatewayID
-}
-
-func (s *Service) SurfaceActorUserID(surfaceID string) string {
-	surface := s.root.Surfaces[surfaceID]
-	if surface == nil {
-		return ""
-	}
-	return surface.ActorUserID
-}
-
-func (s *Service) PendingRequest(surfaceID, requestID string) *state.RequestPromptRecord {
-	surface := s.root.Surfaces[strings.TrimSpace(surfaceID)]
-	if surface == nil {
-		return nil
-	}
-	return pendingRequestRecord(surface, requestID)
-}
-
 func (s *Service) MaterializeSurface(surfaceID, gatewayID, chatID, actorUserID string) {
 	if strings.TrimSpace(surfaceID) == "" {
 		return
@@ -206,6 +139,9 @@ func (s *Service) BindPendingRemoteCommand(surfaceID, commandID string) {
 }
 
 func (s *Service) HandleCommandDispatchFailure(surfaceID, commandID string, err error) []eventcontract.Event {
+	if binding, ok := s.threadSettingsCommands[commandID]; ok && binding.SurfaceID == surfaceID {
+		return s.finishThreadSettingsCommand(commandID, "thread_settings_dispatch_failed", "设置请求未确认发送成功，请核对原会话；未自动重试，飞书默认配置未修改。")
+	}
 	if isAsyncQuestionCommand(commandID) {
 		return s.failAsyncQuestionDispatch(surfaceID, commandID)
 	}
@@ -260,6 +196,10 @@ func (s *Service) HandleCommandDispatchFailure(surfaceID, commandID string, err 
 }
 
 func (s *Service) HandleCommandAccepted(instanceID string, ack agentproto.CommandAck) []eventcontract.Event {
+	if _, ok := s.threadSettingsCommands[ack.CommandID]; ok {
+		// Transport acceptance is not confirmation that native settings were saved.
+		return nil
+	}
 	if isAsyncQuestionCommand(ack.CommandID) {
 		return s.acknowledgeAsyncQuestion(instanceID, ack)
 	}
@@ -336,6 +276,9 @@ func (s *Service) HandleCommandAccepted(instanceID string, ack agentproto.Comman
 }
 
 func (s *Service) HandleCommandRejected(instanceID string, ack agentproto.CommandAck) []eventcontract.Event {
+	if binding, ok := s.threadSettingsCommands[ack.CommandID]; ok && binding.InstanceID == instanceID {
+		return s.finishThreadSettingsCommand(ack.CommandID, "thread_settings_rejected", "Codex 拒绝了设置请求，原有飞书默认配置未修改。请重新打开模型设置核对。")
+	}
 	if isAsyncQuestionCommand(ack.CommandID) {
 		return s.acknowledgeAsyncQuestion(instanceID, ack)
 	}
@@ -800,6 +743,7 @@ func (s *Service) ApplyInstanceDisconnected(instanceID string) []eventcontract.E
 	inst.ModelCatalog = nil
 	events := s.failCompactTurn(instanceID, "当前实例已离线，上下文压缩已中断。", nil, false)
 	events = append(events, s.failRenameCommandsForInstance(instanceID)...)
+	events = append(events, s.failThreadSettingsCommandsForInstance(instanceID)...)
 
 	for _, surface := range s.root.Surfaces {
 		pending := s.consumeSurfacePendingHeadlessLaunch(surface, instanceID)
@@ -881,6 +825,7 @@ func (s *Service) ApplyInstanceTransportDegraded(instanceID string, emitNotice b
 	surfaces := s.findAttachedSurfaces(instanceID)
 	events := s.failCompactTurn(instanceID, "当前实例连接已中断，上下文压缩已中断。", nil, false)
 	events = append(events, s.failRenameCommandsForInstance(instanceID)...)
+	events = append(events, s.failThreadSettingsCommandsForInstance(instanceID)...)
 	events = append(events, s.restorePendingSteersForInstance(instanceID)...)
 	if len(surfaces) == 0 {
 		s.clearInstanceRemoteTurnOwnership(instanceID)
