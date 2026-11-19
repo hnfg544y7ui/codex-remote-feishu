@@ -15,7 +15,7 @@ import threading
 from urllib.parse import urlsplit
 
 import websockets
-from owner import Owner, atomic_json
+from owner import Owner, MAINTENANCE_TIMEOUT, atomic_json
 
 
 def notify_ready():
@@ -80,7 +80,7 @@ def handler(owner, loop, token):
                 else:
                     owner.immediate_upgrade.validate_request(request)
                     operation = owner.upgrade(request)
-                result = asyncio.run_coroutine_threadsafe(operation, loop).result(300)
+                result = asyncio.run_coroutine_threadsafe(operation, loop).result(MAINTENANCE_TIMEOUT)
                 self.respond(200, result)
             except Exception as error:
                 # A client disconnect must not cancel a switch/rollback in flight.

@@ -1,7 +1,7 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-11-16`
+> Updated: `2026-11-19`
 > Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标；消息撤回按消息归属处理，不要求任务操作者身份。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
@@ -1556,6 +1556,8 @@ E5 HandoffWait
 2. `R5` 下首条消息如果碰到本地活动，仍可能先在 `PausedForLocal/HandoffWait` 中排队。
 
 ### 5.3.1 standalone Codex 升级事务对 dispatch 的影响
+
+Codex 下载与维护采用逐层留有余量的有界期限：npm 安装最多 8 分钟，`codex-runtime prepare` 最多 9 分钟，共享宿主准备子进程最多 10 分钟，HTTP 维护入口等待最多 12 分钟，daemon 升级事务最多 15 分钟。较短的调用者取消或截止时间继续生效。下载与准备阶段不提前停止原后端；准备失败保留原版本并解除事务占用，不把尚未登记的 npm 暂存目录视为升级成功。原生空闲检查、版本与组件校验、切换失败回退及客户端恢复确认仍执行既有流程。
 
 ```text
 G0 None

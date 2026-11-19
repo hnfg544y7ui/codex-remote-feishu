@@ -19,6 +19,11 @@ from runtime_environment import RuntimeEnvironment
 from runtime_selection import verify as verify_runtime_selection
 from runtime_selection import prepared_bundle
 
+# Go bounds npm to eight minutes and preparation to nine. Leave cleanup and
+# validation headroom before the control request and daemon deadlines expire.
+PREPARE_TIMEOUT = 10 * 60
+MAINTENANCE_TIMEOUT = 12 * 60
+
 READ_ONLY = {'initialize', 'thread/read', 'thread/list', 'thread/loaded/list',
              'thread/turns/list', 'thread/items/list', 'config/read', 'model/list',
              'account/read', 'thread/goal/get', 'mcpServerStatus/list'}
@@ -232,7 +237,8 @@ class Owner:
         runtime = await self.runtime_env.prepare(self.selection)
         proxy_args = ('--upgrade-proxy-mode', upgrade_proxy_mode) if upgrade_proxy_mode else ()
         data = await self.command(self.config['remoteBinary'], 'codex-runtime', 'prepare', '--root', root,
-                                  '--version', version, '--retry-failed', *proxy_args, env=runtime['environment'])
+                                  '--version', version, '--retry-failed', *proxy_args,
+                                  timeout=PREPARE_TIMEOUT, env=runtime['environment'])
         release = json.loads(data)
         selected = prepared_bundle(root, version, release)
         target_runtime = await self.runtime_env.prepare(selected, snapshot=runtime['snapshot'])

@@ -74,7 +74,7 @@ func TestPrepareChecksCandidateAndRecordsFailure(t *testing.T) {
 	ops := operations{
 		prepare: func(ctx context.Context, _ string, opts codexmanaged.Options, env []string) (codexmanaged.Release, error) {
 			deadline, ok := ctx.Deadline()
-			if !ok || time.Until(deadline) > 3*time.Minute {
+			if !ok || time.Until(deadline) > codexmanaged.PrepareTimeout || time.Until(deadline) <= 200*time.Second {
 				t.Fatal("missing operation timeout")
 			}
 			if opts.Channel != "alpha" || opts.Version != "1.2.3" || !opts.RetryFailed {
@@ -100,6 +100,22 @@ func TestPrepareChecksCandidateAndRecordsFailure(t *testing.T) {
 	err := run(context.Background(), []string{"prepare", "-channel", "alpha", "-version", "1.2.3", "-retry-failed"}, &bytes.Buffer{}, &bytes.Buffer{}, "remote-test", paths, []string{"TEST_PROBE_ENV=value"}, ops)
 	if err == nil || !rejected {
 		t.Fatalf("err = %v, rejected = %v", err, rejected)
+	}
+}
+
+func TestPreparePreservesEarlierCallerDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	want, _ := ctx.Deadline()
+	var observed time.Time
+	err := run(ctx, []string{"prepare"}, &bytes.Buffer{}, &bytes.Buffer{}, "test", testPaths(t), nil, operations{
+		prepare: func(ctx context.Context, _ string, _ codexmanaged.Options, _ []string) (codexmanaged.Release, error) {
+			observed, _ = ctx.Deadline()
+			return codexmanaged.Release{}, context.Canceled
+		},
+	})
+	if !errors.Is(err, context.Canceled) || observed.IsZero() || observed.After(want) {
+		t.Fatalf("caller deadline was extended: deadline=%v want=%v err=%v", observed, want, err)
 	}
 }
 

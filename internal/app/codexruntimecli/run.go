@@ -92,7 +92,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	operationTimeout := 3 * time.Minute
+	if command == "prepare" {
+		operationTimeout = codexmanaged.PrepareTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
 	defer cancel()
 	if command == "status" {
 		state, err := ops.inspect(absoluteRoot)

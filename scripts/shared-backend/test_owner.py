@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 
 import websockets
-from owner import Owner, atomic_json, digest
+from owner import Owner, PREPARE_TIMEOUT, MAINTENANCE_TIMEOUT, atomic_json, digest
 from host import address, handler
 
 
@@ -150,8 +150,22 @@ class UpgradeTests(unittest.IsolatedAsyncioTestCase):
         args = self.owner.command.await_args.args
         self.assertEqual(args[-2:], ('--upgrade-proxy-mode', 'direct'))
         self.assertIs(self.owner.command.await_args.kwargs['env'], native_env)
+        self.assertEqual(self.owner.command.await_args.kwargs['timeout'], PREPARE_TIMEOUT)
+        self.assertGreater(PREPARE_TIMEOUT, 9 * 60)
+        self.assertGreater(MAINTENANCE_TIMEOUT, PREPARE_TIMEOUT)
         self.assertEqual(native_env['HTTPS_PROXY'], 'http://model:4567')
         self.owner.verify_selection.assert_awaited_once_with(self.new, runtime=runtime)
+
+    async def test_slow_preparation_failure_keeps_current_backend_and_selection(self):
+        self.owner.prepare.side_effect = RuntimeError('Runtime command exceeded its preparation deadline')
+        with self.assertRaisesRegex(RuntimeError, 'preparation deadline'):
+            await self.owner.upgrade(self.request())
+        self.owner.stop.assert_not_awaited()
+        self.owner.launch.assert_not_awaited()
+        self.assertEqual(self.owner.selection, self.old)
+        self.assertEqual(self.owner.state, 'running')
+        self.assertFalse(self.owner.busy)
+        self.assertFalse(self.owner.frozen)
 
 
 class ValidationTests(unittest.TestCase):
@@ -163,6 +177,47 @@ class ValidationTests(unittest.TestCase):
 
 
 class ControlTests(unittest.IsolatedAsyncioTestCase):
+    async def test_http_wait_covers_preparation_and_returns_final_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            owner = Owner(dict(directory=directory, endpoint='ws://127.0.0.1:17550'))
+            owner.selection = dict(version='0.162.1')
+            owner.state = 'running'
+            owner.upgrade = AsyncMock(return_value=dict(version='0.163.0', state='running', busy=False))
+            waits = []
+            submit = asyncio.run_coroutine_threadsafe
+
+            def observed_submit(operation, loop):
+                future = submit(operation, loop)
+
+                class Pending:
+                    def result(self, timeout):
+                        waits.append(timeout)
+                        return future.result(timeout)
+
+                return Pending()
+
+            server = ThreadingHTTPServer(('127.0.0.1', 0), handler(owner, asyncio.get_running_loop(), 'a' * 64))
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+
+            def request():
+                call = urllib.request.Request('http://127.0.0.1:' + str(server.server_port) + '/v1/upgrade',
+                    headers={'Authorization': 'Bearer ' + 'a' * 64},
+                    data=json.dumps(dict(version='0.163.0', expectedVersion='0.162.1')).encode())
+                with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(call, timeout=5) as response:
+                    return response.code, json.load(response)
+
+            try:
+                with patch('host.asyncio.run_coroutine_threadsafe', side_effect=observed_submit):
+                    code, result = await asyncio.to_thread(request)
+                self.assertEqual((code, result['version'], result['busy']), (200, '0.163.0', False))
+                self.assertEqual(waits, [MAINTENANCE_TIMEOUT])
+                self.assertGreater(waits[0], PREPARE_TIMEOUT)
+                owner.upgrade.assert_awaited_once()
+            finally:
+                await asyncio.to_thread(server.shutdown)
+                server.server_close()
+                owner.log.close()
+
     async def test_http_control_requires_token_rejects_browser_and_stale_confirmation(self):
         with tempfile.TemporaryDirectory() as directory:
             owner = Owner(dict(directory=directory, endpoint='ws://127.0.0.1:17550'))

@@ -101,7 +101,7 @@ func installPrivate(ctx context.Context, staging, target string) error {
 }
 
 func installPrivateWithEnv(ctx context.Context, staging, target string, env []string) error {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, InstallTimeout)
 	defer cancel()
 	// Explicit prefix and registry keep both install destination and release
 	// source independent of user npm defaults. Auth and CODEX_HOME are inherited.
