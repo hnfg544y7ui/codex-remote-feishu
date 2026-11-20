@@ -36,7 +36,7 @@ func (s *Service) commandMenuStage(surface *state.SurfaceConsoleRecord) commandM
 func (s *Service) buildCommandHelpView(surface *state.SurfaceConsoleRecord) control.FeishuCatalogView {
 	page := control.BuildFeishuCommandDisplayPageViewForContext(
 		"命令帮助",
-		"以下是当前主展示的 canonical slash command。历史 alias 仍可兼容，但不再作为新的主展示入口。",
+		"按当前模式列出可用命令和用法。",
 		false,
 		s.buildCatalogContext(surface),
 	)

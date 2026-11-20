@@ -1,10 +1,12 @@
 # Feishu 卡片 UI 状态机
 
 > Type: `general`
-> Updated: `2026-11-19`
+> Updated: `2026-11-20`
 > Summary: 明确异步提问的授权状态确认、回调失效边界，以及自动上下文压缩的开始与完成提示。
 
 ## 1. 文档定位
+
+2026-11-20 菜单分类调整：会话操作包含目标、历史、重命名和本轮控制；参数设置包含模型、推理强度及两种自动继续设置；群聊协作集中话题、主机器人和并发上限，只在有可用群聊动作的场景展示。通用分组页在按钮下显示简短用途，首页保留紧凑导航。仍使用原命令、现有本地导航和业务 handoff；旧分组标识保持可访问。
 
 已登记话题内的人类普通消息和 `/use` 可不带 `@`，只在可信持久化映射匹配当前 gateway/chat/root 时放行；群主聊天仍要求主机器人或显式指向。该入站例外不新增卡片、回调或 owner 状态，不改变创建者与关闭话题的权限，也不会把“打开话题”解释为 `/primary on`。详情见 [飞书群话题多会话](../implemented/feishu-topic-sessions.md)。
 
@@ -802,7 +804,7 @@ registry 保存服务端生成的 nonce，并绑定实际 actor、surface、已�
 
 ### 5.3.1 `/rename` 命令入口
 
-Codex headless 的 `current_work`（显示为“基本命令”）菜单在 `/compact` 后提供“重命名会话”。点击菜单的 `page_local_action` 裸 `/rename` 会更新原卡为名称输入表单，不发 native 请求。表单复用 `FeishuCommandArgumentText` 与统一 `OwnerEntry` binding；本地菜单导航不携带 catalog provenance，表单构建时按已验证的当前 surface context 解析并写入完整 provenance，提交仍走严格校验。submit 使用现有 `page_submit`，携带原 `instance_id/thread_id`，gateway 仅对 rename 将其与 `field_name` 复制到 Action。VS Code、Claude、OpenCode hidden + reject。
+Codex headless 的 `current_work`（显示为“会话操作”）菜单提供“重命名会话”。点击菜单的 `page_local_action` 裸 `/rename` 会更新原卡为名称输入表单，不发 native 请求。表单复用 `FeishuCommandArgumentText` 与统一 `OwnerEntry` binding；本地菜单导航不携带 catalog provenance，表单构建时按已验证的当前 surface context 解析并写入完整 provenance，提交仍走严格校验。submit 使用现有 `page_submit`，携带原 `instance_id/thread_id`，gateway 仅对 rename 将其与 `field_name` 复制到 Action。VS Code、Claude、OpenCode hidden + reject。
 
 直接输入 `/rename 新名称` 与菜单提交走同一 action。直接 slash 空名称显示用法；表单空白提交保留输入框并提示错误，均不改原名。表单打开后若当前 instance/thread 已切换，提交拒绝并引导重新打开，不静默改新选中的会话；请求发出后捕获目标仍不会随之后的选择变化。打开菜单表单和空白提交提示由同步 callback 的 `ReplaceCurrentCard` 替换原卡，表单 view 不设置 MessageID，避免在同步 callback 返回前另发 REST patch 与回调更新竞争。等待卡与终态继续通过 gateway 更新原 MessageID，callback 不追加第二张卡；直接 slash 使用 TrackingKey 回写新 owner 卡的 MessageID。等待、成功、native 错误、超时与断链结果由同一命令 owner card 收口，动态名称与错误保留为结构化文本字段。菜单来源仍要求当前 daemon lifecycle，过期表单不能绕过 freshness gate。
 

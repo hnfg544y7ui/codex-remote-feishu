@@ -129,7 +129,7 @@ func TestResolveFeishuCommandDisplayFromActionUsesBindingDefinition(t *testing.T
 	if !ok {
 		t.Fatal("expected stop action to resolve command display")
 	}
-	if display.Title != "停止推理" || display.CanonicalSlash != "/stop" || display.FamilyID != FeishuCommandStop {
+	if display.Title != "停止当前执行" || display.CanonicalSlash != "/stop" || display.FamilyID != FeishuCommandStop {
 		t.Fatalf("unexpected stop display: %#v", display)
 	}
 }

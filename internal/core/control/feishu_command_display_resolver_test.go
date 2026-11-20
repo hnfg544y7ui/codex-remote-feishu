@@ -49,7 +49,7 @@ func TestResolveFeishuCommandDisplayGroupSupportsMenuStageProjection(t *testing.
 		ProductMode: "normal",
 		MenuStage:   string(FeishuCommandMenuStageNormalWorking),
 	})
-	if got, want := resolvedDisplayCommands(normalWorking), []string{"/stop", "/compact", "/rename", "/steerall", "/new", "/status"}; !reflect.DeepEqual(got, want) {
+	if got, want := resolvedDisplayCommands(normalWorking), []string{"/status", "/new", "/history", "/rename", "/goal", "/stop", "/steerall", "/compact", "/bendtomywill"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("normal working menu commands = %#v, want %#v", got, want)
 	}
 
@@ -57,7 +57,7 @@ func TestResolveFeishuCommandDisplayGroupSupportsMenuStageProjection(t *testing.
 		ProductMode: "vscode",
 		MenuStage:   string(FeishuCommandMenuStageVSCodeWorking),
 	})
-	if got, want := resolvedDisplayCommands(vscodeWorking), []string{"/stop", "/compact", "/steerall", "/status"}; !reflect.DeepEqual(got, want) {
+	if got, want := resolvedDisplayCommands(vscodeWorking), []string{"/status", "/history", "/stop", "/steerall", "/compact"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("vscode working menu commands = %#v, want %#v", got, want)
 	}
 }
@@ -68,7 +68,7 @@ func TestResolveFeishuCommandDisplayGroupAppliesClaudeSupportProfile(t *testing.
 		ProductMode: "normal",
 		MenuStage:   string(FeishuCommandMenuStageNormalWorking),
 	})
-	if got, want := resolvedDisplayCommands(currentWork), []string{"/stop", "/steerall", "/new", "/status"}; !reflect.DeepEqual(got, want) {
+	if got, want := resolvedDisplayCommands(currentWork), []string{"/status", "/new", "/history", "/stop", "/steerall"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("claude current_work menu commands = %#v, want %#v", got, want)
 	}
 
@@ -84,7 +84,7 @@ func TestResolveFeishuCommandDisplayGroupAppliesClaudeSupportProfile(t *testing.
 		Backend:     agentproto.BackendClaude,
 		ProductMode: "normal",
 	})
-	if got, want := resolvedDisplayCommands(sendSettings), []string{"/mode", "/reasoning", "/access", "/plan", "/verbose", "/claudeprofile"}; !reflect.DeepEqual(got, want) {
+	if got, want := resolvedDisplayCommands(sendSettings), []string{"/reasoning", "/plan", "/access", "/verbose", "/mode", "/claudeprofile"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("claude send_settings help commands = %#v, want %#v", got, want)
 	}
 
@@ -92,7 +92,7 @@ func TestResolveFeishuCommandDisplayGroupAppliesClaudeSupportProfile(t *testing.
 		Backend:     agentproto.BackendClaude,
 		ProductMode: "normal",
 	})
-	if got, want := resolvedDisplayCommands(commonTools), []string{"/review", "/coworkers", "/history", "/sendfile"}; !reflect.DeepEqual(got, want) {
+	if got, want := resolvedDisplayCommands(commonTools), []string{"/review", "/sendfile"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("claude common_tools help commands = %#v, want %#v", got, want)
 	}
 
@@ -157,15 +157,9 @@ func TestResolveFeishuCommandDisplayProfileTracksModeSpecificFamilies(t *testing
 	}
 	if got, want := codex.VisibleFamiliesForGroup(FeishuCommandGroupCommonTools), []string{
 		FeishuCommandReview,
-		FeishuCommandPatch,
-		FeishuCommandAutoWhip,
-		FeishuCommandPrimary,
-		FeishuCommandCoworkers,
-		FeishuCommandTopic,
-		FeishuCommandHistory,
+		FeishuCommandSendFile,
 		FeishuCommandSchedule,
 		FeishuCommandCron,
-		FeishuCommandSendFile,
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("codex visible common_tools families = %#v, want %#v", got, want)
 	}
@@ -232,18 +226,28 @@ func TestGroupCatalogContextHidesBotCapabilitySettings(t *testing.T) {
 	}
 }
 
-func TestPrimaryCommandHiddenFromSingleChatMenu(t *testing.T) {
-	page := BuildFeishuCommandMenuGroupPageViewForContext(FeishuCommandGroupCommonTools, CatalogContext{
+func TestCollaborationGroupAppearsOnlyInGroupChat(t *testing.T) {
+	ctx := CatalogContext{
 		ProductMode:      "normal",
 		SurfaceScopeKind: string(CatalogSurfaceScopeKindUser),
-	})
-	if catalogContainsCommand(page, "/primary") {
-		t.Fatalf("single-chat tools menu should hide /primary: %#v", page.Sections)
+	}
+	if commandTextForMenuHomeEntry(BuildFeishuCommandMenuHomePageViewForContext(ctx), "群聊协作") != "" {
+		t.Fatal("direct chat menu exposes group collaboration")
+	}
+	ctx.SurfaceScopeKind = string(CatalogSurfaceScopeKindChat)
+	if got := commandTextForMenuHomeEntry(BuildFeishuCommandMenuHomePageViewForContext(ctx), "群聊协作"); got != "/menu group_chat" {
+		t.Fatalf("group chat collaboration entry = %q", got)
+	}
+	page := BuildFeishuCommandMenuGroupPageViewForContext(FeishuCommandGroupCollaboration, ctx)
+	for _, command := range []string{"/topic", "/primary", "/coworkers"} {
+		if !catalogContainsCommand(page, command) {
+			t.Fatalf("collaboration page missing %s", command)
+		}
 	}
 }
 
 func TestPrimaryCommandProjectsGroupMenuForNoPrimaryBot(t *testing.T) {
-	page := BuildFeishuCommandMenuGroupPageViewForContext(FeishuCommandGroupCommonTools, CatalogContext{
+	page := BuildFeishuCommandMenuGroupPageViewForContext(FeishuCommandGroupCollaboration, CatalogContext{
 		ProductMode:      "normal",
 		SurfaceScopeKind: string(CatalogSurfaceScopeKindChat),
 		PrimaryBotState:  string(CatalogPrimaryBotStateNone),
@@ -261,7 +265,7 @@ func TestPrimaryCommandProjectsGroupMenuForNoPrimaryBot(t *testing.T) {
 }
 
 func TestPrimaryCommandProjectsGroupMenuForCurrentPrimaryBot(t *testing.T) {
-	page := BuildFeishuCommandMenuGroupPageViewForContext(FeishuCommandGroupCommonTools, CatalogContext{
+	page := BuildFeishuCommandMenuGroupPageViewForContext(FeishuCommandGroupCollaboration, CatalogContext{
 		ProductMode:      "normal",
 		SurfaceScopeKind: string(CatalogSurfaceScopeKindChat),
 		PrimaryBotState:  string(CatalogPrimaryBotStateCurrent),
@@ -276,7 +280,7 @@ func TestPrimaryCommandProjectsGroupMenuForCurrentPrimaryBot(t *testing.T) {
 }
 
 func TestPrimaryCommandProjectsGroupMenuForOtherPrimaryBot(t *testing.T) {
-	page := BuildFeishuCommandMenuGroupPageViewForContext(FeishuCommandGroupCommonTools, CatalogContext{
+	page := BuildFeishuCommandMenuGroupPageViewForContext(FeishuCommandGroupCollaboration, CatalogContext{
 		ProductMode:      "normal",
 		SurfaceScopeKind: string(CatalogSurfaceScopeKindChat),
 		PrimaryBotState:  string(CatalogPrimaryBotStateOther),
@@ -341,7 +345,7 @@ func TestResolveFeishuCommandDisplayProfileForContextUsesOpenCodeProfile(t *test
 	}
 
 	currentWork := ResolveFeishuCommandDisplayGroup(FeishuCommandGroupCurrentWork, true, ctx)
-	if got, want := resolvedDisplayCommands(currentWork), []string{"/stop", "/new", "/status"}; !reflect.DeepEqual(got, want) {
+	if got, want := resolvedDisplayCommands(currentWork), []string{"/status", "/new", "/history", "/stop"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("opencode current_work menu commands = %#v, want %#v", got, want)
 	}
 

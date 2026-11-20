@@ -11,7 +11,7 @@ var feishuRenameCommandSpec = feishuCommandSpec{
 		ArgumentFormHint: "设备录制检查",
 		ArgumentFormNote: "输入当前会话的新名称；留空不会修改原名。",
 		ArgumentSubmit:   "重命名",
-		Description:      "仅 Codex headless 模式可用：修改当前已选择会话的正式名称，支持中文，不改变工作区或会话路由。",
+		Description:      "修改当前 Codex 会话的名称。",
 		Examples:         []string{"/rename 设备录制检查", "/rename NanoPi WLAN 3 检查"},
 		ShowInHelp:       true,
 		ShowInMenu:       true,

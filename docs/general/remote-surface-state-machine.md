@@ -1,7 +1,7 @@
 # Remote Surface 核心状态机
 
 > Type: `general`
-> Updated: `2026-11-19`
+> Updated: `2026-11-20`
 > Summary: 飞书话题空闲时可切换已有会话；新目标可用并持久化后才改变绑定，失败或重启保留已提交目标；消息撤回按消息归属处理，不要求任务操作者身份。
 > 1. visible 但 contract mismatch 的 workspace/session 仍然可见，不会再被 `/list`、`/use`、workspace recency、target picker 直接吞掉；
 > 2. 这些 mismatch 候选不会再假装“可直接接管”；
@@ -1172,11 +1172,10 @@ Codex headless 的 `/workspace list`、`/list`、`/use`、`/useall` 在接入 de
    3. `vscode` 下帮助文本仍保留 `/list`、`/use`、`/useall` 三个独立入口。
    4. `/mcpoauth <server>` 当前 help-visible、menu-hidden；它用于显式发起 MCP server OAuth login，不进入 `/menu` 主展示。
 4. bare 参数命令现在统一走“快捷按钮 + 单字段表单”：
-  1. `参数设置`：`/reasoning`、`/model`、`/access`、`/plan`、`/verbose`、`/autocontinue`
-  2. `常用工具 / 系统管理`：`/autowhip`、`/mode`
-   3. 表单提交通过 card callback `page_submit` 直接回填结构化 `action_kind/field_name/action_arg_prefix`，再生成 canonical `Action.Text`。
-5. `常用工具` 分组里的 `/primary` 只在群聊 context 展示，并按 `PrimaryBotState` 投影为“设为本群主机器人 / 取消主机器人 / 切换为当前机器人 / 查看状态 / 刷新权限”；单聊菜单隐藏，但手输 `/primary...` 会提示只能在群聊使用。
-6. `常用工具` 分组里的 `/cron`、`/bendtomywill`，以及 `系统管理` 分组里的 `/debug`、`/upgrade` 当前仍然是直接触发 daemon 动作的命令入口，不属于参数卡表单；`/mcpoauth` 也是直接 daemon command，但当前不进菜单，只在 slash/help 路径暴露。
+  1. `参数设置`：`/model`、`/reasoning`、`/plan`、`/access`、`/verbose`、`/autowhip`、`/autocontinue`、`/mode`。
+  2. 表单提交通过 card callback `page_submit` 直接回填结构化 `action_kind/field_name/action_arg_prefix`，再生成 canonical `Action.Text`。
+5. `群聊协作` 集中 `/topic`、`/primary`、`/coworkers`，只在群聊展示。`/primary` 按 `PrimaryBotState` 投影为“设为本群主机器人 / 取消主机器人 / 切换为当前机器人 / 查看状态 / 刷新权限”；单聊菜单隐藏，但手输 `/primary...` 会提示只能在群聊使用。
+6. `会话操作` 分组里的 `/bendtomywill`、`常用工具` 分组里的 `/cron`，以及 `系统管理` 分组里的 `/debug`、`/upgrade` 当前仍然是直接触发 daemon 动作的命令入口，不属于参数卡表单；`/mcpoauth` 也是直接 daemon command，但当前不进菜单，只在 slash/help 路径暴露。
 7. 二级分组当前通过卡片按钮 + breadcrumb 返回首页实现，不依赖飞书后台把整棵导航树都铺成静态菜单。
 8. 同上下文菜单导航当前已经支持“替换当前卡片”而不是追加新卡，但只限窄范围：
    1. `/menu` 首页 <-> 二级分组页

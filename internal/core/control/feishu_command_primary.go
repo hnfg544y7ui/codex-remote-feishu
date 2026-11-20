@@ -3,7 +3,7 @@ package control
 var feishuPrimaryCommandSpec = feishuCommandSpec{
 	definition: FeishuCommandDefinition{
 		ID:               FeishuCommandPrimary,
-		GroupID:          FeishuCommandGroupCommonTools,
+		GroupID:          FeishuCommandGroupCollaboration,
 		Title:            "群主机器人",
 		CanonicalSlash:   "/primary",
 		CanonicalMenuKey: "primary",
@@ -11,7 +11,7 @@ var feishuPrimaryCommandSpec = feishuCommandSpec{
 		ArgumentFormHint: "status",
 		ArgumentFormNote: "输入 on / off / status / refresh。",
 		ArgumentSubmit:   "执行",
-		Description:      "设置或查看本群承接未 @ 普通消息的主机器人。",
+		Description:      "选择接收群主界面未 @ 消息的默认机器人。",
 		Examples:         []string{"/primary on", "/primary off", "/primary status", "/primary refresh"},
 		Options: []FeishuCommandOption{
 			commandOption("/primary", "primary", "on", "设为本群主机器人", "把当前机器人设为本群主机器人。"),
@@ -41,15 +41,15 @@ var feishuPrimaryCommandSpec = feishuCommandSpec{
 var feishuCoworkersCommandSpec = feishuCommandSpec{
 	definition: FeishuCommandDefinition{
 		ID:               FeishuCommandCoworkers,
-		GroupID:          FeishuCommandGroupCommonTools,
+		GroupID:          FeishuCommandGroupCollaboration,
 		Title:            "群内并发上限",
 		CanonicalSlash:   "/coworkers",
 		CanonicalMenuKey: "coworkers",
 		ArgumentKind:     FeishuCommandArgumentText,
 		ArgumentFormHint: "2",
-		ArgumentFormNote: "输入非负整数设置并发上限，或输入 status 查看；0 表示不限制。",
+		ArgumentFormNote: "输入并发上限，0 表示不限。输入 status 查看当前值。",
 		ArgumentSubmit:   "设置",
-		Description:      "设置或查看当前群同时运行的机器人数量上限；0 表示不限制。",
+		Description:      "查看本群同时运行的机器人数量上限。由本群主机器人设置，0 表示不限。",
 		Examples:         []string{"/coworkers 2", "/coworkers status"},
 		ShowInHelp:       true,
 		ShowInMenu:       true,

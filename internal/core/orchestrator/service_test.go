@@ -314,7 +314,7 @@ func TestApplySurfaceActionBuildsVerboseCatalog(t *testing.T) {
 		t.Fatalf("expected verbose catalog event, got %#v", events)
 	}
 	catalog := commandCatalogFromEvent(t, events[0])
-	if catalog.Title != "提示详细程度" {
+	if catalog.Title != "过程消息详略" {
 		t.Fatalf("unexpected verbose catalog: %#v", catalog)
 	}
 	if events[0].PageView == nil || events[0].PageView.CommandID != control.FeishuCommandVerbose {

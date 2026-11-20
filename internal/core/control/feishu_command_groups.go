@@ -1,11 +1,12 @@
 package control
 
 const (
-	FeishuCommandGroupCurrentWork  = "current_work"
-	FeishuCommandGroupSendSettings = "send_settings"
-	FeishuCommandGroupSwitchTarget = "switch_target"
-	FeishuCommandGroupCommonTools  = "common_tools"
-	FeishuCommandGroupMaintenance  = "maintenance"
+	FeishuCommandGroupCurrentWork   = "current_work"
+	FeishuCommandGroupSendSettings  = "send_settings"
+	FeishuCommandGroupSwitchTarget  = "switch_target"
+	FeishuCommandGroupCommonTools   = "common_tools"
+	FeishuCommandGroupCollaboration = "group_chat"
+	FeishuCommandGroupMaintenance   = "maintenance"
 )
 
 type FeishuCommandArgumentKind string
@@ -26,7 +27,7 @@ type FeishuCommandGroup struct {
 var feishuCommandGroups = []FeishuCommandGroup{
 	{
 		ID:          FeishuCommandGroupCurrentWork,
-		Title:       "基本命令",
+		Title:       "会话操作",
 		Description: "",
 	},
 	{
@@ -44,6 +45,10 @@ var feishuCommandGroups = []FeishuCommandGroup{
 		ID:          FeishuCommandGroupCommonTools,
 		Title:       "常用工具",
 		Description: "",
+	},
+	{
+		ID:    FeishuCommandGroupCollaboration,
+		Title: "群聊协作",
 	},
 	{
 		ID:            FeishuCommandGroupMaintenance,

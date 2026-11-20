@@ -5,7 +5,7 @@ var feishuScheduleCommandSpec = feishuCommandSpec{
 		ID: FeishuCommandSchedule, GroupID: FeishuCommandGroupCommonTools,
 		Title: "聊天定时任务", CanonicalSlash: "/schedule", CanonicalMenuKey: "schedule",
 		ArgumentKind: FeishuCommandArgumentNone,
-		Description:  "在飞书聊天里用自然语言创建本机定时任务；查询、暂停、恢复和删除自己在当前聊天创建的任务。",
+		Description:  "管理你在当前聊天创建的定时任务。创建任务可直接用自然语言描述时间和内容。",
 		Examples:     []string{"/schedule", "/schedule list", "/schedule pause task_ID", "/schedule resume task_ID", "/schedule delete task_ID"},
 		ShowInHelp:   true, ShowInMenu: true,
 	},

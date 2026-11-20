@@ -99,8 +99,8 @@ func TestRejectedInboundActionDetailShowsMenuFallback(t *testing.T) {
 	got := rejectedInboundActionDetail(control.Action{
 		Kind: control.ActionStop,
 	})
-	if got != "停止推理（对应 /stop）" {
-		t.Fatalf("rejectedInboundActionDetail() = %q, want %q", got, "停止推理（对应 /stop）")
+	if got != "停止当前执行（对应 /stop）" {
+		t.Fatalf("rejectedInboundActionDetail() = %q, want %q", got, "停止当前执行（对应 /stop）")
 	}
 }
 

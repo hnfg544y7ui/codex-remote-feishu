@@ -12,11 +12,11 @@ func TestFeishuMenuGroupClassificationMatchesTaskModel(t *testing.T) {
 	}{
 		{
 			groupID: FeishuCommandGroupCurrentWork,
-			want:    []string{FeishuCommandStop, FeishuCommandCompact, FeishuCommandRename, FeishuCommandSteerAll, FeishuCommandNew, FeishuCommandStatus},
+			want:    []string{FeishuCommandStatus, FeishuCommandNew, FeishuCommandHistory, FeishuCommandRename, FeishuCommandGoal, FeishuCommandStop, FeishuCommandSteerAll, FeishuCommandCompact, FeishuCommandPatch},
 		},
 		{
 			groupID: FeishuCommandGroupSendSettings,
-			want:    []string{FeishuCommandMode, FeishuCommandReasoning, FeishuCommandModel, FeishuCommandAccess, FeishuCommandPlan, FeishuCommandVerbose, FeishuCommandAutoContinue, FeishuCommandCodexProfile, FeishuCommandClaudeProfile, FeishuCommandGoal, FeishuCommandOpenCodeProfile},
+			want:    []string{FeishuCommandModel, FeishuCommandReasoning, FeishuCommandPlan, FeishuCommandAccess, FeishuCommandVerbose, FeishuCommandAutoWhip, FeishuCommandAutoContinue, FeishuCommandMode, FeishuCommandCodexProfile, FeishuCommandClaudeProfile, FeishuCommandOpenCodeProfile},
 		},
 		{
 			groupID: FeishuCommandGroupSwitchTarget,
@@ -37,7 +37,11 @@ func TestFeishuMenuGroupClassificationMatchesTaskModel(t *testing.T) {
 		},
 		{
 			groupID: FeishuCommandGroupCommonTools,
-			want:    []string{FeishuCommandReview, FeishuCommandPatch, FeishuCommandAutoWhip, FeishuCommandPrimary, FeishuCommandCoworkers, FeishuCommandTopic, FeishuCommandHistory, FeishuCommandSchedule, FeishuCommandCron, FeishuCommandSendFile},
+			want:    []string{FeishuCommandReview, FeishuCommandSendFile, FeishuCommandSchedule, FeishuCommandCron},
+		},
+		{
+			groupID: FeishuCommandGroupCollaboration,
+			want:    []string{FeishuCommandTopic, FeishuCommandPrimary, FeishuCommandCoworkers},
 		},
 		{
 			groupID: FeishuCommandGroupMaintenance,

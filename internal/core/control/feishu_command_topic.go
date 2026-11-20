@@ -5,12 +5,12 @@ import "strings"
 var feishuTopicCommandSpec = feishuCommandSpec{
 	definition: FeishuCommandDefinition{
 		ID:               FeishuCommandTopic,
-		GroupID:          FeishuCommandGroupCommonTools,
-		Title:            "话题会话",
+		GroupID:          FeishuCommandGroupCollaboration,
+		Title:            "话题列表",
 		CanonicalSlash:   "/topic",
 		CanonicalMenuKey: "topic",
 		ArgumentKind:     FeishuCommandArgumentNone,
-		Description:      "查看本群话题会话；在群主聊天发送 /topic new 名称创建一个独立会话话题。",
+		Description:      "查看本群话题。要新建话题，在群主界面发送 /topic new 名称。",
 		Examples:         []string{"/topic list", "/topic new 开发任务", "/topic close"},
 		ShowInHelp:       true,
 		ShowInMenu:       true,

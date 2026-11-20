@@ -42,6 +42,7 @@ func PageElementsWithOptions(view control.FeishuPageView, daemonLifecycleID stri
 	}
 	elements = cardkit.AppendTextSections(elements, view.AsyncQuestionReceiptSections)
 	hasBusinessContent := len(bodySections) != 0 || len(view.AsyncQuestionReceiptSections) != 0
+	showGroupDescriptions := view.CommandID == control.FeishuCommandMenu && len(view.Breadcrumbs) > 1
 	for _, section := range view.Sections {
 		title := strings.TrimSpace(section.Title)
 		if title != "" {
@@ -56,6 +57,9 @@ func PageElementsWithOptions(view control.FeishuPageView, daemonLifecycleID stri
 				elements = append(elements, pageCompactButtonElements(entry.Buttons, view.CatalogBackend, daemonLifecycleID)...)
 				renderedCompactButtons = true
 				if entry.Form == nil {
+					if description := strings.TrimSpace(entry.Description); showGroupDescriptions && description != "" {
+						elements = cardkit.AppendTextSections(elements, []control.FeishuCardTextSection{{Lines: []string{description}}})
+					}
 					continue
 				}
 			}

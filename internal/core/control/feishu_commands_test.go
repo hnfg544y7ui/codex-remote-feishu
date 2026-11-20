@@ -552,20 +552,12 @@ func TestParseCoworkersCommandUsesSharedTextAndMenuRoutes(t *testing.T) {
 	}
 }
 
-func TestCoworkersCommandIsVisibleInHelpAndMenuCatalogs(t *testing.T) {
-	for _, catalog := range []FeishuPageView{FeishuCommandHelpPageView(), FeishuCommandMenuPageView()} {
-		found := false
-		for _, section := range catalog.Sections {
-			for _, entry := range section.Entries {
-				for _, command := range entry.Commands {
-					if command == "/coworkers" {
-						found = true
-					}
-				}
-			}
-		}
-		if !found {
-			t.Fatalf("catalog %q does not include /coworkers", catalog.Title)
+func TestCoworkersCommandIsVisibleInGroupHelpAndMenuCatalogs(t *testing.T) {
+	for _, interactive := range []bool{false, true} {
+		ctx := CatalogContext{SurfaceScopeKind: string(CatalogSurfaceScopeKindChat)}
+		catalog := BuildFeishuCommandDisplayPageViewForContext("命令目录", "", interactive, ctx)
+		if !catalogContainsCommand(catalog, "/coworkers") {
+			t.Fatalf("group catalog interactive=%v does not include /coworkers", interactive)
 		}
 	}
 	def, ok := FeishuCommandDefinitionByID(FeishuCommandCoworkers)
@@ -625,13 +617,13 @@ func TestFeishuHelpVisibleCommandsHaveCanonicalSlashParsing(t *testing.T) {
 func TestFeishuRecommendedMenusStayInSuggestedOrder(t *testing.T) {
 	got := FeishuRecommendedMenus()
 	want := []FeishuRecommendedMenu{
-		{Key: "menu", Name: "命令菜单", Description: "打开阶段感知的命令菜单首页。"},
-		{Key: "stop", Name: "停止推理", Description: "中断当前执行，并丢弃飞书侧尚未发送的排队输入。"},
-		{Key: "steerall", Name: "全部加速", Description: "把当前队列里可并入本轮执行的输入一次性并入当前 running turn。"},
-		{Key: "new", Name: "新建会话", Description: "仅 headless 模式可用：准备一个新会话，下一条消息会作为首条输入。"},
-		{Key: "reasoning", Name: "推理强度", Description: "打开推理强度参数卡；如果知道完整 key，也可直接使用 `reasoning_high` 这类直达入口。"},
-		{Key: "model", Name: "使用模型", Description: "打开模型卡片；如果知道完整 key，也可直接使用 `model_gpt-5.5` 这类直达入口。"},
-		{Key: "access", Name: "执行权限", Description: "打开执行权限参数卡；如果知道完整 key，也可直接使用 `access_confirm` 这类直达入口。"},
+		{Key: "menu", Name: "命令菜单", Description: "打开命令菜单。"},
+		{Key: "stop", Name: "停止当前执行", Description: "中断当前执行，并清除飞书中尚未发送的排队消息。"},
+		{Key: "steerall", Name: "合并排队消息", Description: "将队列里可追加的消息一起送进正在执行的这一轮。"},
+		{Key: "new", Name: "新建会话", Description: "在当前工作区准备新会话，下一条消息会发到新会话。"},
+		{Key: "reasoning", Name: "推理强度", Description: "查看并调整推理强度。"},
+		{Key: "model", Name: "使用模型", Description: "查看并选择模型。"},
+		{Key: "access", Name: "执行权限", Description: "查看并调整执行权限。"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("recommended menus mismatch:\n got: %#v\nwant: %#v", got, want)

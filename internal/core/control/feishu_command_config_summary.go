@@ -66,11 +66,14 @@ func commandConfigBaseSummarySections(view FeishuCatalogConfigView) []FeishuCard
 			singleValueCardSection("切换方式", "切换后会重启当前工作区，并按新的 OpenCode Profile 重新准备当前会话。"),
 		}
 	case FeishuCommandAutoWhip:
-		return []FeishuCardTextSection{singleValueCardSection("当前", autoWhipDisplayValue(view.CurrentValue))}
+		return []FeishuCardTextSection{
+			singleValueCardSection("当前", autoWhipDisplayValue(view.CurrentValue)),
+			singleValueCardSection("触发条件", "一轮执行结束，且回复表明任务还没完成。"),
+		}
 	case FeishuCommandAutoContinue:
 		return []FeishuCardTextSection{
 			singleValueCardSection("当前", autoContinueDisplayValue(view.CurrentValue)),
-			singleValueCardSection("作用范围", "只处理上游可重试失败，不影响 AutoWhip"),
+			singleValueCardSection("触发条件", "本轮因可重试错误失败。"),
 		}
 	case FeishuCommandReasoning:
 		return promptValueCardSections(view)

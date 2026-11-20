@@ -143,9 +143,9 @@ func catalogButtonLabel(def FeishuCommandDefinition) string {
 func feishuCommandDisplayRank(groupID, commandID string) int {
 	switch strings.TrimSpace(groupID) {
 	case FeishuCommandGroupCurrentWork:
-		return commandRank(commandID, FeishuCommandStop, FeishuCommandCompact, FeishuCommandRename, FeishuCommandSteerAll, FeishuCommandNew, FeishuCommandStatus)
+		return commandRank(commandID, FeishuCommandStatus, FeishuCommandNew, FeishuCommandHistory, FeishuCommandRename, FeishuCommandGoal, FeishuCommandStop, FeishuCommandSteerAll, FeishuCommandCompact, FeishuCommandPatch)
 	case FeishuCommandGroupSendSettings:
-		return commandRank(commandID, FeishuCommandMode, FeishuCommandReasoning, FeishuCommandModel, FeishuCommandAccess, FeishuCommandPlan, FeishuCommandVerbose, FeishuCommandAutoContinue)
+		return commandRank(commandID, FeishuCommandModel, FeishuCommandReasoning, FeishuCommandPlan, FeishuCommandAccess, FeishuCommandVerbose, FeishuCommandAutoWhip, FeishuCommandAutoContinue, FeishuCommandMode, FeishuCommandCodexProfile, FeishuCommandClaudeProfile, FeishuCommandOpenCodeProfile)
 	case FeishuCommandGroupSwitchTarget:
 		return commandRank(
 			commandID,
@@ -163,7 +163,9 @@ func feishuCommandDisplayRank(groupID, commandID string) int {
 			FeishuCommandFollow,
 		)
 	case FeishuCommandGroupCommonTools:
-		return commandRank(commandID, FeishuCommandReview, FeishuCommandPatch, FeishuCommandAutoWhip, FeishuCommandPrimary, FeishuCommandCoworkers, FeishuCommandTopic, FeishuCommandHistory, FeishuCommandSchedule, FeishuCommandCron, FeishuCommandSendFile)
+		return commandRank(commandID, FeishuCommandReview, FeishuCommandSendFile, FeishuCommandSchedule, FeishuCommandCron, FeishuCommandMCPOAuth)
+	case FeishuCommandGroupCollaboration:
+		return commandRank(commandID, FeishuCommandTopic, FeishuCommandPrimary, FeishuCommandCoworkers)
 	case FeishuCommandGroupMaintenance:
 		return commandRank(commandID, FeishuCommandAdmin, FeishuCommandUpgrade, FeishuCommandDebug, FeishuCommandHelp, FeishuCommandVSCodeMigrate)
 	default:

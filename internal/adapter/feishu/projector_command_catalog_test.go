@@ -11,6 +11,22 @@ import (
 	"github.com/kxn/codex-remote-feishu/internal/core/control"
 )
 
+func TestProjectSessionMenuShowsStopEffectAndKeepsLocalBackAction(t *testing.T) {
+	view := control.BuildFeishuCommandMenuGroupPageViewForContext(control.FeishuCommandGroupCurrentWork, control.CatalogContext{
+		ProductMode: "normal", MenuStage: string(control.FeishuCommandMenuStageNormalWorking),
+	})
+	ops := NewProjector().ProjectEvent("chat-1", commandCatalogEvent(view))
+	if len(ops) != 1 {
+		t.Fatalf("expected one menu card, got %d", len(ops))
+	}
+	elements := ops[0].CardElements
+	if !containsCardTextExact(elements, "中断当前执行，并清除飞书中尚未发送的排队消息。") {
+		t.Fatal("stop button description omits the effect on queued messages")
+	}
+	back := cardElementButtons(t, elements[len(elements)-1])
+	assertPageLocalActionPayloadMatchesCommand(t, cardButtonPayload(t, back[0]), "/menu")
+}
+
 func TestProjectInteractiveCommandCatalogRendersBreadcrumbsAndCommandForm(t *testing.T) {
 	projector := NewProjector()
 	ops := projector.ProjectEvent("chat-1", commandCatalogEvent(control.FeishuPageView{
@@ -292,7 +308,9 @@ func TestProjectInteractiveCommandCatalogPaginationPreservesOffPageSelection(t *
 func TestProjectMenuHomeRendersRootBreadcrumbAndNamedGroupButtons(t *testing.T) {
 	projector := NewProjector()
 	projector.SetMenuHomeVersion("v9.9.9")
-	view := control.BuildFeishuCommandMenuHomePageViewForContext(control.CatalogContext{})
+	view := control.BuildFeishuCommandMenuHomePageViewForContext(control.CatalogContext{
+		SurfaceScopeKind: string(control.CatalogSurfaceScopeKindChat),
+	})
 	ops := projector.ProjectEvent("chat-1", commandCatalogEvent(view))
 	if len(ops) != 1 || ops[0].Kind != OperationSendCard {
 		t.Fatalf("unexpected ops: %#v", ops)
