@@ -564,7 +564,7 @@ func TestHandleGatewayActionReplacesCardOwnedParameterApply(t *testing.T) {
 	if len(gateway.operations) != 0 {
 		t.Fatalf("expected no appended gateway operation for card-owned parameter apply, got %#v", gateway.operations)
 	}
-	if result.ReplaceCurrentCard.CardTitle != "AutoWhip" {
+	if result.ReplaceCurrentCard.CardTitle != "未完成时追问" {
 		t.Fatalf("unexpected replacement card: %#v", result.ReplaceCurrentCard)
 	}
 }

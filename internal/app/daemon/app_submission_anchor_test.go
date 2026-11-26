@@ -126,7 +126,7 @@ func TestHandleGatewayActionContinuesBareCronInPlace(t *testing.T) {
 	if result == nil || result.ReplaceCurrentCard == nil {
 		t.Fatalf("expected inline continuation replacement result, got %#v", result)
 	}
-	if result.ReplaceCurrentCard.CardTitle != "定时任务" {
+	if result.ReplaceCurrentCard.CardTitle != "多维表格定时任务" {
 		t.Fatalf("expected in-place cron card, got %#v", result.ReplaceCurrentCard)
 	}
 	if len(gateway.operations) != 0 {

@@ -7,37 +7,37 @@
       {
         "key": "menu",
         "name": "命令菜单",
-        "description": "打开阶段感知的命令菜单首页。"
+        "description": "打开命令菜单。"
       },
       {
         "key": "stop",
-        "name": "停止推理",
-        "description": "中断当前执行，并丢弃飞书侧尚未发送的排队输入。"
+        "name": "停止当前执行",
+        "description": "中断当前执行，并清除飞书中尚未发送的排队消息。"
       },
       {
         "key": "steerall",
-        "name": "全部加速",
-        "description": "把当前队列里可并入本轮执行的输入一次性并入当前 running turn。"
+        "name": "合并排队消息",
+        "description": "将队列里可追加的消息一起送进正在执行的这一轮。"
       },
       {
         "key": "new",
         "name": "新建会话",
-        "description": "仅 headless 模式可用：准备一个新会话，下一条消息会作为首条输入。"
+        "description": "在当前工作区准备新会话，下一条消息会发到新会话。"
       },
       {
         "key": "reasoning",
         "name": "推理强度",
-        "description": "打开推理强度参数卡；如果知道完整 key，也可直接使用 `reasoning_high` 这类直达入口。"
+        "description": "查看并调整推理强度。"
       },
       {
         "key": "model",
         "name": "使用模型",
-        "description": "打开模型卡片；如果知道完整 key，也可直接使用 `model_gpt-5.5` 这类直达入口。"
+        "description": "查看并选择模型。"
       },
       {
         "key": "access",
         "name": "执行权限",
-        "description": "打开执行权限参数卡；如果知道完整 key，也可直接使用 `access_confirm` 这类直达入口。"
+        "description": "查看并调整执行权限。"
       }
     ]
   },
